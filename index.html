@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1722">
+<title>지금타 · 라이브 지하철 ETA</title>
+<style>
+:root{
+ --bg:#f3f5f7;--surface:#fff;--surface2:#f8fafb;--text:#11161d;--muted:#6b7581;
+ --line:#e2e7ec;--navy:#0f1722;--blue:#1e63d6;--bluebg:#edf4ff;
+ --green:#087451;--greenbg:#eaf8f2;--red:#b83232;--redbg:#fff0f0;
+ --amber:#946100;--amberbg:#fff5df;--shadow:0 12px 36px rgba(20,32,48,.07);
+ --r:20px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Pretendard,"Noto Sans KR",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select{font:inherit}
+button{touch-action:manipulation}
+.wrap{max-width:1180px;margin:auto;padding:24px 18px 72px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:11px}
+.logo{width:44px;height:44px;border-radius:14px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:900;letter-spacing:-.5px}
+.brand h1{margin:0;font-size:20px;letter-spacing:-.5px}
+.brand p{margin:3px 0 0;font-size:11px;color:var(--muted)}
+.status{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:#9ca6b1}.status.ok .dot{background:#18a674}.status.ok{color:var(--green)}
+
+.hero{background:var(--navy);color:#fff;border-radius:26px;padding:30px 31px;margin-bottom:15px;box-shadow:var(--shadow)}
+.hero h2{margin:0 0 9px;font-size:28px;line-height:1.28;letter-spacing:-1.1px;max-width:760px}
+.hero p{margin:0;max-width:820px;color:#c8d2dd;font-size:13px;line-height:1.65}
+.hero strong{color:#fff}
+
+.main{display:grid;grid-template-columns:410px 1fr;gap:15px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.builder{padding:19px;position:sticky;top:14px}
+.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.sectionHead h3{font-size:14px;margin:0;letter-spacing:-.2px}
+.subtle{font-size:9px;color:var(--muted)}
+
+.quickTime{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+.timeChip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 10px;font-size:10px;font-weight:800;color:#475462;cursor:pointer}
+.timeChip:hover,.timeChip.active{border-color:#9ebae8;background:var(--bluebg);color:#174f9c}
+.timeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field{margin-bottom:12px}
+label{display:block;margin:0 0 6px;font-size:9px;font-weight:900;color:#596572}
+input,select{width:100%;border:1px solid #d8dee5;border-radius:11px;background:#fff;padding:10px 11px;color:var(--text);outline:none}
+input:focus,select:focus{border-color:#8eafe6;box-shadow:0 0 0 3px #edf4ff}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #6290df;outline-offset:2px}
+
+.favRow{display:grid;grid-template-columns:1fr auto;gap:7px;margin-bottom:14px}
+.favSelect{min-width:0}
+.iconBtn{border:1px solid var(--line);background:#fff;border-radius:11px;padding:0 12px;cursor:pointer;font-weight:900;color:#56616d}
+.iconBtn:hover{background:#f5f7f9}
+.favActions{display:flex;gap:6px;margin-top:-5px;margin-bottom:14px}
+.smallBtn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;font-size:9px;font-weight:800;cursor:pointer;color:#4e5a67}
+.smallBtn.danger{color:#9b3b3b}
+.smallBtn:hover{background:#f5f7f9}
+
+.segment{border:1px solid var(--line);background:#fbfcfd;border-radius:15px;padding:12px;margin-bottom:9px}
+.segHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.segTitle{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:900}
+.lineMark{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;color:white;font-size:10px;font-weight:900;background:#65717e}
+.remove{border:0;background:transparent;color:#8a95a1;font-size:17px;cursor:pointer;padding:1px 4px}
+.segGrid{display:grid;grid-template-columns:116px 1fr 1fr 70px;gap:6px;align-items:end}
+.segGrid label{font-size:8px}
+.segment[data-line="1호선"] .lineMark{background:#0052A4}.segment[data-line="2호선"] .lineMark{background:#00A84D}
+.segment[data-line="3호선"] .lineMark{background:#EF7C1C}.segment[data-line="4호선"] .lineMark{background:#00A5DE}
+.segment[data-line="5호선"] .lineMark{background:#996CAC}.segment[data-line="6호선"] .lineMark{background:#CD7C2F}
+.segment[data-line="7호선"] .lineMark{background:#747F00}.segment[data-line="8호선"] .lineMark{background:#E6186C}
+.segment[data-line="9호선"] .lineMark{background:#BDB092}
+.segment[data-line="경의중앙선"] .lineMark{background:#56A98A}
+.segment[data-line="수인분당선"] .lineMark{background:#E8A000}
+.addBtn{width:100%;border:1px dashed #bcc6d0;background:#fff;border-radius:11px;padding:10px;font-size:10px;font-weight:850;color:#52606d;cursor:pointer}
+.primary{width:100%;border:0;border-radius:12px;padding:13px 14px;background:var(--navy);color:white;font-weight:900;cursor:pointer;margin-top:9px}
+.primary:hover{filter:brightness(1.08)}
+.helper{font-size:9px;color:#7a8591;line-height:1.55;margin-top:10px}
+
+.resultCol{display:flex;flex-direction:column;gap:13px}
+.summaryCard{padding:23px}
+.summaryTop{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.eyebrow{font-size:9px;color:var(--muted);font-weight:900}
+.summaryCard h3{font-size:27px;line-height:1.2;letter-spacing:-1px;margin:6px 0 7px}
+.summaryCard p{font-size:11px;color:var(--muted);line-height:1.55;margin:0;max-width:610px}
+.summaryIcon{width:60px;height:60px;border-radius:18px;background:var(--bluebg);display:grid;place-items:center;font-size:28px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:17px}
+.metric{border-top:1px solid var(--line);padding-top:11px}.metric b{display:block;font-size:18px}.metric span{font-size:8px;color:var(--muted)}
+
+.flowCard{padding:20px}.flow{display:flex;flex-direction:column;gap:7px}
+.leg{border:1px solid var(--line);border-radius:15px;padding:13px;background:#fff}
+.leg.high{border-left:4px solid var(--green)}.leg.medium{border-left:4px solid var(--amber)}.leg.low{border-left:4px solid var(--red)}
+.legTop{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.lineBadge{min-width:62px;white-space:nowrap;padding:7px 8px;border-radius:999px;color:#fff;background:#65717e;text-align:center;font-size:9px;font-weight:900}
+.lineBadge[data-line="1호선"]{background:#0052A4}.lineBadge[data-line="2호선"]{background:#00A84D}.lineBadge[data-line="3호선"]{background:#EF7C1C}
+.lineBadge[data-line="4호선"]{background:#00A5DE}.lineBadge[data-line="5호선"]{background:#996CAC}.lineBadge[data-line="6호선"]{background:#CD7C2F}
+.lineBadge[data-line="7호선"]{background:#747F00}.lineBadge[data-line="8호선"]{background:#E6186C}.lineBadge[data-line="9호선"]{background:#BDB092}
+.lineBadge[data-line="경의중앙선"]{background:#56A98A}
+.lineBadge[data-line="수인분당선"]{background:#E8A000}
+.leg h4{font-size:12px;margin:0}.leg .meta{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.45}.clock{text-align:right;font-size:11px;font-weight:900}
+.details{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}.detail{background:#f6f8fa;border-radius:10px;padding:8px}.detail span{display:block;font-size:7px;color:var(--muted)}.detail b{display:block;font-size:10px;margin-top:3px}
+.transfer{text-align:center;color:#6a7580;font-size:9px;padding:1px 0}
+.notice{padding:10px 12px;border-radius:11px;font-size:9px;line-height:1.55;background:var(--amberbg);color:#75510e;margin-top:9px}
+.empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:10px}
+.error{padding:12px;border-radius:11px;background:var(--redbg);color:var(--red);font-size:10px;line-height:1.55}
+.loading{padding:30px 16px;text-align:center;color:var(--muted);font-size:10px}
+
+.footNote{padding:13px 16px;font-size:9px;color:#75808b;line-height:1.6;background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:#111922;color:#fff;border-radius:999px;padding:10px 14px;font-size:10px;font-weight:800;transition:.2s;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+
+
+
+.autoDayInfo{font-size:8px;color:#6d7884;margin-top:5px;line-height:1.35}
+.autoDayInfo.holiday{color:#8b5510;font-weight:850}
+.expressBadge{display:inline-flex;align-items:center;margin-left:5px;padding:2px 5px;border-radius:999px;background:#fff0e4;color:#b54800;font-size:7px;font-weight:950;vertical-align:1px;white-space:nowrap}
+.trainNoLine{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+
+.candidateBox{margin-top:10px;border-top:1px dashed #dfe5ea;padding-top:9px}
+.candidateBox summary{cursor:pointer;list-style:none;font-size:8px;font-weight:900;color:#66727e;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.candidateBox summary::-webkit-details-marker{display:none}
+.candidateBox summary::after{content:"▾";font-size:9px;color:#89939d}
+.candidateBox[open] summary::after{content:"▴"}
+.candidateList{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+.candidateRow{display:grid;grid-template-columns:auto 1fr auto auto;gap:7px;align-items:center;padding:8px 9px;border-radius:10px;background:#f7f9fb;border:1px solid #edf0f3}
+.candidateRow.selected{border-color:#b7cae8;background:#f3f7fd}
+.candidateTrain{font-size:9px;font-weight:900}
+.candidateMeta{font-size:8px;color:#6e7984;line-height:1.35}
+.candidateTime{font-size:9px;font-weight:900;text-align:right;white-space:nowrap}
+.sourceBadge{display:inline-block;margin-top:2px;border-radius:999px;padding:3px 5px;font-size:7px;font-weight:900}
+.sourceBadge.live{background:var(--greenbg);color:var(--green)}
+.sourceBadge.sched{background:var(--amberbg);color:#80570b}
+.candidateBoard{border:1px solid #c8d7d0;background:white;color:#13684c;border-radius:8px;padding:6px 7px;font-size:7px;font-weight:900;cursor:pointer;white-space:nowrap}
+.candidateBoard:hover{background:var(--greenbg)}
+.startHint{margin-top:8px;padding:8px 10px;border-radius:10px;background:#fff8e8;color:#775514;font-size:8px;line-height:1.45}
+
+.livePanel{display:none;padding:0;overflow:hidden;border:1px solid #bed8cd;background:#fff}
+.livePanel.show{display:block}
+.liveHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;background:var(--greenbg);border-bottom:1px solid #cce6da}
+.liveIdentity{display:flex;align-items:center;gap:10px}
+.pulse{width:10px;height:10px;border-radius:50%;background:#16a66f;box-shadow:0 0 0 0 rgba(22,166,111,.35);animation:pulse 1.8s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(22,166,111,0)}100%{box-shadow:0 0 0 0 rgba(22,166,111,0)}}
+.liveTitle{font-size:12px;font-weight:900}.liveSub{font-size:9px;color:#557268;margin-top:2px}
+.stopTrack{border:1px solid #bcd6cb;background:white;color:#356050;border-radius:10px;padding:7px 9px;font-size:9px;font-weight:850;cursor:pointer}
+.liveBody{padding:16px 17px}
+.liveStats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.liveStat{background:#f7faf8;border-radius:10px;padding:9px}
+.liveStat span{display:block;font-size:7px;color:#718079}.liveStat b{display:block;font-size:11px;margin-top:3px}
+.progressNote{font-size:9px;color:#61716a;line-height:1.5;margin-top:10px}
+.boardBtn{border:1px solid #bfd5cb;background:var(--greenbg);color:#0b6a49;border-radius:9px;padding:7px 9px;font-size:8px;font-weight:900;cursor:pointer}
+.boardBtn:hover{filter:brightness(.98)}
+.boardBtn.active{background:#0b7552;color:white;border-color:#0b7552}
+.boardBtn:disabled{opacity:.55;cursor:default}
+.nextChange{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--bluebg);color:#315a94;font-size:8px;line-height:1.45}
+
+@media(max-width:900px){
+ .wrap{padding:16px 12px 54px}.main{grid-template-columns:1fr}.builder{position:static}
+ .hero{padding:25px 22px}.hero h2{font-size:23px}.segGrid{grid-template-columns:82px 1fr 1fr}
+ .segGrid>div:last-child{grid-column:1/-1}.metrics{grid-template-columns:repeat(2,1fr)}
+ .details{grid-template-columns:repeat(2,1fr)}.legTop{grid-template-columns:54px 1fr}.clock{grid-column:2;text-align:left}
+ header{align-items:flex-start}.brand p{display:none}
+}
+@media(max-width:540px){
+ .hero h2{font-size:21px}.timeRow{grid-template-columns:1fr}.segGrid{grid-template-columns:1fr 1fr}
+ .segGrid>div:first-child{grid-column:1/-1}.summaryCard h3{font-size:23px}.summaryIcon{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div class="brand"><div class="logo">지금</div><div><h1>지금타</h1><p>1~9호선·경의중앙선·수인분당선의 시간표 후보부터 탑승 열차까지 추적</p></div></div>
+ <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
+</header>
+
+<section class="hero">
+ <h2>길은 이미 찾았다면,<br><strong>지금 실제로 몇 시에 도착하는지만 다시 계산.</strong></h2>
+ <p>1~9호선·경의중앙선·수인분당선의 현재 열차 위치와 공식 열차별 시간표를 결합해 환승마다 실제로 탈 수 있는 열차를 다시 선택하고 최종 도착시간을 계산합니다.</p>
+</section>
+
+<div class="main">
+ <aside class="card builder">
+  <div class="sectionHead"><h3>경로 설정</h3><span class="subtle">최대 8개 구간</span></div>
+
+  <div class="field">
+   <label>첫 승강장 도착</label>
+   <div class="quickTime" id="quickTime">
+    <button class="timeChip" data-min="0">지금</button>
+    <button class="timeChip" data-min="5">+5분</button>
+    <button class="timeChip active" data-min="10">+10분</button>
+    <button class="timeChip" data-min="15">+15분</button>
+    <button class="timeChip" data-min="20">+20분</button>
+    <button class="timeChip" data-min="30">+30분</button>
+   </div>
+   <div class="timeRow">
+    <div><label>정확한 시각</label><input id="startTime" type="time"></div>
+    <div><label>운행일</label>
+     <select id="day">
+      <option value="AUTO">자동</option>
+      <option value="DAY">평일</option>
+      <option value="SAT">토요일</option>
+      <option value="END">일요일·공휴일</option>
+     </select>
+     <div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div>
+    </div>
+   </div>
+  </div>
+
+  <div class="sectionHead" style="margin-top:3px"><h3>즐겨찾기</h3><span class="subtle">이 브라우저에 저장</span></div>
+  <div class="favRow">
+   <select id="favoriteSelect" class="favSelect"><option value="">저장된 경로 없음</option></select>
+   <button id="loadFav" class="iconBtn" title="불러오기">↗</button>
+  </div>
+  <div class="favActions">
+   <button id="saveFav" class="smallBtn">현재 경로 저장</button>
+   <button id="deleteFav" class="smallBtn danger">선택 삭제</button>
+  </div>
+
+  <div class="sectionHead"><h3>노선 구간</h3><span class="subtle">하차 후 다음 환승시간 입력</span></div>
+  <div id="segments"></div>
+  <button id="addBtn" class="addBtn">+ 구간 추가</button>
+
+  <div class="field" style="margin-top:13px;margin-bottom:0">
+   <label>기존 앱 예상 총시간 · 선택사항</label>
+   <input id="baseline" type="number" min="1" placeholder="예: 62">
+  </div>
+
+  <button id="calcBtn" class="primary">실시간 ETA 계산</button>
+  <div class="helper">즐겨찾기는 경로와 환승시간만 저장하며 출발시각은 저장하지 않습니다.</div>
+ </aside>
+
+ <main class="resultCol">
+  <section class="card summaryCard">
+   <div class="summaryTop">
+    <div><div class="eyebrow">실시간 경로 재계산</div><h3 id="sumTitle">경로를 설정하세요</h3><p id="sumText">경로 계산 후 실제 탑승한 열차를 표시하면 이동 중에도 ETA를 계속 갱신합니다.</p></div>
+    <div class="summaryIcon">🧭</div>
+   </div>
+   <div class="metrics">
+    <div class="metric"><b id="total">-</b><span>예상 총 소요시간</span></div>
+    <div class="metric"><b id="arrival">-</b><span>예상 도착</span></div>
+    <div class="metric"><b id="diff">-</b><span>기존 앱 대비</span></div>
+    <div class="metric"><b id="quality">-</b><span>최저 신뢰도</span></div>
+   </div>
+  </section>
+
+  <section id="livePanel" class="card livePanel">
+   <div class="liveHead">
+    <div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div>
+    <button id="stopTrack" class="stopTrack">추적 종료</button>
+   </div>
+   <div class="liveBody">
+    <div class="liveStats">
+     <div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div>
+     <div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div>
+     <div class="liveStat"><span>환승역까지</span><b id="liveRemain">-</b></div>
+     <div class="liveStat"><span>최종 도착</span><b id="liveArrival">-</b></div>
+    </div>
+    <div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div>
+   </div>
+  </section>
+
+  <section class="card flowCard">
+   <div class="sectionHead"><h3>구간별 결과</h3><span id="stamp" class="subtle">아직 계산하지 않음</span></div>
+   <div id="flow" class="empty">경로를 입력한 뒤 실시간 ETA 계산을 누르세요.</div>
+  </section>
+
+  <div class="footNote">
+   <b>계산 기준</b> · 시발역 근처에서 아직 실시간 위치에 잡히지 않은 열차는 공식 시간표 후보로 먼저 표시합니다. 현재 실제로 운행 중인 열차가 승차역 이전에 확인되면 직접 ETA를 계산합니다. 다음 환승 시각이 너무 멀어 해당 열차가 아직 실시간 위치에 잡히지 않으면 공식 시간표에 현재 동일 방향·등급 열차들의 지연 중앙값을 적용하며 신뢰도를 낮춰 표시합니다.
+  </div>
+ </main>
+</div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const lines=[...Array.from({length:9},(_,i)=>`${i+1}호선`),'경의중앙선','수인분당선'];
+const FAV_KEY='jigeumta_favorites_v1';
+let stations={},segId=0;
+let lastRouteResult=null;
+let liveTrip=null;
+let liveTimer=null;
+let countdownTimer=null;
+let nextRefreshAt=0;
+const TRIP_KEY='jigeumta_live_trip_v2';
+
+function toast(msg){
+ const t=$('toast');t.textContent=msg;t.classList.add('show');
+ clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>t.classList.remove('show'),1700);
+}
+function fmtDur(sec){sec=Math.max(0,Number(sec)||0);let m=Math.round(sec/60);return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`}
+function fmtClock(s){if(!s)return'-';let m=String(s).match(/(\d{2}):(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:s}
+function fmtDelay(s){s=Number(s)||0;if(Math.abs(s)<30)return'정시권';return`${s>=0?'+':'−'}${Math.round(Math.abs(s)/60)}분`}
+function confClass(c){return c==='높음'?'high':c==='중간'?'medium':'low'}
+function lineOpts(selected){return lines.map(x=>`<option ${x===selected?'selected':''}>${x}</option>`).join('')}
+
+function timePlus(mins){
+ const d=new Date(Date.now()+mins*60000);
+ return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function localDateTimeString(d){
+ // toISOString()은 UTC라 한국에서 9시간 차이가 생긴다.
+ // 백엔드는 naive local datetime을 사용하므로 브라우저 로컬시각을 직접 직렬화한다.
+ const y=d.getFullYear();
+ const mo=String(d.getMonth()+1).padStart(2,'0');
+ const da=String(d.getDate()).padStart(2,'0');
+ const h=String(d.getHours()).padStart(2,'0');
+ const mi=String(d.getMinutes()).padStart(2,'0');
+ const s=String(d.getSeconds()).padStart(2,'0');
+ return `${y}-${mo}-${da} ${h}:${mi}:${s}`;
+}
+function setRelativeTime(mins){
+ $('startTime').value=timePlus(Number(mins));
+ document.querySelectorAll('.timeChip').forEach(x=>x.classList.toggle('active',Number(x.dataset.min)===Number(mins)));
+}
+function clearQuickSelection(){document.querySelectorAll('.timeChip').forEach(x=>x.classList.remove('active'))}
+
+function refreshDatalist(seg){
+ const line=seg.querySelector('.line').value;
+ seg.dataset.line=line;
+ const shortLabel = line==='경의중앙선' ? '경중' : line==='수인분당선' ? '수분' : line.replace('호선','');
+ seg.querySelector('.lineMark').textContent=shortLabel;
+ const dl=seg.querySelector('datalist');
+ dl.innerHTML=(stations[line]||[]).map(x=>`<option value="${esc(x)}"></option>`).join('');
+}
+function addSegment(data={}){
+ if(document.querySelectorAll('.segment').length>=8){toast('최대 8개 구간까지 추가할 수 있습니다.');return}
+ segId++;const id=`st${segId}`;const div=document.createElement('div');div.className='segment';
+ div.innerHTML=`<div class="segHead"><div class="segTitle"><span class="lineMark">1</span><span>구간 <span class="num"></span></span></div><button class="remove" aria-label="구간 삭제">×</button></div>
+ <div class="segGrid">
+  <div><label>노선</label><select class="line">${lineOpts(data.line||'1호선')}</select></div>
+  <div><label>승차역</label><input class="from" list="${id}" value="${esc(data.from||'')}" placeholder="승차역"></div>
+  <div><label>하차역</label><input class="to" list="${id}" value="${esc(data.to||'')}" placeholder="하차역"></div>
+  <div><label>환승</label><input class="walk" type="number" min="0" max="30" step=".5" value="${data.walk??3}"></div>
+ </div><datalist id="${id}"></datalist>`;
+ div.querySelector('.remove').onclick=()=>{div.remove();renumber()};
+ div.querySelector('.line').onchange=()=>refreshDatalist(div);
+ $('segments').appendChild(div);refreshDatalist(div);renumber();
+}
+function renumber(){[...document.querySelectorAll('.segment')].forEach((x,i)=>x.querySelector('.num').textContent=i+1)}
+function clearSegments(){$('segments').innerHTML='';segId=0}
+function collect(){return [...document.querySelectorAll('.segment')].map(x=>({line:x.querySelector('.line').value,from:x.querySelector('.from').value.trim(),to:x.querySelector('.to').value.trim(),transfer_walk:Number(x.querySelector('.walk').value)||0}))}
+function loadRoute(segments){
+ clearSegments();(segments||[]).forEach(s=>addSegment({line:s.line,from:s.from,to:s.to,walk:s.transfer_walk}));
+ if(!segments?.length)addSegment();
+}
+
+function getFavs(){try{return JSON.parse(localStorage.getItem(FAV_KEY)||'[]')}catch(e){return[]}}
+function setFavs(v){localStorage.setItem(FAV_KEY,JSON.stringify(v));refreshFavorites()}
+function routeDefaultName(segs){
+ if(!segs.length)return'새 경로';
+ const start=segs[0].from||segs[0].line,end=segs[segs.length-1].to||segs[segs.length-1].line;
+ return `${start} → ${end}`;
+}
+function refreshFavorites(){
+ const favs=getFavs(),sel=$('favoriteSelect'),current=sel.value;
+ sel.innerHTML=favs.length?`<option value="">즐겨찾기 선택</option>`+favs.map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join(''):`<option value="">저장된 경로 없음</option>`;
+ if(favs.some(f=>f.id===current))sel.value=current;
+}
+$('saveFav').onclick=()=>{
+ const segments=collect();
+ if(!segments.length||segments.some(s=>!s.from||!s.to)){toast('먼저 경로를 완성하세요.');return}
+ const suggested=routeDefaultName(segments);
+ const name=prompt('즐겨찾기 이름',suggested);
+ if(!name)return;
+ const favs=getFavs();favs.push({id:String(Date.now()),name:name.trim()||suggested,segments,day:$('day').value});
+ setFavs(favs);$('favoriteSelect').value=favs[favs.length-1].id;toast('즐겨찾기에 저장했습니다.');
+};
+$('loadFav').onclick=()=>{
+ const id=$('favoriteSelect').value,f=getFavs().find(x=>x.id===id);
+ if(!f){toast('불러올 즐겨찾기를 선택하세요.');return}
+ loadRoute(f.segments);$('day').value=f.day||'AUTO';toast('경로를 불러왔습니다.');
+};
+$('deleteFav').onclick=()=>{
+ const id=$('favoriteSelect').value;if(!id){toast('삭제할 즐겨찾기를 선택하세요.');return}
+ const favs=getFavs().filter(x=>x.id!==id);setFavs(favs);toast('즐겨찾기를 삭제했습니다.');
+};
+
+async function getJson(u){
+ const r=await fetch(u,{cache:'no-store'}),t=await r.text();let j;
+ try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
+ if(!r.ok||!j.ok)throw new Error(j.error||'요청 실패');return j;
+}
+async function postJson(u,o){
+ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store'}),t=await r.text();let j;
+ try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
+ if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;throw er}return j;
+}
+function serviceModeLabel(mode){
+ return mode==='DAY'?'평일 시간표':mode==='SAT'?'토요일 시간표':'휴일 시간표';
+}
+function updateAutoDayInfo(mode,reason,isHoliday=false){
+ const el=$('autoDayInfo');
+ if(!el)return;
+ if($('day').value!=='AUTO'){
+  el.textContent='수동 선택 중';
+  el.classList.remove('holiday');
+  return;
+ }
+ el.textContent=`자동 · ${reason} → ${serviceModeLabel(mode)}`;
+ el.classList.toggle('holiday',isHoliday||mode==='END');
+}
+async function init(){
+ try{
+  const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V9.2`;
+  updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
+  document.querySelectorAll('.segment').forEach(refreshDatalist);
+ }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
+}
+
+function canBoard(s){
+ return s && s.train_no && s.train_no!=='추정' && !String(s.train_no).includes('추정');
+}
+function boardButton(s,routeIndex){
+ if(!canBoard(s))return '';
+ const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
+ return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차 탑승'}</button>`;
+}
+function candidateRows(s,routeIndex){
+ const list=s.nearby_candidates||[];
+ if(!list.length)return '';
+ const rows=list.map(c=>{
+  const source=c.live_detected
+    ? `<span class="sourceBadge live">실시간 확인</span>`
+    : `<span class="sourceBadge sched">시간표 후보 · 미포착</span>`;
+  const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
+  const btn=canBoard(c)
+    ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'탑승'}</button>`
+    : '';
+  return `<div class="candidateRow ${c.selected?'selected':''}">
+   <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
+   <div class="candidateMeta">${c.service==='express'?'급행':'일반'} · ${fmtDelay(c.delay_seconds)}<br>${source}</div>
+   <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
+   <div>${btn}</div>
+  </div>`;
+ }).join('');
+ const hasUnseen=list.some(c=>!c.live_detected);
+ return `<details class="candidateBox">
+  <summary><span>근처 열차 후보 ${list.length}개</span><span>${hasUnseen?'미포착 열차 포함':''}</span></summary>
+  ${hasUnseen?`<div class="startHint">공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 시발역에서 실제 탑승했다면 해당 열차의 ‘탑승’을 누르세요. 이후 실시간 위치에 나타나는 순간 자동으로 높은 신뢰도로 전환됩니다.</div>`:''}
+  <div class="candidateList">${rows}</div>
+ </details>`;
+}
+function legHtml(s,walk,routeIndex){
+ const svc=s.service==='express'?'<span class="expressBadge">급행</span>':'일반',diag=s.diagnostics||{};
+ const tracking=s.tracking?' · <b style="color:#087451">고정 추적</b>':'';
+ return `<div class="leg ${confClass(s.confidence)}">
+  <div class="legTop">
+   <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
+   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking} · ${svc} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${s.current_station?` · ${esc(s.current_station)} ${esc(s.status||'')} 중`:''}</div></div>
+   <div class="clock">${fmtClock(s.board_dt)} → ${fmtClock(s.alight_dt)}<div style="margin-top:6px">${boardButton(s,routeIndex)}</div></div>
+  </div>
+  <div class="details">
+   <div class="detail"><span>열차번호</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b></div>
+   <div class="detail"><span>${s.tracking?'남은 시간':'탑승까지'}</span><b>${fmtDur(s.tracking?s.remaining_seconds:s.wait_seconds)}</b></div>
+   <div class="detail"><span>차내 이동</span><b>${fmtDur(s.ride_seconds)}</b></div>
+   <div class="detail"><span>다음 환승</span><b>${walk>0?walk+'분':'도착'}</b></div>
+   <div class="detail"><span>위치 매칭</span><b>${diag.matched??'-'} / ${diag.positions??'-'}</b></div>
+  </div>
+  ${candidateRows(s,routeIndex)}
+ </div>${walk>0?`<div class="transfer">↓ 환승 이동 ${walk}분</div>`:''}`;
+}
+function bindBoardButtons(){
+ document.querySelectorAll('[data-board]').forEach(btn=>btn.onclick=()=>{
+  const idx=Number(btn.dataset.board),train=btn.dataset.train;
+  startTracking(idx,train);
+ });
+}
+function renderRouteSegments(result,baseIndex=0){
+ const route=collect();
+ $('flow').innerHTML=result.segments.map((s,i)=>{
+  const absoluteIndex=baseIndex+i;
+  const walk=absoluteIndex<route.length-1?route[absoluteIndex].transfer_walk:0;
+  return legHtml(s,walk,absoluteIndex);
+ }).join('');
+ if(result.warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>예측 구간</b><br>${result.warnings.map(esc).join('<br>')}</div>`;
+ bindBoardButtons();
+}
+async function calculate(){
+ stopTracking(false);
+ const segments=collect();
+ if(!segments.length||segments.some(s=>!s.from||!s.to)){toast('모든 구간의 승차역과 하차역을 입력하세요.');return}
+ $('flow').innerHTML='<div class="loading">현재 열차 위치와 시간표를 대조하고 있습니다…</div>';
+ $('calcBtn').disabled=true;$('calcBtn').textContent='계산 중…';
+ try{
+  const j=await postJson('/api/route',{start_time:$('startTime').value||timePlus(0),baseline_minutes:$('baseline').value,day:$('day').value,segments});
+  lastRouteResult=j;
+  updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
+  $('total').textContent=fmtDur(j.total_seconds);$('arrival').textContent=fmtClock(j.arrival_time);
+  if(j.difference_seconds==null)$('diff').textContent='비교값 없음';
+  else $('diff').textContent=j.difference_seconds<0?`${Math.round(Math.abs(j.difference_seconds)/60)}분 단축`:j.difference_seconds>0?`${Math.round(j.difference_seconds/60)}분 증가`:'거의 동일';
+  const rank={'높음':3,'중간':2,'낮음':1};$('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
+  const first=segments[0],last=segments[segments.length-1];
+  $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
+  $('sumText').textContent=`${first.from}에서 ${last.to}까지 현재 운행상황으로 계산했습니다. 실제 열차에 탑승하면 해당 구간의 ‘이 열차 탑승’을 눌러 라이브 추적을 시작하세요.`;
+  $('stamp').textContent=new Date().toLocaleTimeString()+' 기준';
+  renderRouteSegments(j,0);
+ }catch(e){
+  const p=e.payload||{},d=p.diagnostics||{};
+  $('flow').innerHTML=`<div class="error"><b>이 구간은 계산하지 못했습니다.</b><br>${esc(e.message)}${p.failed_segment?`<br>실패 구간: ${p.failed_segment}번`:''}${d.positions!=null?`<br><br>실시간 위치 ${d.positions}건 · 시간표 매칭 ${d.matched??0}건`:''}</div>`;
+ }finally{
+  $('calcBtn').disabled=false;$('calcBtn').textContent='실시간 ETA 계산';
+ }
+}
+
+function saveTrip(){
+ if(liveTrip)sessionStorage.setItem(TRIP_KEY,JSON.stringify(liveTrip));
+ else sessionStorage.removeItem(TRIP_KEY);
+}
+function startTracking(activeIndex,trainNo){
+ const segments=collect();
+ if(!segments[activeIndex])return;
+ liveTrip={
+  activeIndex,
+  boardedTrainNo:String(trainNo),
+  boardedAt:localDateTimeString(new Date()),
+  segments,
+  day:$('day').value,
+  baseline:$('baseline').value,
+  previousNextTrain:null
+ };
+ saveTrip();
+ $('livePanel').classList.add('show');
+ $('liveTrain').textContent=`${segments[activeIndex].line} ${trainNo}`;
+ $('liveTitle').textContent=`${trainNo}열차 탑승 중`;
+ toast(`${trainNo}열차 추적을 시작했습니다.`);
+ pollLiveTrip(true);
+}
+function stopTracking(showToast=true){
+ if(liveTimer){clearTimeout(liveTimer);liveTimer=null}
+ if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null}
+ liveTrip=null;saveTrip();$('livePanel').classList.remove('show');
+ if(showToast)toast('라이브 추적을 종료했습니다.');
+}
+function updateCountdown(){
+ if(!liveTrip)return;
+ const left=Math.max(0,Math.ceil((nextRefreshAt-Date.now())/1000));
+ $('progressNote').textContent=`20초마다 자동 갱신 · 다음 갱신 ${left}초 후`;
+}
+function scheduleNextPoll(){
+ if(liveTimer)clearTimeout(liveTimer);
+ if(countdownTimer)clearInterval(countdownTimer);
+ nextRefreshAt=Date.now()+20000;
+ updateCountdown();
+ countdownTimer=setInterval(updateCountdown,1000);
+ liveTimer=setTimeout(()=>pollLiveTrip(false),20000);
+}
+async function pollLiveTrip(first=false){
+ if(!liveTrip)return;
+ const payload={
+  segments:liveTrip.segments,
+  active_index:liveTrip.activeIndex,
+  boarded_train_no:liveTrip.boardedTrainNo,
+  boarded_at:liveTrip.boardedAt,
+  day:liveTrip.day,
+  baseline_minutes:liveTrip.baseline
+ };
+ try{
+  const j=await postJson('/api/trip_update',payload);
+  if(!liveTrip)return;
+  const current=j.segments[0];
+  updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
+  $('livePanel').classList.add('show');
+  $('liveTrain').textContent=`${current.line} ${j.boarded_train_no}`;
+  $('liveStation').textContent=current.current_station?`${current.current_station} ${current.status||''}`:'위치 재포착 중';
+  $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
+  $('liveArrival').textContent=fmtClock(j.arrival_time);
+  $('liveSub').textContent=`${current.from} → ${current.to} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
+  $('total').textContent=fmtDur(j.remaining_seconds);
+  $('arrival').textContent=fmtClock(j.arrival_time);
+  $('diff').textContent='이동 중';
+  const rank={'높음':3,'중간':2,'낮음':1};$('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
+  $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
+  $('sumText').textContent=`${j.boarded_train_no}열차를 고정 추적하며, 이 열차의 최신 환승역 ETA를 기준으로 이후 경로를 계속 다시 계산하고 있습니다.`;
+  $('stamp').textContent=new Date().toLocaleTimeString()+' 자동 갱신';
+  renderRouteSegments(j,j.active_index);
+
+  // 다음 구간의 신뢰도/열차가 실제 관측으로 바뀌는 순간 사용자에게 알려줌.
+  if(j.segments.length>1){
+   const next=j.segments[1];
+   const sig=`${next.train_no}|${next.confidence}`;
+   if(liveTrip.previousNextTrain && liveTrip.previousNextTrain!==sig){
+    const old=liveTrip.previousNextTrain.split('|');
+    if(old[1]!=='높음' && next.confidence==='높음'){
+     toast(`다음 ${next.line} 열차가 실시간으로 확인됐습니다: ${next.train_no}`);
+    }else if(old[0]!==String(next.train_no)){
+     toast(`다음 추천 열차가 ${next.train_no}로 변경됐습니다.`);
+    }
+   }
+   liveTrip.previousNextTrain=sig;saveTrip();
+  }
+ }catch(e){
+  $('progressNote').textContent=`갱신 실패: ${e.message} · 다음 주기에 다시 시도합니다.`;
+ }finally{
+  if(liveTrip)scheduleNextPoll();
+ }
+}
+function restoreTrip(){
+ try{
+  const saved=JSON.parse(sessionStorage.getItem(TRIP_KEY)||'null');
+  if(!saved||!saved.segments?.length)return;
+  liveTrip=saved;
+  loadRoute(saved.segments);$('day').value=saved.day||'AUTO';$('baseline').value=saved.baseline||'';
+  $('livePanel').classList.add('show');
+  $('liveTrain').textContent=`${saved.segments[saved.activeIndex].line} ${saved.boardedTrainNo}`;
+  $('liveTitle').textContent=`${saved.boardedTrainNo}열차 추적 복원`;
+  pollLiveTrip(true);
+ }catch(e){sessionStorage.removeItem(TRIP_KEY)}
+}
+
+document.querySelectorAll('.timeChip').forEach(b=>b.onclick=()=>setRelativeTime(b.dataset.min));
+$('startTime').addEventListener('input',clearQuickSelection);
+$('day').addEventListener('change',()=>{if($('day').value!=='AUTO')updateAutoDayInfo($('day').value,'수동 선택',false);else init();});
+$('addBtn').onclick=()=>{
+ const prev=[...document.querySelectorAll('.segment')].at(-1);
+ addSegment(prev?{line:prev.querySelector('.line').value,from:prev.querySelector('.to').value,walk:3}:{});
+};
+$('calcBtn').onclick=calculate;
+$('stopTrack').onclick=()=>stopTracking(true);
+
+setRelativeTime(10);
+loadRoute([{line:'2호선',from:'',to:'',transfer_walk:3}]);
+refreshFavorites();
+init().then?.(()=>restoreTrip());
+setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
+</script>
+</body>
+</html>

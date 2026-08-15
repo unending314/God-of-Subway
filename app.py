@@ -1,0 +1,1107 @@
+# -*- coding: utf-8 -*-
+"""
+지금타 V9.2 — 1~9호선 다중 환승 ETA
+핵심:
+  1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
+  2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
+  모든 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
+"""
+import json, os, re, sys, threading, webbrowser, urllib.request, urllib.parse, socket, time, statistics
+from pathlib import Path
+from datetime import datetime, timedelta
+from collections import defaultdict
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+
+BASE = Path(__file__).resolve().parent
+API_KEY = os.environ.get("SEOUL_API_KEY", "").strip()
+DEPLOY_MODE = bool(os.environ.get("PORT"))
+
+if not API_KEY and not DEPLOY_MODE:
+    print("=" * 70)
+    print("지금타 V9.2 — 1~9호선·경의중앙선·수인분당선 실시간 위치 × 공식 열차별 시간표")
+    print("서울 열린데이터광장 인증키를 입력하세요.")
+    print("키는 파일에 저장되지 않고 현재 실행 중 메모리에만 유지됩니다.")
+    print("=" * 70)
+    API_KEY = input("인증키: ").strip()
+
+if not API_KEY:
+    print("SEOUL_API_KEY가 설정되지 않았습니다.")
+    print("로컬 실행은 run.bat에서 입력하고, 배포 환경에서는 환경변수 SEOUL_API_KEY를 설정하세요.")
+    sys.exit(1)
+
+def load_json(name):
+    return json.loads((BASE / name).read_text(encoding="utf-8"))
+
+S1 = {
+    "weekday": load_json("schedule_weekday.json")["trains"],
+    "holiday": load_json("schedule_holiday.json")["trains"],
+}
+S1_STATIONS = load_json("stations.json")
+OFF = load_json("official_2to9_schedule.json")
+EXTRA = load_json("korail_extra_lines_schedule.json")
+KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
+EXTRA_LINES = ("경의중앙선", "수인분당선")
+
+LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
+LINE_NUM = {f"{i}호선": str(i) for i in range(1, 10)}
+LINE_IDS = {f"{i}호선": f"100{i}" for i in range(1, 10)}
+LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075"})
+
+STATION_ALIASES = {
+    "서울": "서울역", "지하서울": "서울역",
+    "성균관": "성균관대",
+    "가산디": "가산디지털단지",
+    "금천구": "금천구청",
+    "동두중": "동두천중앙",
+    "백마고": "백마고지",
+    "쌍용나": "쌍용(나사렛대)",
+    "온양온": "온양온천",
+    "평지제": "평택지제",
+    "종로5": "종로5가",
+    "1종로": "종로3가",
+    "1동대": "동대문",
+    "1지청": "청량리",
+    "총신대입구": "총신대입구(이수)",
+    "이수": "총신대입구(이수)",
+    # 경의중앙선 DIA 약칭
+    "1양원": "양원",
+    "1양정": "양정",
+    "디엠시": "디지털미디어시티",
+    "홍대입": "홍대입구",
+    "효창공": "효창공원앞",
+    "항공대": "한국항공대",
+    # 수인분당선 DIA 약칭/구역명
+    "강남구": "강남구청",
+    "로데오": "압구정로데오",
+    "남동인": "남동인더스파크",
+    "소래포": "소래포구",
+    "수원시": "수원시청",
+    "매탄권": "매탄권선",
+    "신길온": "능길",
+    "신길온천": "능길",
+    "인천논": "인천논현",
+    "신인천": "인천",
+    "신수원": "수원",
+}
+
+def canon_station(v):
+    s = str(v or "").strip().replace(" ", "")
+    if s.endswith("역") and s != "서울역":
+        s = s[:-1]
+    return STATION_ALIASES.get(s, s)
+
+def norm_train(v):
+    return re.sub(r"\s+", "", str(v or "")).upper()
+
+def train_digits(v):
+    return re.sub(r"\D", "", norm_train(v)).lstrip("0") or "0"
+
+def parse_dt(v):
+    if not v:
+        return datetime.now()
+    s = str(v).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y%m%d%H%M%S", "%H:%M:%S", "%H%M%S"):
+        try:
+            d = datetime.strptime(s, fmt)
+            if fmt.startswith("%H"):
+                n = datetime.now()
+                d = d.replace(year=n.year, month=n.month, day=n.day)
+            return d
+        except Exception:
+            pass
+    digits = re.sub(r"\D", "", s)
+    if len(digits) >= 14:
+        try:
+            return datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+        except Exception:
+            pass
+    return datetime.now()
+
+def align_clock(actual_dt, sched_sec):
+    actual = actual_dt.hour * 3600 + actual_dt.minute * 60 + actual_dt.second
+    candidates = [actual - 86400, actual, actual + 86400, actual + 172800]
+    return min(candidates, key=lambda x: abs(x - sched_sec))
+
+def status_name(v):
+    return {"0": "진입", "1": "도착", "2": "출발"}.get(str(v or ""), str(v or "") or "위치")
+
+def scheduled_reference(stop, status):
+    arr, dep = stop["arr"], stop["dep"]
+    s = str(status or "")
+    if s == "2" and dep is not None:
+        return dep
+    if s == "1" and arr is not None:
+        return arr
+    if s == "0" and arr is not None:
+        return arr - 30
+    return dep if dep is not None else arr
+
+def clock_to_sec(v):
+    p = str(v or "").split(":")
+    if len(p) < 2:
+        raise ValueError("시각은 HH:MM 형식이어야 합니다.")
+    return int(p[0]) * 3600 + int(p[1]) * 60 + (int(p[2]) if len(p) > 2 else 0)
+
+def clock_dt_near(v, ref=None):
+    ref = ref or datetime.now()
+    sec = clock_to_sec(v)
+    base = ref.replace(hour=0, minute=0, second=0, microsecond=0)
+    return min(
+        [base + timedelta(days=d, seconds=sec) for d in (-1, 0, 1)],
+        key=lambda x: abs((x - ref).total_seconds())
+    )
+
+def schedule_dt_after(sched_sec, ready_dt, delay=0):
+    """
+    A timetable second may be 24:xx / 25:xx. Try nearby service-day midnights
+    and return the earliest delayed occurrence that is still catchable.
+    """
+    midnight = ready_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    vals = []
+    for d in (-2, -1, 0, 1):
+        dt = midnight + timedelta(days=d, seconds=sched_sec + delay)
+        if dt >= ready_dt - timedelta(seconds=5):
+            vals.append(dt)
+    return min(vals) if vals else None
+
+def holiday_info(d):
+    """번들된 대한민국 공휴일/대체공휴일 정보."""
+    if isinstance(d, datetime):
+        d = d.date()
+    return KR_HOLIDAYS.get("dates", {}).get(d.isoformat())
+
+
+def auto_service_mode(d):
+    """
+    운행일 AUTO:
+    - 법정 공휴일/대체공휴일 -> END(일요일·공휴일)
+    - 일반 토요일 -> SAT
+    - 일반 일요일 -> END
+    - 그 외 -> DAY
+    """
+    if isinstance(d, datetime):
+        d = d.date()
+    info = holiday_info(d)
+    if info:
+        return "END", info.get("name", "공휴일")
+    wd = d.weekday()
+    if wd == 5:
+        return "SAT", "토요일"
+    if wd == 6:
+        return "END", "일요일"
+    return "DAY", "평일"
+
+
+def resolve_service_mode(mode, ref_dt=None):
+    ref_dt = ref_dt or datetime.now()
+    if mode == "AUTO":
+        resolved, reason = auto_service_mode(ref_dt)
+        return resolved, reason
+    labels = {"DAY": "평일 수동 선택", "SAT": "토요일 수동 선택", "END": "일요일·공휴일 수동 선택"}
+    return mode, labels.get(mode, mode)
+
+
+def choose_modes(mode):
+    """
+    mode은 calculate_route/calculate_live_trip 진입 시 AUTO가 실제 DAY/SAT/END로
+    이미 해석되는 것이 원칙이다. 방어적으로 AUTO가 남아 있으면 오늘 기준 처리.
+    """
+    if mode == "AUTO":
+        mode, _ = resolve_service_mode("AUTO", datetime.now())
+    if mode == "DAY":
+        return "weekday", "DAY"
+    if mode == "SAT":
+        return "holiday", "SAT"
+    return "holiday", "END"
+
+
+# ---------- Normalize timetable structures into one common model ----------
+def normalize_s1_train(tn, tr):
+    return {
+        "train_no": tn,
+        "direction": tr.get("direction", ""),
+        "service": tr.get("service", "local"),
+        "start": tr.get("start", ""),
+        "dest": tr.get("dest", ""),
+        "stops": [{
+            "station": canon_station(s.get("station")),
+            "arr": s.get("arr"),
+            "dep": s.get("dep"),
+            "call": bool(s.get("call", True)),
+        } for s in tr.get("stops", [])],
+    }
+
+def normalize_extra_train(tn, tr):
+    return {
+        "train_no": tn,
+        "direction": tr.get("direction", ""),
+        "service": tr.get("service", "local"),
+        "start": canon_station(tr.get("start", "")),
+        "dest": canon_station(tr.get("dest", "")),
+        "linked_train_no": norm_train(tr.get("linked_train_no", "")),
+        "stops": [{
+            "station": canon_station(s.get("station")),
+            "arr": s.get("arr"),
+            "dep": s.get("dep"),
+            "call": bool(s.get("call", True)),
+        } for s in tr.get("stops", [])],
+    }
+
+
+def normalize_metro_train(tn, raw):
+    direction, gub, start, dest, compact_stops = raw
+    return {
+        "train_no": tn,
+        "direction": direction,
+        "service": "express" if str(gub) == "1" else "local",
+        "start": start,
+        "dest": dest,
+        "stops": [{
+            "station": canon_station(s[0]),
+            "arr": s[1],
+            "dep": s[2],
+            "call": True,
+        } for s in compact_stops],
+    }
+
+# Train indexes: exact + digits fallback.
+S1_NUM = {}
+for day, trains in S1.items():
+    x = defaultdict(list)
+    for tn in trains:
+        x[train_digits(tn)].append(tn)
+    S1_NUM[day] = x
+
+METRO_NUM = {}
+for week, lines in OFF["days"].items():
+    for line, trains in lines.items():
+        x = defaultdict(list)
+        for tn in trains:
+            x[train_digits(tn)].append(tn)
+        METRO_NUM[(week, line)] = x
+
+EXTRA_NUM = {}
+EXTRA_ALIAS = {}
+EXTRA_ALIAS_NUM = {}
+for line, source in EXTRA.items():
+    for day, trains in source.get("trains", {}).items():
+        nums = defaultdict(list)
+        aliases = defaultdict(list)
+        alias_nums = defaultdict(list)
+        for tn, tr in trains.items():
+            nums[train_digits(tn)].append(tn)
+            linked = norm_train(tr.get("linked_train_no", ""))
+            if linked:
+                aliases[linked].append(tn)
+                alias_nums[train_digits(linked)].append(tn)
+        EXTRA_NUM[(line, day)] = nums
+        EXTRA_ALIAS[(line, day)] = aliases
+        EXTRA_ALIAS_NUM[(line, day)] = alias_nums
+
+
+def get_train(line, mode, raw_train_no):
+    korail_day, metro_week = choose_modes(mode)
+    n = norm_train(raw_train_no)
+    digits = train_digits(raw_train_no)
+
+    if line == "1호선":
+        trains = S1[korail_day]
+        if n in trains:
+            return normalize_s1_train(n, trains[n])
+        c = S1_NUM[korail_day].get(digits, [])
+        if len(c) == 1:
+            return normalize_s1_train(c[0], trains[c[0]])
+        return None
+
+    if line in EXTRA_LINES:
+        trains = EXTRA[line]["trains"][korail_day]
+
+        # 1) actual train number in the timetable always wins.
+        if n in trains:
+            return normalize_extra_train(n, trains[n])
+
+        # 2) digit-only fallback for API formatting differences.
+        c = EXTRA_NUM.get((line, korail_day), {}).get(digits, [])
+        if len(c) == 1:
+            return normalize_extra_train(c[0], trains[c[0]])
+
+        # 3) DIA '연계열번' fallback. Only used if no actual train number matched.
+        c = EXTRA_ALIAS.get((line, korail_day), {}).get(n, [])
+        if len(c) == 1:
+            return normalize_extra_train(c[0], trains[c[0]])
+        c = EXTRA_ALIAS_NUM.get((line, korail_day), {}).get(digits, [])
+        if len(c) == 1:
+            return normalize_extra_train(c[0], trains[c[0]])
+        return None
+
+    num = LINE_NUM[line]
+    trains = OFF["days"].get(metro_week, {}).get(num, {})
+    if n in trains:
+        return normalize_metro_train(n, trains[n])
+    c = METRO_NUM.get((metro_week, num), {}).get(digits, [])
+    if len(c) == 1:
+        return normalize_metro_train(c[0], trains[c[0]])
+    return None
+
+
+def all_trains(line, mode):
+    korail_day, metro_week = choose_modes(mode)
+    if line == "1호선":
+        return [normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items()]
+    if line in EXTRA_LINES:
+        return [
+            normalize_extra_train(tn, tr)
+            for tn, tr in EXTRA[line]["trains"][korail_day].items()
+        ]
+    num = LINE_NUM[line]
+    return [
+        normalize_metro_train(tn, raw)
+        for tn, raw in OFF["days"].get(metro_week, {}).get(num, {}).items()
+    ]
+
+
+def station_options():
+    s1 = sorted({canon_station(x) for x in S1_STATIONS})
+    out = {"1호선": s1}
+    for i in range(2, 10):
+        num = str(i)
+        out[f"{i}호선"] = sorted({canon_station(x) for x in OFF["stations"].get(num, [])})
+    for line in EXTRA_LINES:
+        out[line] = sorted({canon_station(x) for x in EXTRA[line].get("stations", [])})
+    return out
+
+
+STATIONS_BY_LINE = station_options()
+
+# ---------- Live API ----------
+def fetch_position(line):
+    q = urllib.parse.quote(line, safe="")
+    url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "JigeumTa-V9.2/1.0",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=12) as r:
+            raw = r.read().decode("utf-8", errors="replace")
+        data = json.loads(raw)
+        if isinstance(data, dict) and isinstance(data.get("RESULT"), dict):
+            return False, data["RESULT"], data
+        return True, None, data
+    except Exception as e:
+        return False, {"message": f"{type(e).__name__}: {e}"}, None
+
+def position_rows(data):
+    return data.get("realtimePositionList", []) if isinstance(data, dict) else []
+
+# ---------- Schedule path helpers ----------
+def indices(stops, station):
+    c = canon_station(station)
+    return [i for i, s in enumerate(stops) if canon_station(s["station"]) == c]
+
+def route_pair(stops, start, end, min_start_idx=0):
+    starts = [i for i in indices(stops, start) if i >= min_start_idx]
+    ends = indices(stops, end)
+    pairs = [(i, j) for i in starts for j in ends if j > i]
+    return min(pairs, key=lambda p: p[1] - p[0]) if pairs else None
+
+def first_current_index(stops, current, before_or_at=None):
+    inds = indices(stops, current)
+    if before_or_at is not None:
+        valid = [i for i in inds if i <= before_or_at]
+        if valid:
+            return max(valid)
+    return inds[0] if inds else None
+
+def stop_board_sec(stop):
+    return stop["dep"] if stop["dep"] is not None else stop["arr"]
+
+def stop_alight_sec(stop):
+    return stop["arr"] if stop["arr"] is not None else stop["dep"]
+
+# ---------- Delay observations ----------
+def observe_delays(line, mode, positions):
+    now = datetime.now()
+    obs = []
+    unmatched_train = []
+    unmatched_station = []
+    for p in positions:
+        raw_tn = p.get("trainNo") or p.get("btrainNo")
+        tr = get_train(line, mode, raw_tn)
+        if not tr:
+            if raw_tn and len(unmatched_train) < 10:
+                unmatched_train.append(str(raw_tn))
+            continue
+        cur = canon_station(p.get("statnNm"))
+        ci = first_current_index(tr["stops"], cur)
+        if ci is None:
+            if cur and len(unmatched_station) < 10:
+                unmatched_station.append(cur)
+            continue
+        ref = scheduled_reference(tr["stops"][ci], p.get("trainSttus"))
+        if ref is None:
+            continue
+        observed = parse_dt(p.get("recptnDt") or p.get("lastRecptnDt"))
+        delay = align_clock(observed, ref) - ref
+        obs.append({
+            "train_no": tr["train_no"],
+            "direction": tr["direction"],
+            "service": tr["service"],
+            "delay": delay,
+            "current_station": cur,
+            "status": status_name(p.get("trainSttus")),
+            "observed": observed,
+            "ref": ref,
+            "train": tr,
+            "raw": p,
+        })
+    return obs, {
+        "positions": len(positions),
+        "matched": len(obs),
+        "unmatched_train": unmatched_train,
+        "unmatched_station": unmatched_station,
+    }
+
+def median_delay(observations, direction=None, service=None):
+    vals = []
+    for o in observations:
+        if direction and o["direction"] != direction:
+            continue
+        if service and o["service"] != service:
+            continue
+        # Ignore clearly broken outliers (> 45 min) in MVP smoothing.
+        if abs(o["delay"]) <= 2700:
+            vals.append(o["delay"])
+    if not vals and (direction or service):
+        return median_delay(observations)
+    return statistics.median(vals) if vals else 0
+
+# ---------- Segment ETA ----------
+def direct_live_candidates(line, mode, start, end, ready_dt, observations):
+    now = datetime.now()
+    out = []
+    for o in observations:
+        tr = o["train"]
+        stops = tr["stops"]
+        # Find a route start after the currently observed position.
+        ci = first_current_index(stops, o["current_station"])
+        if ci is None:
+            continue
+        pair = route_pair(stops, start, end, min_start_idx=ci)
+        if not pair:
+            continue
+        si, ei = pair
+        # If the current train is already beyond the boarding station, reject it.
+        if ci > si:
+            continue
+
+        ref = scheduled_reference(stops[ci], o["raw"].get("trainSttus"))
+        bsec = stop_board_sec(stops[si])
+        asec = stop_alight_sec(stops[ei])
+        if None in (ref, bsec, asec):
+            continue
+        while bsec < ref:
+            bsec += 86400
+        while asec < bsec:
+            asec += 86400
+
+        observed = o["observed"]
+        age = max(0, (now - observed).total_seconds())
+        board_dt = now + timedelta(seconds=(bsec - ref - age))
+        alight_dt = now + timedelta(seconds=(asec - ref - age))
+
+        if board_dt < ready_dt - timedelta(seconds=5):
+            continue
+
+        out.append({
+            "line": line,
+            "from": canon_station(start),
+            "to": canon_station(end),
+            "train_no": tr["train_no"],
+            "service": tr["service"],
+            "direction": tr["direction"],
+            "destination": tr["dest"],
+            "board_dt": board_dt,
+            "alight_dt": alight_dt,
+            "wait_seconds": round((board_dt - ready_dt).total_seconds()),
+            "ride_seconds": round((alight_dt - board_dt).total_seconds()),
+            "delay_seconds": round(o["delay"]),
+            "current_station": o["current_station"],
+            "confidence": "높음",
+            "method": "실시간 열차 위치 + 열차별 공식 시간표",
+            "projected": False,
+        })
+    out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
+    return out
+
+def static_projected_candidates(line, mode, start, end, ready_dt, observations):
+    out = []
+    for tr in all_trains(line, mode):
+        pair = route_pair(tr["stops"], start, end)
+        if not pair:
+            continue
+        si, ei = pair
+        bsec = stop_board_sec(tr["stops"][si])
+        asec = stop_alight_sec(tr["stops"][ei])
+        if bsec is None or asec is None:
+            continue
+        while asec < bsec:
+            asec += 86400
+
+        delay = median_delay(observations, tr["direction"], tr["service"])
+        board_dt = schedule_dt_after(bsec, ready_dt, delay)
+        if not board_dt:
+            continue
+        alight_dt = board_dt + timedelta(seconds=asec - bsec)
+        if (board_dt - ready_dt).total_seconds() > 4 * 3600:
+            continue
+
+        out.append({
+            "line": line,
+            "from": canon_station(start),
+            "to": canon_station(end),
+            "train_no": tr["train_no"],
+            "service": tr["service"],
+            "direction": tr["direction"],
+            "destination": tr["dest"],
+            "board_dt": board_dt,
+            "alight_dt": alight_dt,
+            "wait_seconds": round((board_dt - ready_dt).total_seconds()),
+            "ride_seconds": round((alight_dt - board_dt).total_seconds()),
+            "delay_seconds": round(delay),
+            "current_station": "",
+            "confidence": "중간" if observations else "낮음",
+            "method": "공식 시간표 + 현재 동일방향 지연 중앙값" if observations else "공식 시간표만 사용",
+            "projected": True,
+        })
+    out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
+    return out[:30]
+
+def public_candidate(c, selected=False):
+    return {
+        "train_no": c.get("train_no", ""),
+        "service": c.get("service", "local"),
+        "direction": c.get("direction", ""),
+        "destination": c.get("destination", ""),
+        "board_dt": c["board_dt"].strftime("%Y-%m-%d %H:%M:%S") if isinstance(c.get("board_dt"), datetime) else c.get("board_dt"),
+        "alight_dt": c["alight_dt"].strftime("%Y-%m-%d %H:%M:%S") if isinstance(c.get("alight_dt"), datetime) else c.get("alight_dt"),
+        "wait_seconds": c.get("wait_seconds", 0),
+        "ride_seconds": c.get("ride_seconds", 0),
+        "delay_seconds": c.get("delay_seconds", 0),
+        "current_station": c.get("current_station", ""),
+        "confidence": c.get("confidence", "중간"),
+        "method": c.get("method", ""),
+        "projected": bool(c.get("projected")),
+        "live_detected": not bool(c.get("projected")),
+        "selected": bool(selected),
+    }
+
+
+def calculate_segment(line, mode, start, end, ready_dt, position_cache):
+    """
+    V8 hybrid candidate model:
+    - realtimePosition에 잡힌 실제 열차
+    - 해당 시간대 공식 시간표 후보 열차
+    를 항상 함께 구성한다.
+    """
+    if line not in LINE_NAMES:
+        return {"ok": False, "error": f"지원하지 않는 노선: {line}"}
+    if canon_station(start) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
+        return {"ok": False, "error": f"{line} 시간표에서 승차역 '{start}'을 찾지 못했습니다."}
+    if canon_station(end) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
+        return {"ok": False, "error": f"{line} 시간표에서 하차역 '{end}'을 찾지 못했습니다."}
+
+    if line not in position_cache:
+        ok, err, data = fetch_position(line)
+        if not ok:
+            return {"ok": False, "error": f"{line} 실시간 위치 조회 실패: {(err or {}).get('message', err)}"}
+        position_cache[line] = position_rows(data)
+
+    positions = position_cache[line]
+    observations, diag = observe_delays(line, mode, positions)
+
+    # 현재 API에 실제로 잡힌 열차.
+    direct = direct_live_candidates(line, mode, start, end, ready_dt, observations)
+
+    # 실시간에 아직 안 잡힌 열차까지 포함한 공식 시간표 후보.
+    projected = static_projected_candidates(line, mode, start, end, ready_dt, observations)
+
+    # 같은 열차번호가 양쪽에 있으면 실시간 관측값이 우선.
+    merged = {}
+    for c in projected:
+        merged[str(c.get("train_no"))] = c
+    for c in direct:
+        merged[str(c.get("train_no"))] = c
+
+    candidates = list(merged.values())
+
+    # 승차 준비시각 기준 한 시간 안쪽의 후보를 우선 표시.
+    near = [
+        c for c in candidates
+        if -5 <= (c["board_dt"] - ready_dt).total_seconds() <= 3600
+    ]
+    if not near:
+        near = candidates
+
+    # 목적지 도착이 빠른 후보를 기본 선택.
+    near.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
+    if not near:
+        return {
+            "ok": False,
+            "error": f"{line} {start}→{end} 운행 열차를 현재 시간표에서 찾지 못했습니다.",
+            "diagnostics": diag,
+        }
+
+    chosen = near[0]
+    public = [
+        public_candidate(
+            c,
+            selected=(str(c.get("train_no")) == str(chosen.get("train_no")))
+        )
+        for c in near[:6]
+    ]
+    return {
+        "ok": True,
+        "chosen": chosen,
+        "candidates": near[:10],
+        "public_candidates": public,
+        "diagnostics": diag,
+    }
+
+def tracked_train_segment(line, mode, start, end, train_no, position_cache, boarded_at=None):
+    """
+    사용자가 실제 탑승했다고 표시한 열차를 잠금 추적한다.
+    다른 후보 열차로 절대 교체하지 않고 지정 train_no만 따라간다.
+    """
+    now = datetime.now()
+    tr = get_train(line, mode, train_no)
+    if not tr:
+        return {
+            "ok": False,
+            "error": f"{line} 공식 시간표에서 탑승 열차 {train_no}을 찾지 못했습니다."
+        }
+
+    pair = route_pair(tr["stops"], start, end)
+    if not pair:
+        return {
+            "ok": False,
+            "error": f"{train_no}열차 시간표에서 {start}→{end} 운행 구간을 찾지 못했습니다."
+        }
+    si, ei = pair
+    target_stop = tr["stops"][ei]
+    target_sec = stop_alight_sec(target_stop)
+    if target_sec is None:
+        return {"ok": False, "error": f"{end} 도착시각이 시간표에 없습니다."}
+
+    if line not in position_cache:
+        ok, err, data = fetch_position(line)
+        if not ok:
+            return {"ok": False, "error": f"{line} 실시간 위치 조회 실패: {(err or {}).get('message', err)}"}
+        position_cache[line] = position_rows(data)
+
+    positions = position_cache[line]
+    observations, diag = observe_delays(line, mode, positions)
+    wanted = norm_train(tr["train_no"])
+
+    # get_train()을 거쳐 정규화된 공식 열차번호가 같은 관측값만 고정 추적.
+    live = next((o for o in observations if norm_train(o["train_no"]) == wanted), None)
+
+    board_dt = None
+    if boarded_at:
+        try:
+            board_dt = datetime.strptime(boarded_at, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            board_dt = None
+
+    if live:
+        stops = tr["stops"]
+        ci = first_current_index(stops, live["current_station"], before_or_at=ei)
+        if ci is None:
+            ci = first_current_index(stops, live["current_station"])
+
+        # 이미 목적지보다 뒤로 간 것으로 잡히면 구간 완료 처리.
+        if ci is not None and ci > ei:
+            return {
+                "ok": True,
+                "arrived": True,
+                "chosen": {
+                    "line": line, "from": canon_station(start), "to": canon_station(end),
+                    "train_no": tr["train_no"], "service": tr["service"],
+                    "direction": tr["direction"], "destination": tr["dest"],
+                    "board_dt": board_dt or now, "alight_dt": now,
+                    "wait_seconds": 0, "ride_seconds": 0,
+                    "remaining_seconds": 0, "delay_seconds": round(live["delay"]),
+                    "current_station": live["current_station"],
+                    "confidence": "높음", "method": "탑승 열차 실시간 고정 추적",
+                    "projected": False, "tracking": True, "arrived": True,
+                    "status": live["status"],
+                },
+                "diagnostics": diag,
+            }
+
+        if ci is not None:
+            ref = scheduled_reference(stops[ci], live["raw"].get("trainSttus"))
+            asec = target_sec
+            if ref is not None:
+                while asec < ref:
+                    asec += 86400
+                age = max(0, (now - live["observed"]).total_seconds())
+                alight_dt = now + timedelta(seconds=max(0, asec - ref - age))
+
+                # 최초 탑승시각이 없으면, 현재 구간에서는 지금 이전으로만 표시.
+                shown_board = board_dt or now
+                return {
+                    "ok": True,
+                    "arrived": False,
+                    "chosen": {
+                        "line": line, "from": canon_station(start), "to": canon_station(end),
+                        "train_no": tr["train_no"], "service": tr["service"],
+                        "direction": tr["direction"], "destination": tr["dest"],
+                        "board_dt": shown_board, "alight_dt": alight_dt,
+                        "wait_seconds": 0,
+                        "ride_seconds": max(0, round((alight_dt - shown_board).total_seconds())),
+                        "remaining_seconds": max(0, round((alight_dt - now).total_seconds())),
+                        "delay_seconds": round(live["delay"]),
+                        "current_station": live["current_station"],
+                        "confidence": "높음",
+                        "method": "탑승 열차 실시간 고정 추적",
+                        "projected": False, "tracking": True, "arrived": False,
+                        "status": live["status"],
+                        "data_age_seconds": max(0, round((now - live["observed"]).total_seconds())),
+                    },
+                    "diagnostics": diag,
+                }
+
+    # API에서 순간적으로 열차가 사라져도 잠금을 해제하지 않는다.
+    # 공식 시간표 + 현재 같은 방향/등급 열차 지연 중앙값으로 임시 유지.
+    delay = median_delay(observations, tr["direction"], tr["service"])
+    target_dt = schedule_dt_after(target_sec, now, delay)
+    if not target_dt:
+        # 심야 24/25시 운행축을 고려한 마지막 fallback
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        possibilities = [
+            midnight + timedelta(days=d, seconds=target_sec + delay)
+            for d in (-1, 0, 1, 2)
+        ]
+        future = [x for x in possibilities if x >= now - timedelta(minutes=5)]
+        target_dt = min(future) if future else now
+
+    return {
+        "ok": True,
+        "arrived": False,
+        "chosen": {
+            "line": line, "from": canon_station(start), "to": canon_station(end),
+            "train_no": tr["train_no"], "service": tr["service"],
+            "direction": tr["direction"], "destination": tr["dest"],
+            "board_dt": board_dt or now, "alight_dt": target_dt,
+            "wait_seconds": 0,
+            "ride_seconds": max(0, round((target_dt - (board_dt or now)).total_seconds())),
+            "remaining_seconds": max(0, round((target_dt - now).total_seconds())),
+            "delay_seconds": round(delay),
+            "current_station": "",
+            "confidence": "중간",
+            "method": "탑승 열차 잠금 · 실시간 위치 재포착 대기",
+            "projected": True, "tracking": True, "arrived": False,
+            "status": "위치 재포착 대기",
+        },
+        "diagnostics": diag,
+    }
+
+
+def calculate_live_trip(payload):
+    """
+    active_index 구간의 boarded_train_no를 고정 추적하고,
+    그 열차의 최신 환승역 ETA를 seed로 이후 모든 구간을 매번 재계산한다.
+    """
+    segments = payload.get("segments") or []
+    if not 1 <= len(segments) <= 8:
+        raise ValueError("구간은 1~8개로 입력하세요.")
+
+    active_index = int(payload.get("active_index", 0))
+    if active_index < 0 or active_index >= len(segments):
+        raise ValueError("추적 중인 구간 번호가 올바르지 않습니다.")
+
+    boarded_train_no = str(payload.get("boarded_train_no") or "").strip()
+    if not boarded_train_no:
+        raise ValueError("탑승한 열차번호가 없습니다.")
+
+    requested_mode = str(payload.get("day") or "AUTO")
+    boarded_at = payload.get("boarded_at")
+    mode_ref = datetime.now()
+    if boarded_at:
+        try:
+            mode_ref = datetime.strptime(boarded_at, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    mode, mode_reason = resolve_service_mode(requested_mode, mode_ref)
+    position_cache = {}
+    results = []
+    warnings = []
+
+    # 1) 현재 실제 탑승 중인 열차는 무조건 이 번호로 고정.
+    active = segments[active_index]
+    line = str(active.get("line") or "").strip()
+    fr = canon_station(active.get("from"))
+    to = canon_station(active.get("to"))
+
+    tracked = tracked_train_segment(
+        line, mode, fr, to, boarded_train_no, position_cache, boarded_at
+    )
+    if not tracked.get("ok"):
+        return {
+            "ok": False, "failed_segment": active_index + 1,
+            "error": tracked.get("error", "탑승 열차 추적 실패"),
+            "diagnostics": tracked.get("diagnostics", {}),
+        }
+
+    current = tracked["chosen"]
+    current["segment_index"] = active_index + 1
+    current["diagnostics"] = tracked.get("diagnostics", {})
+    current["nearby_candidates"] = [public_candidate(current, selected=True)]
+    results.append(current)
+
+    # 2) 현재 열차의 최신 도착 ETA + 환승시간을 다음 구간 ready 시각으로 사용.
+    ready_dt = current["alight_dt"]
+    if active_index < len(segments) - 1:
+        ready_dt += timedelta(minutes=max(0, float(active.get("transfer_walk") or 0)))
+
+    # 3) 이후 모든 구간을 지금 시점에서 다시 탐색.
+    for idx in range(active_index + 1, len(segments)):
+        s = segments[idx]
+        line = str(s.get("line") or "").strip()
+        fr = canon_station(s.get("from"))
+        to = canon_station(s.get("to"))
+
+        r = calculate_segment(line, mode, fr, to, ready_dt, position_cache)
+        if not r.get("ok"):
+            return {
+                "ok": False,
+                "failed_segment": idx + 1,
+                "error": r.get("error", "후속 구간 계산 실패"),
+                "diagnostics": r.get("diagnostics", {}),
+                "segments": [serialize_seg(x) for x in results],
+            }
+
+        chosen = r["chosen"]
+        chosen["segment_index"] = idx + 1
+        chosen["ready_dt"] = ready_dt
+        chosen["diagnostics"] = r.get("diagnostics", {})
+        chosen["nearby_candidates"] = r.get("public_candidates", [])
+        results.append(chosen)
+
+        if chosen["confidence"] != "높음":
+            warnings.append(
+                f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
+            )
+
+        if idx < len(segments) - 1:
+            ready_dt = chosen["alight_dt"] + timedelta(
+                minutes=max(0, float(s.get("transfer_walk") or 0))
+            )
+        else:
+            ready_dt = chosen["alight_dt"]
+
+    now = datetime.now()
+    final_dt = results[-1]["alight_dt"]
+    return {
+        "ok": True,
+        "live_tracking": True,
+        "service_mode": mode,
+        "service_mode_reason": mode_reason,
+        "active_index": active_index,
+        "boarded_train_no": boarded_train_no,
+        "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "arrival_time": final_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "remaining_seconds": max(0, round((final_dt - now).total_seconds())),
+        "current_segment_remaining_seconds": current.get("remaining_seconds", 0),
+        "current_station": current.get("current_station", ""),
+        "current_status": current.get("status", ""),
+        "segments": [serialize_seg(x) for x in results],
+        "warnings": warnings,
+    }
+
+def serialize_seg(x):
+    d = {}
+    for k, v in x.items():
+        d[k] = v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
+    return d
+
+def calculate_route(payload):
+    segments = payload.get("segments") or []
+    if not 1 <= len(segments) <= 8:
+        raise ValueError("구간은 1~8개로 입력하세요.")
+
+    now = datetime.now()
+    start_text = str(payload.get("start_time") or now.strftime("%H:%M"))
+    start_dt = clock_dt_near(start_text, now)
+    if start_dt < now - timedelta(hours=8):
+        start_dt += timedelta(days=1)
+
+    requested_mode = str(payload.get("day") or "AUTO")
+    mode, mode_reason = resolve_service_mode(requested_mode, start_dt)
+    ready_dt = start_dt
+    position_cache = {}
+    results = []
+    warnings = []
+
+    for idx, s in enumerate(segments):
+        line = str(s.get("line") or "").strip()
+        fr = canon_station(s.get("from"))
+        to = canon_station(s.get("to"))
+        if not fr or not to:
+            raise ValueError(f"{idx+1}번 구간의 승차역/하차역을 입력하세요.")
+        if fr == to:
+            raise ValueError(f"{idx+1}번 구간의 승차역과 하차역이 같습니다.")
+
+        r = calculate_segment(line, mode, fr, to, ready_dt, position_cache)
+        if not r.get("ok"):
+            return {
+                "ok": False,
+                "failed_segment": idx + 1,
+                "error": r.get("error", "구간 계산 실패"),
+                "diagnostics": r.get("diagnostics", {}),
+                "partial_segments": [serialize_seg(x) for x in results],
+            }
+
+        chosen = r["chosen"]
+        chosen["segment_index"] = idx + 1
+        chosen["ready_dt"] = ready_dt
+        chosen["diagnostics"] = r.get("diagnostics", {})
+        chosen["nearby_candidates"] = r.get("public_candidates", [])
+        results.append(chosen)
+
+        if chosen["confidence"] != "높음":
+            warnings.append(
+                f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
+            )
+
+        transfer_walk = max(0, float(s.get("transfer_walk") or 0))
+        if idx < len(segments) - 1:
+            ready_dt = chosen["alight_dt"] + timedelta(minutes=transfer_walk)
+        else:
+            ready_dt = chosen["alight_dt"]
+
+    end_dt = results[-1]["alight_dt"]
+    total_seconds = round((end_dt - start_dt).total_seconds())
+
+    baseline = payload.get("baseline_minutes")
+    try:
+        baseline = float(baseline) if baseline not in ("", None) else None
+    except Exception:
+        baseline = None
+
+    return {
+        "ok": True,
+        "service_mode": mode,
+        "service_mode_reason": mode_reason,
+        "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "arrival_time": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "total_seconds": total_seconds,
+        "baseline_minutes": baseline,
+        "difference_seconds": None if baseline is None else round(total_seconds - baseline * 60),
+        "segments": [serialize_seg(x) for x in results],
+        "warnings": warnings,
+    }
+
+class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
+    def translate_path(self, path):
+        rel = urllib.parse.urlparse(path).path.lstrip("/") or "index.html"
+        return str(BASE / rel)
+
+    def log_message(self, fmt, *args):
+        print("[web]", fmt % args)
+
+    def send_json(self, obj, status=200):
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path not in ("/api/route", "/api/trip_update"):
+            return self.send_json({"ok": False, "error": f"알 수 없는 API 경로: {parsed.path}"}, 404)
+        try:
+            n = int(self.headers.get("Content-Length", "0") or 0)
+            payload = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+            if parsed.path == "/api/trip_update":
+                result = calculate_live_trip(payload)
+            else:
+                result = calculate_route(payload)
+            return self.send_json(result, 200 if result.get("ok") else 422)
+        except Exception as e:
+            return self.send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/health":
+            today_mode, today_reason = resolve_service_mode("AUTO", datetime.now())
+            today_holiday = holiday_info(datetime.now())
+            return self.send_json({
+                "ok": True,
+                "today_service_mode": today_mode,
+                "today_service_reason": today_reason,
+                "today_is_holiday": bool(today_holiday),
+                "version": "V9.2",
+                "line1_weekday_trains": len(S1["weekday"]),
+                "line1_holiday_trains": len(S1["holiday"]),
+                "metro_source": OFF["meta"]["version"],
+                "gyeongui_weekday_trains": len(EXTRA["경의중앙선"]["trains"]["weekday"]),
+                "gyeongui_holiday_trains": len(EXTRA["경의중앙선"]["trains"]["holiday"]),
+                "suin_weekday_trains": len(EXTRA["수인분당선"]["trains"]["weekday"]),
+                "suin_holiday_trains": len(EXTRA["수인분당선"]["trains"]["holiday"]),
+            })
+        if parsed.path == "/api/stations":
+            return self.send_json({"ok": True, "stations": STATIONS_BY_LINE})
+        if parsed.path.startswith("/api/"):
+            return self.send_json({"ok": False, "error": f"알 수 없는 API 경로: {parsed.path}"}, 404)
+        return super().do_GET()
+
+def free_port(start=8765):
+    for p in range(start, start + 50):
+        s = socket.socket()
+        try:
+            s.bind(("127.0.0.1", p))
+            s.close()
+            return p
+        except OSError:
+            s.close()
+    raise RuntimeError("사용 가능한 로컬 포트를 찾지 못했습니다.")
+
+if __name__ == "__main__":
+    deploy_port = os.environ.get("PORT")
+    if deploy_port:
+        port = int(deploy_port)
+        host = "0.0.0.0"
+        browser_url = None
+        shown_url = f"http://0.0.0.0:{port}/"
+    else:
+        port = free_port()
+        host = "127.0.0.1"
+        browser_url = f"http://127.0.0.1:{port}/?v=9.2-{int(time.time())}"
+        shown_url = browser_url
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    print()
+    print(f"실행 완료: {shown_url}")
+    print(f"1호선 시간표: 평일 {len(S1['weekday'])}개 / 휴일 {len(S1['holiday'])}개 열차")
+    print("2~9호선 시간표: 서울교통공사 공식 250930 데이터 로드")
+    print(f"경의중앙선 시간표: 평일 {len(EXTRA['경의중앙선']['trains']['weekday'])} / 휴일 {len(EXTRA['경의중앙선']['trains']['holiday'])}개")
+    print(f"수인분당선 시간표: 평일 {len(EXTRA['수인분당선']['trains']['weekday'])} / 휴일 {len(EXTRA['수인분당선']['trains']['holiday'])}개")
+    if not deploy_port and port != 8765:
+        print(f"※ 8765가 사용 중이라 {port} 포트로 자동 변경했습니다.")
+    print("종료: Ctrl+C")
+    if browser_url:
+        threading.Timer(0.7, lambda: webbrowser.open(browser_url)).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n서버를 종료합니다.")
