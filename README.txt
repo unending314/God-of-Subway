@@ -159,3 +159,10 @@ UI
 - AUTO 선택 시 '광복절 → 휴일 시간표', '광복절 대체공휴일 → 휴일 시간표'처럼 판정 근거 표시
 - 급행열차는 열차번호 옆에 눈에 띄는 '급행' 배지 표시
 - 시발역 출발대기/조발 관련 기존 지연 표시는 변경하지 않음
+
+
+Vercel 배포판
+- 직접 ThreadingHTTPServer를 실행하지 않음
+- server.py의 FastAPI app을 Vercel Python Function으로 실행
+- 계산 코드는 engine.py
+- SEOUL_API_KEY는 Vercel Environment Variable로만 주입
