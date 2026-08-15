@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V9.2 — 1~9호선 다중 환승 ETA
+지금타 V9.3 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -9,9 +9,19 @@
 import json, os, re, urllib.request, urllib.parse, time, statistics
 from pathlib import Path
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from collections import defaultdict
 
 BASE = Path(__file__).resolve().parent
+KST = ZoneInfo("Asia/Seoul")
+
+def now_kst():
+    """
+    앱 내부 계산은 기존 시간표/서울시 API처럼 timezone-naive 한국 현지시각을 사용한다.
+    Vercel 서버는 UTC이므로 now_kst()를 직접 쓰면 9시간 차이가 난다.
+    """
+    return datetime.now(KST).replace(tzinfo=None)
+
 API_KEY = os.environ.get("SEOUL_API_KEY", "").strip()
 
 def require_api_key():
@@ -87,13 +97,13 @@ def train_digits(v):
 
 def parse_dt(v):
     if not v:
-        return datetime.now()
+        return now_kst()
     s = str(v).strip()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y%m%d%H%M%S", "%H:%M:%S", "%H%M%S"):
         try:
             d = datetime.strptime(s, fmt)
             if fmt.startswith("%H"):
-                n = datetime.now()
+                n = now_kst()
                 d = d.replace(year=n.year, month=n.month, day=n.day)
             return d
         except Exception:
@@ -104,7 +114,7 @@ def parse_dt(v):
             return datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
         except Exception:
             pass
-    return datetime.now()
+    return now_kst()
 
 def align_clock(actual_dt, sched_sec):
     actual = actual_dt.hour * 3600 + actual_dt.minute * 60 + actual_dt.second
@@ -132,7 +142,7 @@ def clock_to_sec(v):
     return int(p[0]) * 3600 + int(p[1]) * 60 + (int(p[2]) if len(p) > 2 else 0)
 
 def clock_dt_near(v, ref=None):
-    ref = ref or datetime.now()
+    ref = ref or now_kst()
     sec = clock_to_sec(v)
     base = ref.replace(hour=0, minute=0, second=0, microsecond=0)
     return min(
@@ -182,7 +192,7 @@ def auto_service_mode(d):
 
 
 def resolve_service_mode(mode, ref_dt=None):
-    ref_dt = ref_dt or datetime.now()
+    ref_dt = ref_dt or now_kst()
     if mode == "AUTO":
         resolved, reason = auto_service_mode(ref_dt)
         return resolved, reason
@@ -196,7 +206,7 @@ def choose_modes(mode):
     이미 해석되는 것이 원칙이다. 방어적으로 AUTO가 남아 있으면 오늘 기준 처리.
     """
     if mode == "AUTO":
-        mode, _ = resolve_service_mode("AUTO", datetime.now())
+        mode, _ = resolve_service_mode("AUTO", now_kst())
     if mode == "DAY":
         return "weekday", "DAY"
     if mode == "SAT":
@@ -368,7 +378,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V9.2/1.0",
+        "User-Agent": "JigeumTa-V9.3/1.0",
         "Accept": "application/json",
     })
     try:
@@ -411,7 +421,7 @@ def stop_alight_sec(stop):
 
 # ---------- Delay observations ----------
 def observe_delays(line, mode, positions):
-    now = datetime.now()
+    now = now_kst()
     obs = []
     unmatched_train = []
     unmatched_station = []
@@ -468,7 +478,7 @@ def median_delay(observations, direction=None, service=None):
 
 # ---------- Segment ETA ----------
 def direct_live_candidates(line, mode, start, end, ready_dt, observations):
-    now = datetime.now()
+    now = now_kst()
     out = []
     for o in observations:
         tr = o["train"]
@@ -663,7 +673,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     사용자가 실제 탑승했다고 표시한 열차를 잠금 추적한다.
     다른 후보 열차로 절대 교체하지 않고 지정 train_no만 따라간다.
     """
-    now = datetime.now()
+    now = now_kst()
     tr = get_train(line, mode, train_no)
     if not tr:
         return {
@@ -817,7 +827,7 @@ def calculate_live_trip(payload):
 
     requested_mode = str(payload.get("day") or "AUTO")
     boarded_at = payload.get("boarded_at")
-    mode_ref = datetime.now()
+    mode_ref = now_kst()
     if boarded_at:
         try:
             mode_ref = datetime.strptime(boarded_at, "%Y-%m-%d %H:%M:%S")
@@ -891,7 +901,7 @@ def calculate_live_trip(payload):
         else:
             ready_dt = chosen["alight_dt"]
 
-    now = datetime.now()
+    now = now_kst()
     final_dt = results[-1]["alight_dt"]
     return {
         "ok": True,
@@ -921,7 +931,7 @@ def calculate_route(payload):
     if not 1 <= len(segments) <= 8:
         raise ValueError("구간은 1~8개로 입력하세요.")
 
-    now = datetime.now()
+    now = now_kst()
     start_text = str(payload.get("start_time") or now.strftime("%H:%M"))
     start_dt = clock_dt_near(start_text, now)
     if start_dt < now - timedelta(hours=8):

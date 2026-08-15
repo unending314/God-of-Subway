@@ -1,4 +1,4 @@
-지금타 V9.2 — 배포 준비 버전
+지금타 V9.3 — 배포 준비 버전
 
 주요 개선
 1) 출발시각
@@ -141,7 +141,7 @@ V9.1 — 탑승시각 UTC/KST 오류 수정
 - 수정 저장값 15:00 (KST/local) -> 정상
 
 
-V9.2 — 대한민국 공휴일/대체공휴일 자동 운행일 + 급행 표시 강화
+V9.3 — 대한민국 공휴일/대체공휴일 자동 운행일 + 급행 표시 강화
 
 AUTO 운행일
 - 일반 평일 -> DAY
@@ -166,3 +166,17 @@ Vercel 배포판
 - server.py의 FastAPI app을 Vercel Python Function으로 실행
 - 계산 코드는 engine.py
 - SEOUL_API_KEY는 Vercel Environment Variable로만 주입
+
+
+## V9.3 Vercel KST 수정
+Vercel 런타임은 기본 UTC이므로 Python의 `datetime.now()`를 직접 사용하면
+서울시 시간표/실시간 API(KST)와 9시간 차이가 발생합니다.
+
+V9.3부터 모든 운행 계산의 현재시각을 `Asia/Seoul`로 고정합니다.
+- 실시간 열차 후보 판정
+- API 데이터 freshness
+- AUTO 공휴일 판정
+- 라이브 추적
+- 승차 가능시간 계산
+
+프론트엔드의 사용자 입력시각도 한국시간 기준으로 동일한 시간축에서 비교됩니다.

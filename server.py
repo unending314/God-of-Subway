@@ -21,11 +21,12 @@ def home():
 
 @app.get("/api/health")
 def health():
-    today_mode, today_reason = engine.resolve_service_mode("AUTO", datetime.now())
-    today_holiday = engine.holiday_info(datetime.now())
+    today_now = engine.now_kst()
+    today_mode, today_reason = engine.resolve_service_mode("AUTO", today_now)
+    today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V9.2-vercel",
+        "version": "V9.3-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
