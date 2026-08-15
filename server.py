@@ -26,7 +26,7 @@ def health():
     today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V9.3-vercel",
+        "version": "V10-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
@@ -43,6 +43,19 @@ def health():
 @app.get("/api/stations")
 def stations():
     return {"ok": True, "stations": engine.STATIONS_BY_LINE}
+
+@app.post("/api/auto_route")
+async def auto_route(request: Request):
+    try:
+        payload = await request.json()
+        result = engine.calculate_auto_route(payload)
+        status = 200 if result.get("ok") else 422
+        return JSONResponse(result, status_code=status)
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"{type(e).__name__}: {e}"},
+            status_code=422,
+        )
 
 @app.post("/api/route")
 async def route(request: Request):

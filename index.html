@@ -117,6 +117,37 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .expressBadge{display:inline-flex;align-items:center;margin-left:5px;padding:2px 5px;border-radius:999px;background:#fff0e4;color:#b54800;font-size:7px;font-weight:950;vertical-align:1px;white-space:nowrap}
 .trainNoLine{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
 
+
+
+.autoRouteBox{border:1px solid #cfd9e5;background:#f8fbff;border-radius:16px;padding:13px;margin-bottom:16px}
+.autoRouteHead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
+.autoRouteHead b{font-size:11px}.autoRouteHead span{font-size:8px;color:#75818c}
+.autoRouteGrid{display:grid;grid-template-columns:1fr 28px 1fr;gap:6px;align-items:center}
+.routeArrow{text-align:center;color:#7b8792;font-weight:900}
+.autoRouteBtn{width:100%;margin-top:8px;border:0;border-radius:11px;background:var(--blue);color:#fff;padding:11px;font-size:10px;font-weight:900;cursor:pointer}
+.autoRouteBtn:hover{filter:brightness(1.05)}
+.autoRouteBtn:disabled{opacity:.6;cursor:default}
+.autoRouteResult{display:none;margin-top:9px;padding:9px 10px;background:#fff;border:1px solid #dce5ef;border-radius:10px;font-size:8px;color:#5e6a76;line-height:1.55}
+.autoRouteResult.show{display:block}
+.routePills{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.routePill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 7px;background:#edf3f9;font-size:8px;font-weight:850;color:#415262}
+
+.stationInputWrap{position:relative}
+.stationSuggest{
+ position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:40;
+ display:none;max-height:230px;overflow:auto;background:#fff;
+ border:1px solid #d8dee5;border-radius:12px;box-shadow:0 12px 28px rgba(17,24,39,.14);
+ padding:5px;
+}
+.stationSuggest.show{display:block}
+.stationOption{
+ width:100%;border:0;background:#fff;text-align:left;cursor:pointer;
+ padding:9px 10px;border-radius:8px;font-size:10px;color:#25313d;
+}
+.stationOption:hover,.stationOption.active{background:var(--bluebg);color:#174f9c}
+.stationNoResult{padding:9px 10px;font-size:9px;color:#8a949e}
+.trainRun{font-weight:850;color:#475563}
+
 .candidateBox{margin-top:10px;border-top:1px dashed #dfe5ea;padding-top:9px}
 .candidateBox summary{cursor:pointer;list-style:none;font-size:8px;font-weight:900;color:#66727e;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .candidateBox summary::-webkit-details-marker{display:none}
@@ -175,13 +206,30 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 </header>
 
 <section class="hero">
- <h2>길은 이미 찾았다면,<br><strong>지금 실제로 몇 시에 도착하는지만 다시 계산.</strong></h2>
- <p>1~9호선·경의중앙선·수인분당선의 현재 열차 위치와 공식 열차별 시간표를 결합해 환승마다 실제로 탈 수 있는 열차를 다시 선택하고 최종 도착시간을 계산합니다.</p>
+ <h2>출발역과 도착역만 입력하면,<br><strong>경로부터 실시간 도착시간까지 한 번에.</strong></h2>
+ <p>공식 시간표로 빠른 지하철 경로를 자동 생성한 뒤, 현재 열차 위치와 지연을 반영해 환승열차와 최종 도착시간을 계속 다시 계산합니다.</p>
 </section>
 
 <div class="main">
  <aside class="card builder">
-  <div class="sectionHead"><h3>경로 설정</h3><span class="subtle">최대 8개 구간</span></div>
+  <div class="sectionHead"><h3>경로 설정</h3><span class="subtle">자동 또는 직접 입력</span></div>
+
+  <div class="autoRouteBox">
+   <div class="autoRouteHead"><b>자동 길찾기</b><span>지원 노선 전체 검색</span></div>
+   <div class="autoRouteGrid">
+    <div class="stationInputWrap globalStationWrap">
+     <input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off">
+     <div class="stationSuggest"></div>
+    </div>
+    <div class="routeArrow">→</div>
+    <div class="stationInputWrap globalStationWrap">
+     <input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off">
+     <div class="stationSuggest"></div>
+    </div>
+   </div>
+   <button id="autoRouteBtn" class="autoRouteBtn">빠른 경로 찾고 ETA 계산</button>
+   <div id="autoRouteResult" class="autoRouteResult"></div>
+  </div>
 
   <div class="field">
    <label>첫 승강장 도착</label>
@@ -317,26 +365,149 @@ function setRelativeTime(mins){
 }
 function clearQuickSelection(){document.querySelectorAll('.timeChip').forEach(x=>x.classList.remove('active'))}
 
+const CHOSEONG=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+function stationInitials(text){
+ return [...String(text||'').normalize('NFC')].map(ch=>{
+  const code=ch.charCodeAt(0);
+  if(code>=0xAC00 && code<=0xD7A3){
+   return CHOSEONG[Math.floor((code-0xAC00)/588)];
+  }
+  return ch;
+ }).join('');
+}
+function stationMatches(name,query){
+ const q=String(query||'').trim().normalize('NFC');
+ if(!q)return false;
+ const n=String(name||'').trim().normalize('NFC');
+ // ㅅ, ㅅㄱ 같은 초성 입력
+ if(/^[ㄱ-ㅎ]+$/.test(q)){
+  return stationInitials(n).startsWith(q);
+ }
+ // 성, 성균 같은 완성형 입력
+ return n.toLocaleLowerCase('ko-KR').startsWith(q.toLocaleLowerCase('ko-KR'));
+}
+function stationSuggestions(line,query){
+ return (stations[line]||[])
+  .filter(name=>stationMatches(name,query))
+  .sort((a,b)=>a.length-b.length || a.localeCompare(b,'ko'))
+  .slice(0,8);
+}
+function allStationNames(){
+ return [...new Set(Object.values(stations).flat())];
+}
+function globalStationSuggestions(query){
+ return allStationNames()
+  .filter(name=>stationMatches(name,query))
+  .sort((a,b)=>a.length-b.length || a.localeCompare(b,'ko'))
+  .slice(0,8);
+}
+function setupGlobalStationAutocomplete(input){
+ const box=input.closest('.stationInputWrap').querySelector('.stationSuggest');
+ let active=-1;
+ const render=()=>{
+  const q=input.value.trim();active=-1;
+  if(!q){hideStationSuggest(input);return}
+  const list=globalStationSuggestions(q);
+  if(!list.length){
+   box.innerHTML='<div class="stationNoResult">일치하는 역이 없습니다.</div>';
+   box.classList.add('show');return;
+  }
+  box.innerHTML=list.map((name,i)=>`<button type="button" class="stationOption" data-i="${i}" data-station="${esc(name)}">${esc(name)}</button>`).join('');
+  box.classList.add('show');
+  box.querySelectorAll('.stationOption').forEach(btn=>btn.addEventListener('mousedown',e=>{
+   e.preventDefault();input.value=btn.dataset.station;hideStationSuggest(input);
+  }));
+ };
+ const sync=()=>{
+  const opts=[...box.querySelectorAll('.stationOption')];
+  opts.forEach((x,i)=>x.classList.toggle('active',i===active));
+ };
+ input.addEventListener('input',render);
+ input.addEventListener('focus',()=>{if(input.value.trim())render()});
+ input.addEventListener('blur',()=>setTimeout(()=>hideStationSuggest(input),120));
+ input.addEventListener('keydown',e=>{
+  const opts=[...box.querySelectorAll('.stationOption')];
+  if(!box.classList.contains('show')||!opts.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();active=(active+1)%opts.length;sync()}
+  else if(e.key==='ArrowUp'){e.preventDefault();active=(active-1+opts.length)%opts.length;sync()}
+  else if(e.key==='Enter'&&active>=0){e.preventDefault();input.value=opts[active].dataset.station;hideStationSuggest(input)}
+  else if(e.key==='Escape')hideStationSuggest(input);
+ });
+}
+function hideStationSuggest(input){
+ const box=input.closest('.stationInputWrap')?.querySelector('.stationSuggest');
+ if(box){box.classList.remove('show');box.innerHTML='';}
+}
+function setupStationAutocomplete(input,seg){
+ const box=input.closest('.stationInputWrap').querySelector('.stationSuggest');
+ let active=-1;
+
+ const render=()=>{
+  const q=input.value.trim();
+  active=-1;
+  if(!q){hideStationSuggest(input);return}
+  const list=stationSuggestions(seg.querySelector('.line').value,q);
+  if(!list.length){
+   box.innerHTML='<div class="stationNoResult">일치하는 역이 없습니다.</div>';
+   box.classList.add('show');
+   return;
+  }
+  box.innerHTML=list.map((name,i)=>`<button type="button" class="stationOption" data-i="${i}" data-station="${esc(name)}">${esc(name)}</button>`).join('');
+  box.classList.add('show');
+  box.querySelectorAll('.stationOption').forEach(btn=>{
+   btn.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    input.value=btn.dataset.station;
+    hideStationSuggest(input);
+    input.dispatchEvent(new Event('change',{bubbles:true}));
+   });
+  });
+ };
+ const syncActive=()=>{
+  const opts=[...box.querySelectorAll('.stationOption')];
+  opts.forEach((x,i)=>x.classList.toggle('active',i===active));
+  if(active>=0)opts[active]?.scrollIntoView({block:'nearest'});
+ };
+
+ input.addEventListener('input',render);
+ input.addEventListener('focus',()=>{if(input.value.trim())render()});
+ input.addEventListener('blur',()=>setTimeout(()=>hideStationSuggest(input),120));
+ input.addEventListener('keydown',e=>{
+  const opts=[...box.querySelectorAll('.stationOption')];
+  if(!box.classList.contains('show') || !opts.length)return;
+  if(e.key==='ArrowDown'){
+   e.preventDefault();active=(active+1)%opts.length;syncActive();
+  }else if(e.key==='ArrowUp'){
+   e.preventDefault();active=(active-1+opts.length)%opts.length;syncActive();
+  }else if(e.key==='Enter' && active>=0){
+   e.preventDefault();input.value=opts[active].dataset.station;hideStationSuggest(input);
+  }else if(e.key==='Escape'){
+   hideStationSuggest(input);
+  }
+ });
+}
 function refreshDatalist(seg){
  const line=seg.querySelector('.line').value;
  seg.dataset.line=line;
  const shortLabel = line==='경의중앙선' ? '경중' : line==='수인분당선' ? '수분' : line.replace('호선','');
  seg.querySelector('.lineMark').textContent=shortLabel;
- const dl=seg.querySelector('datalist');
- dl.innerHTML=(stations[line]||[]).map(x=>`<option value="${esc(x)}"></option>`).join('');
+ // 노선을 바꿔도 입력 전에는 역 목록을 표시하지 않는다.
+ seg.querySelectorAll('.stationInput').forEach(hideStationSuggest);
 }
 function addSegment(data={}){
  if(document.querySelectorAll('.segment').length>=8){toast('최대 8개 구간까지 추가할 수 있습니다.');return}
- segId++;const id=`st${segId}`;const div=document.createElement('div');div.className='segment';
+ segId++;const div=document.createElement('div');div.className='segment';
  div.innerHTML=`<div class="segHead"><div class="segTitle"><span class="lineMark">1</span><span>구간 <span class="num"></span></span></div><button class="remove" aria-label="구간 삭제">×</button></div>
  <div class="segGrid">
   <div><label>노선</label><select class="line">${lineOpts(data.line||'1호선')}</select></div>
-  <div><label>승차역</label><input class="from" list="${id}" value="${esc(data.from||'')}" placeholder="승차역"></div>
-  <div><label>하차역</label><input class="to" list="${id}" value="${esc(data.to||'')}" placeholder="하차역"></div>
+  <div><label>승차역</label><div class="stationInputWrap"><input class="from stationInput" value="${esc(data.from||'')}" placeholder="역명 또는 초성 입력" autocomplete="off"><div class="stationSuggest"></div></div></div>
+  <div><label>하차역</label><div class="stationInputWrap"><input class="to stationInput" value="${esc(data.to||'')}" placeholder="역명 또는 초성 입력" autocomplete="off"><div class="stationSuggest"></div></div></div>
   <div><label>환승</label><input class="walk" type="number" min="0" max="30" step=".5" value="${data.walk??3}"></div>
- </div><datalist id="${id}"></datalist>`;
+ </div>`;
  div.querySelector('.remove').onclick=()=>{div.remove();renumber()};
  div.querySelector('.line').onchange=()=>refreshDatalist(div);
+ div.querySelectorAll('.stationInput').forEach(input=>setupStationAutocomplete(input,div));
  $('segments').appendChild(div);refreshDatalist(div);renumber();
 }
 function renumber(){[...document.querySelectorAll('.segment')].forEach((x,i)=>x.querySelector('.num').textContent=i+1)}
@@ -405,7 +576,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V9.2`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V10`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -418,6 +589,12 @@ function boardButton(s,routeIndex){
  if(!canBoard(s))return '';
  const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
  return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차 탑승'}</button>`;
+}
+function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
+function trainRunText(s){
+ const origin=s?.origin||'시발역 미상';
+ const destination=s?.destination||'종착역 미상';
+ return `${origin} → ${destination}`;
 }
 function candidateRows(s,routeIndex){
  const list=s.nearby_candidates||[];
@@ -432,7 +609,7 @@ function candidateRows(s,routeIndex){
     : '';
   return `<div class="candidateRow ${c.selected?'selected':''}">
    <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
-   <div class="candidateMeta">${c.service==='express'?'급행':'일반'} · ${fmtDelay(c.delay_seconds)}<br>${source}</div>
+   <div class="candidateMeta"><span class="trainRun">${esc(trainRunText(c))}</span> · ${trainServiceText(c)}<br>${fmtDelay(c.delay_seconds)} · ${source}</div>
    <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
    <div>${btn}</div>
   </div>`;
@@ -450,11 +627,11 @@ function legHtml(s,walk,routeIndex){
  return `<div class="leg ${confClass(s.confidence)}">
   <div class="legTop">
    <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
-   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking} · ${svc} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${s.current_station?` · ${esc(s.current_station)} ${esc(s.status||'')} 중`:''}</div></div>
+   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking}<br><span class="trainRun">${esc(trainRunText(s))}</span> · ${trainServiceText(s)} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${s.current_station?` · ${esc(s.current_station)} ${esc(s.status||'')} 중`:''}</div></div>
    <div class="clock">${fmtClock(s.board_dt)} → ${fmtClock(s.alight_dt)}<div style="margin-top:6px">${boardButton(s,routeIndex)}</div></div>
   </div>
   <div class="details">
-   <div class="detail"><span>열차번호</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b></div>
+   <div class="detail"><span>열차번호</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
    <div class="detail"><span>${s.tracking?'남은 시간':'탑승까지'}</span><b>${fmtDur(s.tracking?s.remaining_seconds:s.wait_seconds)}</b></div>
    <div class="detail"><span>차내 이동</span><b>${fmtDur(s.ride_seconds)}</b></div>
    <div class="detail"><span>다음 환승</span><b>${walk>0?walk+'분':'도착'}</b></div>
@@ -479,6 +656,36 @@ function renderRouteSegments(result,baseIndex=0){
  if(result.warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>예측 구간</b><br>${result.warnings.map(esc).join('<br>')}</div>`;
  bindBoardButtons();
 }
+function autoRouteSummary(j){
+ const pills=j.segments.map(s=>`<span class="routePill">${esc(s.line)} ${esc(s.from)} → ${esc(s.to)}</span>`).join('');
+ const via=j.interchanges?.length?` · 환승 ${j.interchanges.map(esc).join(' → ')}`:' · 무환승';
+ return `<b>${esc(j.from)} → ${esc(j.to)}</b>${via}<div class="routePills">${pills}</div><div style="margin-top:5px">시간표 그래프 기준 약 ${fmtDur(j.route_seconds)} · 실시간 ETA는 아래 결과에서 다시 계산됩니다.</div>`;
+}
+async function findAutoRoute(){
+ const from=$('autoFrom').value.trim(),to=$('autoTo').value.trim();
+ if(!from||!to){toast('출발역과 도착역을 입력하세요.');return}
+ const btn=$('autoRouteBtn');
+ btn.disabled=true;btn.textContent='경로 찾는 중…';
+ try{
+  const j=await postJson('/api/auto_route',{
+   from,to,
+   start_time:$('startTime').value||timePlus(0),
+   day:$('day').value,
+   transfer_minutes:4
+  });
+  loadRoute(j.segments);
+  $('autoRouteResult').innerHTML=autoRouteSummary(j);
+  $('autoRouteResult').classList.add('show');
+  toast(`경로 생성 완료 · ${j.transfer_count}회 환승`);
+  await calculate();
+ }catch(e){
+  $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message)}</span>`;
+  $('autoRouteResult').classList.add('show');
+ }finally{
+  btn.disabled=false;btn.textContent='빠른 경로 찾고 ETA 계산';
+ }
+}
+
 async function calculate(){
  stopTracking(false);
  const segments=collect();
@@ -568,7 +775,7 @@ async function pollLiveTrip(first=false){
   $('liveStation').textContent=current.current_station?`${current.current_station} ${current.status||''}`:'위치 재포착 중';
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
   $('liveArrival').textContent=fmtClock(j.arrival_time);
-  $('liveSub').textContent=`${current.from} → ${current.to} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
+  $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
   $('total').textContent=fmtDur(j.remaining_seconds);
   $('arrival').textContent=fmtClock(j.arrival_time);
   $('diff').textContent='이동 중';
@@ -619,6 +826,9 @@ $('addBtn').onclick=()=>{
  addSegment(prev?{line:prev.querySelector('.line').value,from:prev.querySelector('.to').value,walk:3}:{});
 };
 $('calcBtn').onclick=calculate;
+$('autoRouteBtn').onclick=findAutoRoute;
+setupGlobalStationAutocomplete($('autoFrom'));
+setupGlobalStationAutocomplete($('autoTo'));
 $('stopTrack').onclick=()=>stopTracking(true);
 
 setRelativeTime(10);

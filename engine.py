@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V9.3 — 1~9호선 다중 환승 ETA
+지금타 V10 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
   모든 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
 """
-import json, os, re, urllib.request, urllib.parse, time, statistics
+import json, os, re, urllib.request, urllib.parse, time, statistics, heapq
 from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -39,6 +39,7 @@ S1_STATIONS = load_json("stations.json")
 OFF = load_json("official_2to9_schedule.json")
 EXTRA = load_json("korail_extra_lines_schedule.json")
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
+ROUTE_GRAPH = load_json("route_graph.json")
 EXTRA_LINES = ("경의중앙선", "수인분당선")
 
 LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
@@ -220,8 +221,8 @@ def normalize_s1_train(tn, tr):
         "train_no": tn,
         "direction": tr.get("direction", ""),
         "service": tr.get("service", "local"),
-        "start": tr.get("start", ""),
-        "dest": tr.get("dest", ""),
+        "start": canon_station(tr.get("start", "")),
+        "dest": canon_station(tr.get("dest", "")),
         "stops": [{
             "station": canon_station(s.get("station")),
             "arr": s.get("arr"),
@@ -372,13 +373,245 @@ def station_options():
 
 STATIONS_BY_LINE = station_options()
 
+
+# ---------- Automatic route search ----------
+TRANSFER_EXCLUDE = set(ROUTE_GRAPH.get("meta", {}).get("excluded_same_name_transfer_stations", []))
+DEFAULT_TRANSFER_SECONDS = int(ROUTE_GRAPH.get("meta", {}).get("default_transfer_seconds", 240))
+_ROUTE_ADJ_CACHE = {}
+_SEGMENT_SERVE_CACHE = {}
+
+def _route_node(line, station):
+    return (line, canon_station(station))
+
+def _route_adjacency(mode):
+    if mode in _ROUTE_ADJ_CACHE:
+        return _ROUTE_ADJ_CACHE[mode]
+
+    adj = defaultdict(list)
+
+    # Timetable-derived directional ride edges.
+    for line, a, b, sec in ROUTE_GRAPH.get("modes", {}).get(mode, []):
+        u = _route_node(line, a)
+        v = _route_node(line, b)
+        adj[u].append((v, int(sec), "ride"))
+
+    # A same-named station on multiple supported lines is normally a transfer.
+    # 양평(5호선 / 경의중앙선) is a known different-location duplicate.
+    station_lines = defaultdict(list)
+    for line, names in STATIONS_BY_LINE.items():
+        for st in names:
+            station_lines[canon_station(st)].append(line)
+
+    for st, lines in station_lines.items():
+        if st in TRANSFER_EXCLUDE or len(lines) < 2:
+            continue
+        uniq = sorted(set(lines))
+        for a in uniq:
+            for b in uniq:
+                if a != b:
+                    adj[(a, st)].append(((b, st), DEFAULT_TRANSFER_SECONDS, "transfer"))
+
+    _ROUTE_ADJ_CACHE[mode] = adj
+    return adj
+
+def _station_lines(station):
+    c = canon_station(station)
+    return [
+        line for line, names in STATIONS_BY_LINE.items()
+        if c in {canon_station(x) for x in names}
+    ]
+
+def _segment_has_train(line, mode, start, end):
+    key = (line, mode, canon_station(start), canon_station(end))
+    if key in _SEGMENT_SERVE_CACHE:
+        return _SEGMENT_SERVE_CACHE[key]
+    ok = False
+    for tr in all_trains(line, mode):
+        if route_pair(tr["stops"], start, end):
+            ok = True
+            break
+    _SEGMENT_SERVE_CACHE[key] = ok
+    return ok
+
+def auto_find_path(start, end, mode, transfer_seconds=None):
+    """
+    Supported timetable network에서 Dijkstra 최소시간 경로 탐색.
+    비용 = 공식 시간표 기반 차내 최소 주행시간 + 환승 기본시간.
+    """
+    start = canon_station(start)
+    end = canon_station(end)
+    if not start or not end:
+        raise ValueError("출발역과 도착역을 입력하세요.")
+    if start == end:
+        raise ValueError("출발역과 도착역이 같습니다.")
+
+    start_lines = _station_lines(start)
+    end_lines = set(_station_lines(end))
+    if not start_lines:
+        raise ValueError(f"지원 노선에서 출발역 '{start}'을 찾지 못했습니다.")
+    if not end_lines:
+        raise ValueError(f"지원 노선에서 도착역 '{end}'을 찾지 못했습니다.")
+
+    adj = _route_adjacency(mode)
+    transfer_seconds = int(transfer_seconds or DEFAULT_TRANSFER_SECONDS)
+
+    # If user changes default transfer penalty, adjust transfer edges at traversal time.
+    dist = {}
+    prev = {}
+    pq = []
+    starts = set()
+    for line in start_lines:
+        node = (line, start)
+        starts.add(node)
+        dist[node] = 0
+        heapq.heappush(pq, (0, node))
+
+    target = None
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d != dist.get(u):
+            continue
+        if u[1] == end and u[0] in end_lines:
+            target = u
+            break
+        for v, base_w, kind in adj.get(u, []):
+            w = transfer_seconds if kind == "transfer" else base_w
+            nd = d + w
+            if nd < dist.get(v, 10**18):
+                dist[v] = nd
+                prev[v] = (u, kind, w)
+                heapq.heappush(pq, (nd, v))
+
+    if target is None:
+        raise ValueError(f"{start} → {end} 경로를 찾지 못했습니다.")
+
+    edges = []
+    cur = target
+    while cur not in starts:
+        pu, kind, w = prev[cur]
+        edges.append((pu, cur, kind, w))
+        cur = pu
+    edges.reverse()
+
+    return {
+        "start": start,
+        "end": end,
+        "seconds": int(dist[target]),
+        "edges": edges,
+    }
+
+def auto_path_to_segments(path, mode, transfer_minutes=4):
+    """
+    station-line path를 기존 지금타 segment 포맷으로 압축.
+    같은 노선이라도 하나의 실제 열차가 start→end를 운행하지 못하면
+    같은 역에서 별도 구간으로 분리한다.
+    """
+    edges = path["edges"]
+    segments = []
+    current = None
+
+    def finish_current(walk=None):
+        nonlocal current
+        if current:
+            if walk is not None:
+                current["transfer_walk"] = float(walk)
+            segments.append(current)
+            current = None
+
+    for u, v, kind, w in edges:
+        if kind == "transfer":
+            finish_current(transfer_minutes)
+            continue
+
+        line = u[0]
+        fr = u[1]
+        to = v[1]
+
+        if current is None:
+            current = {
+                "line": line,
+                "from": fr,
+                "to": to,
+                "transfer_walk": 0,
+            }
+            continue
+
+        if current["line"] == line:
+            # Only merge if at least one actual timetable train can cover
+            # the full accumulated segment.
+            if _segment_has_train(line, mode, current["from"], to):
+                current["to"] = to
+            else:
+                # Same-line train change/branch junction.
+                finish_current(1)
+                current = {
+                    "line": line,
+                    "from": fr,
+                    "to": to,
+                    "transfer_walk": 0,
+                }
+        else:
+            finish_current(transfer_minutes)
+            current = {
+                "line": line,
+                "from": fr,
+                "to": to,
+                "transfer_walk": 0,
+            }
+
+    finish_current(0)
+
+    if not segments:
+        raise ValueError("자동 경로를 구간으로 변환하지 못했습니다.")
+    if len(segments) > 8:
+        raise ValueError(f"자동 경로가 {len(segments)}개 구간이라 현재 최대 8구간 제한을 초과합니다.")
+
+    return segments
+
+def calculate_auto_route(payload):
+    now = now_kst()
+    start_text = str(payload.get("start_time") or now.strftime("%H:%M"))
+    start_dt = clock_dt_near(start_text, now)
+    if start_dt < now - timedelta(hours=8):
+        start_dt += timedelta(days=1)
+
+    requested_mode = str(payload.get("day") or "AUTO")
+    mode, mode_reason = resolve_service_mode(requested_mode, start_dt)
+
+    start = canon_station(payload.get("from"))
+    end = canon_station(payload.get("to"))
+    transfer_minutes = float(payload.get("transfer_minutes") or 4)
+    transfer_seconds = max(0, round(transfer_minutes * 60))
+
+    path = auto_find_path(start, end, mode, transfer_seconds)
+    segments = auto_path_to_segments(path, mode, transfer_minutes)
+
+    # Human-readable interchange list.
+    interchanges = []
+    for i in range(len(segments) - 1):
+        if segments[i]["to"] == segments[i+1]["from"]:
+            interchanges.append(segments[i]["to"])
+
+    return {
+        "ok": True,
+        "service_mode": mode,
+        "service_mode_reason": mode_reason,
+        "from": start,
+        "to": end,
+        "route_seconds": path["seconds"],
+        "transfer_count": max(0, len(segments) - 1),
+        "interchanges": interchanges,
+        "segments": segments,
+    }
+
+
 # ---------- Live API ----------
 def fetch_position(line):
     require_api_key()
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V9.3/1.0",
+        "User-Agent": "JigeumTa-V10/1.0",
         "Accept": "application/json",
     })
     try:
@@ -520,6 +753,7 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "train_no": tr["train_no"],
             "service": tr["service"],
             "direction": tr["direction"],
+            "origin": tr["start"],
             "destination": tr["dest"],
             "board_dt": board_dt,
             "alight_dt": alight_dt,
@@ -563,6 +797,7 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             "train_no": tr["train_no"],
             "service": tr["service"],
             "direction": tr["direction"],
+            "origin": tr["start"],
             "destination": tr["dest"],
             "board_dt": board_dt,
             "alight_dt": alight_dt,
@@ -582,6 +817,7 @@ def public_candidate(c, selected=False):
         "train_no": c.get("train_no", ""),
         "service": c.get("service", "local"),
         "direction": c.get("direction", ""),
+        "origin": c.get("origin", ""),
         "destination": c.get("destination", ""),
         "board_dt": c["board_dt"].strftime("%Y-%m-%d %H:%M:%S") if isinstance(c.get("board_dt"), datetime) else c.get("board_dt"),
         "alight_dt": c["alight_dt"].strftime("%Y-%m-%d %H:%M:%S") if isinstance(c.get("alight_dt"), datetime) else c.get("alight_dt"),
@@ -727,7 +963,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                 "chosen": {
                     "line": line, "from": canon_station(start), "to": canon_station(end),
                     "train_no": tr["train_no"], "service": tr["service"],
-                    "direction": tr["direction"], "destination": tr["dest"],
+                    "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
                     "board_dt": board_dt or now, "alight_dt": now,
                     "wait_seconds": 0, "ride_seconds": 0,
                     "remaining_seconds": 0, "delay_seconds": round(live["delay"]),
@@ -756,7 +992,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                     "chosen": {
                         "line": line, "from": canon_station(start), "to": canon_station(end),
                         "train_no": tr["train_no"], "service": tr["service"],
-                        "direction": tr["direction"], "destination": tr["dest"],
+                        "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
                         "board_dt": shown_board, "alight_dt": alight_dt,
                         "wait_seconds": 0,
                         "ride_seconds": max(0, round((alight_dt - shown_board).total_seconds())),
@@ -792,7 +1028,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
         "chosen": {
             "line": line, "from": canon_station(start), "to": canon_station(end),
             "train_no": tr["train_no"], "service": tr["service"],
-            "direction": tr["direction"], "destination": tr["dest"],
+            "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
             "board_dt": board_dt or now, "alight_dt": target_dt,
             "wait_seconds": 0,
             "ride_seconds": max(0, round((target_dt - (board_dt or now)).total_seconds())),
