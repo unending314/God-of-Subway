@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V11 — 1~9호선 다중 환승 ETA
+지금타 V11.1 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -217,10 +217,13 @@ def choose_modes(mode):
 
 # ---------- Normalize timetable structures into one common model ----------
 def normalize_s1_train(tn, tr):
+    normalized_tn = norm_train(tn)
+    # 사용자 제공 규칙: 1호선 K19xx 열번은 전부 급행.
+    service = "express" if re.fullmatch(r"K19\d{2}", normalized_tn) else tr.get("service", "local")
     return {
         "train_no": tn,
         "direction": tr.get("direction", ""),
-        "service": tr.get("service", "local"),
+        "service": service,
         "start": canon_station(tr.get("start", "")),
         "dest": canon_station(tr.get("dest", "")),
         "stops": [{
@@ -611,7 +614,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V11/1.0",
+        "User-Agent": "JigeumTa-V11.1/1.0",
         "Accept": "application/json",
     })
     try:
@@ -651,6 +654,69 @@ def stop_board_sec(stop):
 
 def stop_alight_sec(stop):
     return stop["arr"] if stop["arr"] is not None else stop["dep"]
+
+def stop_time_sec(stop):
+    # 1호선 급행 통과역은 arr=None, dep=통과시각 형태가 있으므로 dep 우선.
+    return stop.get("dep") if stop.get("dep") is not None else stop.get("arr")
+
+def _service_occurrence_midnight(tr, ref_dt, delay=0):
+    points = [stop_time_sec(x) for x in tr.get("stops", [])]
+    points = [x for x in points if x is not None]
+    base = ref_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    if not points:
+        return base
+    first, last = min(points) + delay, max(points) + delay
+    choices = []
+    for d in (-2, -1, 0, 1):
+        midnight = base + timedelta(days=d)
+        st = midnight + timedelta(seconds=first)
+        en = midnight + timedelta(seconds=last)
+        if st <= ref_dt <= en:
+            score = 0
+        elif ref_dt < st:
+            score = (st-ref_dt).total_seconds()
+        else:
+            score = (ref_dt-en).total_seconds()
+        choices.append((score, midnight))
+    return min(choices, key=lambda x:x[0])[1]
+
+def estimated_train_location(tr, ref_dt=None, delay=0):
+    """API 미포착 시 공식 시간표+추정 지연으로 현재 소재를 계산."""
+    ref_dt = ref_dt or now_kst()
+    stops = tr.get("stops", [])
+    timed = [(i, stop_time_sec(x)) for i,x in enumerate(stops) if stop_time_sec(x) is not None]
+    if not timed:
+        return {"kind":"expected","label":"예상 소재 계산 불가","station":"","status":""}
+    midnight = _service_occurrence_midnight(tr, ref_dt, delay)
+    timeline = [(i, midnight + timedelta(seconds=sec+delay)) for i,sec in timed]
+    first_i, first_dt = timeline[0]
+    last_i, last_dt = timeline[-1]
+
+    if ref_dt < first_dt:
+        st = canon_station(stops[first_i]["station"])
+        if (first_dt-ref_dt).total_seconds() <= 3*3600:
+            return {"kind":"expected","label":f"{st} 출발 전 예상","station":st,"status":"출발 전 예상"}
+        return {"kind":"expected","label":"운행 전","station":"","status":"운행 전"}
+
+    if ref_dt > last_dt:
+        st = canon_station(stops[last_i]["station"])
+        if (ref_dt-last_dt).total_seconds() <= 30*60:
+            return {"kind":"expected","label":f"{st} 도착 추정","station":st,"status":"도착 추정"}
+        return {"kind":"expected","label":"운행 종료 추정","station":st,"status":"운행 종료 추정"}
+
+    ni, nd = min(timeline, key=lambda x:abs((x[1]-ref_dt).total_seconds()))
+    if abs((nd-ref_dt).total_seconds()) <= 45:
+        stop = stops[ni]
+        st = canon_station(stop["station"])
+        pass_like = ni not in (0, len(stops)-1) and stop.get("arr") is None
+        status = "통과 예상" if pass_like else "부근 예상"
+        return {"kind":"expected","label":f"{st}역 {status}","station":st,"status":status}
+
+    for (i,t1),(j,t2) in zip(timeline,timeline[1:]):
+        if t1 <= ref_dt <= t2:
+            a = canon_station(stops[i]["station"]); b = canon_station(stops[j]["station"])
+            return {"kind":"expected","label":f"{a} → {b} 사이 예상","station":"","status":"구간 운행 예상"}
+    return {"kind":"expected","label":"예상 소재 계산 중","station":"","status":""}
 
 # ---------- Delay observations ----------
 def observe_delays(line, mode, positions):
@@ -761,6 +827,9 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "ride_seconds": round((alight_dt - board_dt).total_seconds()),
             "delay_seconds": round(o["delay"]),
             "current_station": o["current_station"],
+            "status": o["status"],
+            "location_kind": "live",
+            "location_label": f"{o['current_station']} {o['status']}",
             "confidence": "높음",
             "method": "실시간 열차 위치 + 열차별 공식 시간표",
             "projected": False,
@@ -783,6 +852,7 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             asec += 86400
 
         delay = median_delay(observations, tr["direction"], tr["service"])
+        expected_location = estimated_train_location(tr, now_kst(), delay)
         board_dt = schedule_dt_after(bsec, ready_dt, delay)
         if not board_dt:
             continue
@@ -804,7 +874,10 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             "wait_seconds": round((board_dt - ready_dt).total_seconds()),
             "ride_seconds": round((alight_dt - board_dt).total_seconds()),
             "delay_seconds": round(delay),
-            "current_station": "",
+            "current_station": expected_location.get("station", ""),
+            "status": expected_location.get("status", ""),
+            "location_kind": "expected",
+            "location_label": expected_location.get("label", "예상 소재 계산 중"),
             "confidence": "중간" if observations else "낮음",
             "method": "공식 시간표 + 현재 동일방향 지연 중앙값" if observations else "공식 시간표만 사용",
             "projected": True,
@@ -825,6 +898,9 @@ def public_candidate(c, selected=False):
         "ride_seconds": c.get("ride_seconds", 0),
         "delay_seconds": c.get("delay_seconds", 0),
         "current_station": c.get("current_station", ""),
+        "status": c.get("status", ""),
+        "location_kind": c.get("location_kind", "expected" if c.get("projected") else "live"),
+        "location_label": c.get("location_label", ""),
         "confidence": c.get("confidence", "중간"),
         "method": c.get("method", ""),
         "projected": bool(c.get("projected")),
@@ -968,6 +1044,8 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                     "wait_seconds": 0, "ride_seconds": 0,
                     "remaining_seconds": 0, "delay_seconds": round(live["delay"]),
                     "current_station": live["current_station"],
+                    "location_kind": "live",
+                    "location_label": f"{live['current_station']} {live['status']}",
                     "confidence": "높음", "method": "탑승 열차 실시간 고정 추적",
                     "projected": False, "tracking": True, "arrived": True,
                     "status": live["status"],
@@ -999,6 +1077,8 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                         "remaining_seconds": max(0, round((alight_dt - now).total_seconds())),
                         "delay_seconds": round(live["delay"]),
                         "current_station": live["current_station"],
+                        "location_kind": "live",
+                        "location_label": f"{live['current_station']} {live['status']}",
                         "confidence": "높음",
                         "method": "탑승 열차 실시간 고정 추적",
                         "projected": False, "tracking": True, "arrived": False,
@@ -1011,6 +1091,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     # API에서 순간적으로 열차가 사라져도 잠금을 해제하지 않는다.
     # 공식 시간표 + 현재 같은 방향/등급 열차 지연 중앙값으로 임시 유지.
     delay = median_delay(observations, tr["direction"], tr["service"])
+    expected_location = estimated_train_location(tr, now, delay)
     target_dt = schedule_dt_after(target_sec, now, delay)
     if not target_dt:
         # 심야 24/25시 운행축을 고려한 마지막 fallback
@@ -1034,11 +1115,13 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             "ride_seconds": max(0, round((target_dt - (board_dt or now)).total_seconds())),
             "remaining_seconds": max(0, round((target_dt - now).total_seconds())),
             "delay_seconds": round(delay),
-            "current_station": "",
+            "current_station": expected_location.get("station", ""),
+            "location_kind": "expected",
+            "location_label": expected_location.get("label", "예상 소재 계산 중"),
             "confidence": "중간",
             "method": "탑승 열차 잠금 · 실시간 위치 재포착 대기",
             "projected": True, "tracking": True, "arrived": False,
-            "status": "위치 재포착 대기",
+            "status": expected_location.get("status", "위치 재포착 대기"),
         },
         "diagnostics": diag,
     }

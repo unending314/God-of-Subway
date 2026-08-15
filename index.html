@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f1722">
 <title>지금타 · 라이브 지하철 ETA</title>
+<link rel="icon" type="image/png" href="/jigeumta_logo_140.png">
+<link rel="apple-touch-icon" href="/jigeumta_logo_140.png">
 <style>
 :root{
  --bg:#f3f5f7;--surface:#fff;--surface2:#f8fafb;--text:#11161d;--muted:#6b7581;
@@ -21,7 +23,7 @@ button{touch-action:manipulation}
 .wrap{max-width:1180px;margin:auto;padding:24px 18px 72px}
 header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
 .brand{display:flex;align-items:center;gap:11px}
-.logo{width:44px;height:44px;border-radius:14px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:900;letter-spacing:-.5px}
+.logo{width:58px;height:58px;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 6px rgba(25,45,70,.10);flex:0 0 auto}.logo img{display:block;width:100%;height:100%;object-fit:cover}
 .brand h1{margin:0;font-size:20px;letter-spacing:-.5px}
 .brand p{margin:3px 0 0;font-size:11px;color:var(--muted)}
 .status{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
@@ -185,6 +187,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .candidateTrain{font-size:9px;font-weight:900}
 .candidateMeta{font-size:8px;color:#6e7984;line-height:1.35}
 .candidateTime{font-size:9px;font-weight:900;text-align:right;white-space:nowrap}
+.locationLine{margin-top:4px;font-size:8px;font-weight:850;line-height:1.4}
+.locationLine.live{color:#167053}
+.locationLine.expected{color:#94640b}
+.locationDot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:1px;background:currentColor}
 .sourceBadge{display:inline-block;margin-top:2px;border-radius:999px;padding:3px 5px;font-size:7px;font-weight:900}
 .sourceBadge.live{background:var(--greenbg);color:var(--green)}
 .sourceBadge.sched{background:var(--amberbg);color:#80570b}
@@ -227,7 +233,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <body>
 <div class="wrap">
 <header>
- <div class="brand"><div class="logo">지금</div><div><h1>지금타</h1><p>1~9호선·경의중앙선·수인분당선의 시간표 후보부터 탑승 열차까지 추적</p></div></div>
+ <div class="brand"><div class="logo"><img src="/jigeumta_logo_140.png" alt="지금타 로고"></div><div><h1>지금타</h1><p>1~9호선·경의중앙선·수인분당선의 시간표 후보부터 탑승 열차까지 추적</p></div></div>
  <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
 </header>
 
@@ -931,7 +937,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11.1`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -946,6 +952,16 @@ function boardButton(s,routeIndex){
  return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차 탑승'}</button>`;
 }
 function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
+function trainLocationText(s){
+ if(s?.location_label)return s.location_label;
+ if(s?.current_station)return `${s.current_station}${s.status?` ${s.status}`:''}`;
+ return s?.projected?'예상 소재 계산 중':'실시간 소재 확인 중';
+}
+function trainLocationHtml(s){
+ const kind=(s?.location_kind==='live'||s?.live_detected)?'live':'expected';
+ const prefix=kind==='live'?'실시간 소재':'예상 소재';
+ return `<div class="locationLine ${kind}"><span class="locationDot"></span>${prefix} · ${esc(trainLocationText(s))}</div>`;
+}
 function trainRunText(s){
  const origin=s?.origin||'시발역 미상';
  const destination=s?.destination||'종착역 미상';
@@ -964,7 +980,7 @@ function candidateRows(s,routeIndex){
     : '';
   return `<div class="candidateRow ${c.selected?'selected':''}">
    <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
-   <div class="candidateMeta"><span class="trainRun">${esc(trainRunText(c))}</span> · ${trainServiceText(c)}<br>${fmtDelay(c.delay_seconds)} · ${source}</div>
+   <div class="candidateMeta"><span class="trainRun">${esc(trainRunText(c))}</span> · ${trainServiceText(c)}<br>${fmtDelay(c.delay_seconds)} · ${source}${trainLocationHtml(c)}</div>
    <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
    <div>${btn}</div>
   </div>`;
@@ -982,7 +998,7 @@ function legHtml(s,walk,routeIndex){
  return `<div class="leg ${confClass(s.confidence)}">
   <div class="legTop">
    <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
-   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking}<br><span class="trainRun">${esc(trainRunText(s))}</span> · ${trainServiceText(s)} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${s.current_station?` · ${esc(s.current_station)} ${esc(s.status||'')} 중`:''}</div></div>
+   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking}<br><span class="trainRun">${esc(trainRunText(s))}</span> · ${trainServiceText(s)} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${trainLocationHtml(s)}</div></div>
    <div class="clock">${fmtClock(s.board_dt)} → ${fmtClock(s.alight_dt)}<div style="margin-top:6px">${boardButton(s,routeIndex)}</div></div>
   </div>
   <div class="details">
@@ -1132,7 +1148,7 @@ async function pollLiveTrip(first=false){
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('livePanel').classList.add('show');
   $('liveTrain').textContent=`${current.line} ${j.boarded_train_no}`;
-  $('liveStation').textContent=current.current_station?`${current.current_station} ${current.status||''}`:'위치 재포착 중';
+  $('liveStation').textContent=trainLocationText(current);
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
   $('liveArrival').textContent=fmtClock(j.arrival_time);
   $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;

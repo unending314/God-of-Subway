@@ -19,6 +19,10 @@ app = FastAPI(
 def home():
     return FileResponse(BASE / "index.html", media_type="text/html; charset=utf-8")
 
+@app.get("/jigeumta_logo_140.png")
+def site_logo():
+    return FileResponse(BASE / "jigeumta_logo_140.png", media_type="image/png")
+
 @app.get("/api/health")
 def health():
     today_now = engine.now_kst()
@@ -26,7 +30,7 @@ def health():
     today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V11-vercel",
+        "version": "V11.1-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
