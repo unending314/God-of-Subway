@@ -105,6 +105,32 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .error{padding:12px;border-radius:11px;background:var(--redbg);color:var(--red);font-size:10px;line-height:1.55}
 .loading{padding:30px 16px;text-align:center;color:var(--muted);font-size:10px}
 
+
+.experimentCard{padding:18px 20px}
+.expHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.expHead h3{font-size:13px;margin:0}.expHead p{font-size:8px;color:var(--muted);line-height:1.5;margin:4px 0 0}
+.expToggle{display:flex;align-items:center;gap:6px;font-size:8px;font-weight:850;color:#56616d;white-space:nowrap}
+.expToggle input{width:auto}
+.expStatus{margin-top:10px;padding:9px 10px;border-radius:11px;background:#f6f8fa;border:1px solid var(--line);font-size:9px;line-height:1.5;color:#5f6b76}
+.expStatus.active{background:var(--greenbg);border-color:#c9e5d9;color:#245f4c}
+.expActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.expBtn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 9px;font-size:8px;font-weight:850;cursor:pointer;color:#4e5b68}
+.expBtn.primaryExp{background:var(--green);border-color:var(--green);color:#fff}
+.expBtn.danger{color:#a23c3c}
+.expBtn:disabled{opacity:.45;cursor:default}
+.expMetrics{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:12px}
+.expMetric{padding:9px;background:#f8fafb;border-radius:10px;border:1px solid #edf0f3}
+.expMetric span{display:block;font-size:7px;color:var(--muted)}
+.expMetric b{display:block;font-size:12px;margin-top:4px}
+.expList{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
+.expList summary{cursor:pointer;font-size:8px;font-weight:900;color:#65717d}
+.expRows{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+.expRow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 9px;background:#f8fafb;border-radius:9px;font-size:8px;line-height:1.45}
+.expRow b{font-size:9px}.expRow .muted{color:var(--muted)}
+.expRow button{border:0;background:transparent;color:#a23c3c;cursor:pointer;font-size:8px}
+.expHint{font-size:8px;color:#77828d;line-height:1.5;margin-top:8px}
+@media(max-width:700px){.expMetrics{grid-template-columns:repeat(2,1fr)}}
+
 .footNote{padding:13px 16px;font-size:9px;color:#75808b;line-height:1.6;background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:14px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:#111922;color:#fff;border-radius:999px;padding:10px 14px;font-size:10px;font-weight:800;transition:.2s;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -274,6 +300,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
    <input id="baseline" type="number" min="1" placeholder="예: 62">
   </div>
 
+  <label class="expToggle" style="margin-top:10px">
+   <input id="expEnabled" type="checkbox" checked>
+   기말 실험 기록 자동 저장
+  </label>
+
   <button id="calcBtn" class="primary">실시간 ETA 계산</button>
   <div class="helper">즐겨찾기는 경로와 환승시간만 저장하며 출발시각은 저장하지 않습니다.</div>
  </aside>
@@ -290,6 +321,33 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="metric"><b id="diff">-</b><span>기존 앱 대비</span></div>
     <div class="metric"><b id="quality">-</b><span>최저 신뢰도</span></div>
    </div>
+  </section>
+
+  <section class="card experimentCard">
+   <div class="expHead">
+    <div><h3>기말 실험 기록</h3><p>검색 → 탑승 → ETA 갱신 → 실제 도착을 이 브라우저에 기록합니다.</p></div>
+    <span id="expCount" class="subtle">완료 0건</span>
+   </div>
+   <div id="expStatus" class="expStatus">실험 기록이 켜져 있습니다. 다음 ETA 계산부터 자동으로 기록합니다.</div>
+   <div class="expActions">
+    <button id="expArrive" class="expBtn primaryExp" disabled>지금 목적지 도착 기록</button>
+    <button id="expNote" class="expBtn" disabled>메모</button>
+    <button id="expCsv" class="expBtn">요약 CSV</button>
+    <button id="expJson" class="expBtn">상세 JSON</button>
+    <button id="expDrop" class="expBtn danger" disabled>현재 실험 제외</button>
+   </div>
+   <div class="expMetrics">
+    <div class="expMetric"><span>완료 이동</span><b id="expN">0건</b></div>
+    <div class="expMetric"><span>지금타 초기 ETA MAE</span><b id="expJMaE">-</b></div>
+    <div class="expMetric"><span>기존 앱 ETA MAE</span><b id="expBMaE">-</b></div>
+    <div class="expMetric"><span>ETA 오차 감소</span><b id="expGain">-</b></div>
+    <div class="expMetric"><span>평균 첫 승강장 대기</span><b id="expWait">-</b></div>
+   </div>
+   <details class="expList">
+    <summary>최근 실험 기록 보기</summary>
+    <div id="expRows" class="expRows"></div>
+   </details>
+   <div class="expHint">기존 앱과 비교할 실험에서는 ETA 계산 전에 왼쪽의 ‘기존 앱 예상 총시간’을 입력하세요. 실험 종료 후 CSV를 반드시 내보내 보관하세요.</div>
   </section>
 
   <section id="livePanel" class="card livePanel">
@@ -333,6 +391,10 @@ let liveTimer=null;
 let countdownTimer=null;
 let nextRefreshAt=0;
 const TRIP_KEY='jigeumta_live_trip_v2';
+const EXP_KEY='jigeumta_experiments_v1';
+const ACTIVE_EXP_KEY='jigeumta_active_experiment_v1';
+let lastLiveResult=null;
+
 
 function toast(msg){
  const t=$('toast');t.textContent=msg;t.classList.add('show');
@@ -518,6 +580,299 @@ function loadRoute(segments){
  if(!segments?.length)addSegment();
 }
 
+
+function parseLocalDT(s){
+ if(!s)return null;
+ const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+ if(!m)return null;
+ return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]),Number(m[6]||0));
+}
+function minutesDiff(a,b){
+ const da=parseLocalDT(a),db=parseLocalDT(b);
+ if(!da||!db)return null;
+ return (da-db)/60000;
+}
+function addMinutesToDT(s,mins){
+ const d=parseLocalDT(s);
+ if(!d||mins==null||mins==='')return null;
+ d.setMinutes(d.getMinutes()+Number(mins));
+ return localDateTimeString(d);
+}
+function getExperiments(){
+ try{return JSON.parse(localStorage.getItem(EXP_KEY)||'[]')}catch(e){return[]}
+}
+function setExperiments(v){
+ localStorage.setItem(EXP_KEY,JSON.stringify(v));
+ renderExperimentPanel();
+}
+function getActiveExperiment(){
+ const id=localStorage.getItem(ACTIVE_EXP_KEY);
+ if(!id)return null;
+ return getExperiments().find(x=>x.id===id && !x.completed_at) || null;
+}
+function setActiveExperiment(id){
+ if(id)localStorage.setItem(ACTIVE_EXP_KEY,id);
+ else localStorage.removeItem(ACTIVE_EXP_KEY);
+ renderExperimentPanel();
+}
+function routeFingerprint(segments,startTime){
+ return JSON.stringify({
+  d:new Date().toLocaleDateString('sv-SE'),
+  t:startTime,
+  s:(segments||[]).map(x=>[x.line,x.from,x.to,Number(x.transfer_walk)||0])
+ });
+}
+function compactSegments(result){
+ return (result?.segments||[]).map((s,i)=>({
+  index:i,line:s.line,from:s.from,to:s.to,train_no:s.train_no||'',
+  origin:s.origin||'',destination:s.destination||'',service:s.service||'',
+  confidence:s.confidence||'',delay_seconds:Number(s.delay_seconds)||0,
+  board_dt:s.board_dt||'',alight_dt:s.alight_dt||''
+ }));
+}
+function experimentQuality(result){
+ const rank={'높음':3,'중간':2,'낮음':1};
+ return (result?.segments||[]).reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
+}
+function beginOrUpdateExperiment(result,segments){
+ if(!$('expEnabled')?.checked)return null;
+ const start=result.start_time || (()=> {
+  const now=new Date(), [h,m]=($('startTime').value||timePlus(0)).split(':');
+  now.setHours(Number(h),Number(m),0,0);return localDateTimeString(now);
+ })();
+ const fp=routeFingerprint(segments,$('startTime').value);
+ let ex=getActiveExperiment();
+
+ if(!ex || ex.fingerprint!==fp){
+  ex={
+   id:`exp_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+   fingerprint:fp,
+   created_at:localDateTimeString(new Date()),
+   completed_at:null,
+   excluded:false,
+   from:segments[0]?.from||'',
+   to:segments.at(-1)?.to||'',
+   planned_platform_arrival:start,
+   day_requested:$('day').value,
+   service_mode:result.service_mode||'',
+   service_mode_reason:result.service_mode_reason||'',
+   route_segments:segments,
+   route_text:segments.map(s=>`${s.line} ${s.from}→${s.to}`).join(' / '),
+   transfer_count:Math.max(0,segments.length-1),
+   baseline_minutes:$('baseline').value?Number($('baseline').value):null,
+   baseline_arrival:$('baseline').value?addMinutesToDT(start,Number($('baseline').value)):null,
+   initial_eta:result.arrival_time||null,
+   initial_total_seconds:Number(result.total_seconds)||null,
+   initial_quality:experimentQuality(result),
+   initial_predictions:compactSegments(result),
+   last_eta:result.arrival_time||null,
+   last_quality:experimentQuality(result),
+   board_events:[],
+   eta_events:[],
+   actual_arrival:null,
+   note:''
+  };
+  const all=getExperiments();
+  all.push(ex);
+  localStorage.setItem(EXP_KEY,JSON.stringify(all));
+  localStorage.setItem(ACTIVE_EXP_KEY,ex.id);
+ }else{
+  // 동일 실험에서 재계산할 경우 최초 ETA는 보존하고 최신 ETA만 갱신.
+  ex.last_eta=result.arrival_time||ex.last_eta;
+  ex.last_quality=experimentQuality(result);
+  ex.baseline_minutes=$('baseline').value?Number($('baseline').value):ex.baseline_minutes;
+  ex.baseline_arrival=ex.baseline_minutes!=null?addMinutesToDT(ex.planned_platform_arrival,ex.baseline_minutes):null;
+  updateExperiment(ex);
+ }
+ recordEtaEvent('route_calculation',result);
+ renderExperimentPanel();
+ return ex;
+}
+function updateExperiment(ex){
+ const all=getExperiments();
+ const i=all.findIndex(x=>x.id===ex.id);
+ if(i>=0){all[i]=ex;localStorage.setItem(EXP_KEY,JSON.stringify(all))}
+ renderExperimentPanel();
+}
+function recordEtaEvent(kind,result){
+ const ex=getActiveExperiment();
+ if(!ex || !result?.arrival_time)return;
+ const event={
+  at:localDateTimeString(new Date()),
+  kind,
+  eta:result.arrival_time,
+  remaining_seconds:Number(result.remaining_seconds ?? result.total_seconds)||0,
+  quality:experimentQuality(result),
+  segments:compactSegments(result)
+ };
+ const last=ex.eta_events.at(-1);
+ // 20초 폴링을 그대로 남기되 완전히 같은 응답이 연달아 중복될 때만 생략.
+ if(last && last.eta===event.eta && last.quality===event.quality &&
+    JSON.stringify(last.segments.map(x=>[x.train_no,x.confidence,x.delay_seconds]))===
+    JSON.stringify(event.segments.map(x=>[x.train_no,x.confidence,x.delay_seconds]))){
+  ex.last_eta=event.eta;ex.last_quality=event.quality;updateExperiment(ex);return;
+ }
+ ex.eta_events.push(event);
+ if(ex.eta_events.length>500)ex.eta_events=ex.eta_events.slice(-500);
+ ex.last_eta=event.eta;
+ ex.last_quality=event.quality;
+ updateExperiment(ex);
+}
+function recommendedForSegment(routeIndex){
+ if(lastLiveResult?.segments?.length){
+  const base=Number(lastLiveResult.active_index)||0;
+  const local=routeIndex-base;
+  if(local>=0 && local<lastLiveResult.segments.length)return lastLiveResult.segments[local];
+ }
+ return lastRouteResult?.segments?.[routeIndex]||null;
+}
+function recordBoardEvent(routeIndex,trainNo){
+ const ex=getActiveExperiment();
+ if(!ex)return;
+ const rec=recommendedForSegment(routeIndex);
+ const now=localDateTimeString(new Date());
+ const existing=ex.board_events.find(x=>x.segment_index===routeIndex && x.boarded_train_no===String(trainNo));
+ if(existing)return;
+ ex.board_events.push({
+  at:now,
+  segment_index:routeIndex,
+  line:ex.route_segments?.[routeIndex]?.line||rec?.line||'',
+  from:ex.route_segments?.[routeIndex]?.from||rec?.from||'',
+  to:ex.route_segments?.[routeIndex]?.to||rec?.to||'',
+  boarded_train_no:String(trainNo),
+  recommended_train_no:String(rec?.train_no||''),
+  matches_recommendation:Boolean(rec?.train_no && String(rec.train_no)===String(trainNo)),
+  recommendation_confidence:rec?.confidence||'',
+  recommendation_delay_seconds:Number(rec?.delay_seconds)||0,
+  recommendation_eta:rec?.alight_dt||''
+ });
+ updateExperiment(ex);
+}
+function completeExperimentNow(){
+ const ex=getActiveExperiment();
+ if(!ex){toast('진행 중인 실험이 없습니다.');return}
+ ex.actual_arrival=localDateTimeString(new Date());
+ ex.completed_at=ex.actual_arrival;
+ ex.final_eta=ex.last_eta||ex.initial_eta;
+ updateExperiment(ex);
+ setActiveExperiment(null);
+ toast('실제 도착시각을 기록했습니다.');
+}
+function experimentMetrics(ex){
+ if(!ex?.completed_at || !ex.actual_arrival)return {};
+ const initErr=ex.initial_eta!=null?Math.abs(minutesDiff(ex.actual_arrival,ex.initial_eta)):null;
+ const finalErr=ex.final_eta!=null?Math.abs(minutesDiff(ex.actual_arrival,ex.final_eta)):null;
+ const baseErr=ex.baseline_arrival!=null?Math.abs(minutesDiff(ex.actual_arrival,ex.baseline_arrival)):null;
+ const firstBoard=ex.board_events?.length?[...ex.board_events].sort((a,b)=>a.at.localeCompare(b.at))[0]:null;
+ const wait=firstBoard?Math.max(0,minutesDiff(firstBoard.at,ex.planned_platform_arrival)):null;
+ const withRec=(ex.board_events||[]).filter(x=>x.recommended_train_no);
+ const matchRate=withRec.length?withRec.filter(x=>x.matches_recommendation).length/withRec.length:null;
+ return {
+  initial_error_min:initErr,
+  final_error_min:finalErr,
+  baseline_error_min:baseErr,
+  error_gain_min:(baseErr!=null&&initErr!=null)?baseErr-initErr:null,
+  error_reduction_pct:(baseErr!=null&&baseErr>0&&initErr!=null)?(baseErr-initErr)/baseErr*100:null,
+  first_platform_wait_min:wait,
+  recommendation_match_rate:matchRate
+ };
+}
+function fmtMetricMin(v){return v==null||!Number.isFinite(v)?'-':`${v.toFixed(1)}분`}
+function completedExperiments(){return getExperiments().filter(x=>x.completed_at&&!x.excluded)}
+function renderExperimentPanel(){
+ const active=getActiveExperiment();
+ const completed=completedExperiments();
+ $('expCount').textContent=`완료 ${completed.length}건`;
+ $('expN').textContent=`${completed.length}건`;
+ $('expArrive').disabled=!active;
+ $('expNote').disabled=!active;
+ $('expDrop').disabled=!active;
+
+ if(active){
+  $('expStatus').classList.add('active');
+  $('expStatus').innerHTML=`<b>기록 중</b> · ${esc(active.from)} → ${esc(active.to)} · 최초 ETA ${fmtClock(active.initial_eta)} · 탑승 ${active.board_events?.length||0}회`;
+ }else{
+  $('expStatus').classList.remove('active');
+  $('expStatus').textContent=$('expEnabled')?.checked
+   ? '실험 기록이 켜져 있습니다. 다음 ETA 계산부터 자동으로 기록합니다.'
+   : '실험 기록이 꺼져 있습니다.';
+ }
+
+ const mets=completed.map(ex=>experimentMetrics(ex));
+ const avg=arr=>{
+  const v=arr.filter(x=>x!=null&&Number.isFinite(x));
+  return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;
+ };
+ const jmae=avg(mets.map(x=>x.initial_error_min));
+ const bmae=avg(mets.map(x=>x.baseline_error_min));
+ const wait=avg(mets.map(x=>x.first_platform_wait_min));
+ $('expJMaE').textContent=fmtMetricMin(jmae);
+ $('expBMaE').textContent=fmtMetricMin(bmae);
+ $('expWait').textContent=fmtMetricMin(wait);
+ $('expGain').textContent=(jmae!=null&&bmae!=null&&bmae>0)
+  ? `${((bmae-jmae)/bmae*100).toFixed(0)}%`
+  : '-';
+
+ const rows=getExperiments().slice().reverse().slice(0,12);
+ $('expRows').innerHTML=rows.length?rows.map(ex=>{
+  const m=experimentMetrics(ex);
+  const state=ex.excluded?'제외':ex.completed_at?'완료':'미완료';
+  const err=ex.completed_at?` · 지금타 오차 ${fmtMetricMin(m.initial_error_min)}`:'';
+  return `<div class="expRow"><div><b>${esc(ex.from)} → ${esc(ex.to)}</b><div class="muted">${state} · ${esc(ex.created_at)}${err}<br>${esc(ex.route_text||'')}</div></div><button data-exp-delete="${esc(ex.id)}">삭제</button></div>`;
+ }).join(''):'<div class="stationNoResult">아직 실험 기록이 없습니다.</div>';
+ document.querySelectorAll('[data-exp-delete]').forEach(b=>b.onclick=()=>{
+  const id=b.dataset.expDelete;
+  const all=getExperiments().filter(x=>x.id!==id);
+  localStorage.setItem(EXP_KEY,JSON.stringify(all));
+  if(localStorage.getItem(ACTIVE_EXP_KEY)===id)localStorage.removeItem(ACTIVE_EXP_KEY);
+  renderExperimentPanel();
+ });
+}
+function csvCell(v){
+ const s=String(v??'');
+ return `"${s.replaceAll('"','""')}"`;
+}
+function exportExperimentCsv(){
+ const rows=completedExperiments();
+ if(!rows.length){toast('완료된 실험이 없습니다.');return}
+ const headers=[
+  'experiment_id','created_at','completed_at','from','to','route','transfer_count',
+  'service_mode','planned_platform_arrival','baseline_minutes','baseline_arrival',
+  'jigeumta_initial_eta','jigeumta_final_eta','actual_arrival',
+  'jigeumta_initial_error_min','jigeumta_final_error_min','baseline_error_min',
+  'error_gain_min','error_reduction_pct','first_board_at','first_platform_wait_min',
+  'board_count','recommendation_match_rate','initial_quality','final_quality','note'
+ ];
+ const data=rows.map(ex=>{
+  const m=experimentMetrics(ex);
+  const boards=(ex.board_events||[]).slice().sort((a,b)=>a.at.localeCompare(b.at));
+  return [
+   ex.id,ex.created_at,ex.completed_at,ex.from,ex.to,ex.route_text,ex.transfer_count,
+   ex.service_mode,ex.planned_platform_arrival,ex.baseline_minutes,ex.baseline_arrival,
+   ex.initial_eta,ex.final_eta,ex.actual_arrival,
+   m.initial_error_min?.toFixed(3),m.final_error_min?.toFixed(3),m.baseline_error_min?.toFixed(3),
+   m.error_gain_min?.toFixed(3),m.error_reduction_pct?.toFixed(2),boards[0]?.at||'',
+   m.first_platform_wait_min?.toFixed(3),boards.length,
+   m.recommendation_match_rate==null?'':(m.recommendation_match_rate*100).toFixed(1),
+   ex.initial_quality,ex.last_quality,ex.note||''
+  ];
+ });
+ const csv='\uFEFF'+[headers,...data].map(r=>r.map(csvCell).join(',')).join('\r\n');
+ downloadText(`jigeumta_experiment_${new Date().toLocaleDateString('sv-SE')}.csv`,csv,'text/csv;charset=utf-8');
+}
+function exportExperimentJson(){
+ const rows=getExperiments();
+ if(!rows.length){toast('실험 기록이 없습니다.');return}
+ downloadText(`jigeumta_experiment_detail_${new Date().toLocaleDateString('sv-SE')}.json`,
+  JSON.stringify({version:'V11',exported_at:localDateTimeString(new Date()),experiments:rows},null,2),
+  'application/json;charset=utf-8');
+}
+function downloadText(name,text,type){
+ const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
 function getFavs(){try{return JSON.parse(localStorage.getItem(FAV_KEY)||'[]')}catch(e){return[]}}
 function setFavs(v){localStorage.setItem(FAV_KEY,JSON.stringify(v));refreshFavorites()}
 function routeDefaultName(segs){
@@ -576,7 +931,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V10`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -695,6 +1050,8 @@ async function calculate(){
  try{
   const j=await postJson('/api/route',{start_time:$('startTime').value||timePlus(0),baseline_minutes:$('baseline').value,day:$('day').value,segments});
   lastRouteResult=j;
+  lastLiveResult=null;
+  beginOrUpdateExperiment(j,segments);
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('total').textContent=fmtDur(j.total_seconds);$('arrival').textContent=fmtClock(j.arrival_time);
   if(j.difference_seconds==null)$('diff').textContent='비교값 없음';
@@ -720,6 +1077,7 @@ function saveTrip(){
 function startTracking(activeIndex,trainNo){
  const segments=collect();
  if(!segments[activeIndex])return;
+ recordBoardEvent(activeIndex,trainNo);
  liveTrip={
   activeIndex,
   boardedTrainNo:String(trainNo),
@@ -768,6 +1126,8 @@ async function pollLiveTrip(first=false){
  try{
   const j=await postJson('/api/trip_update',payload);
   if(!liveTrip)return;
+  lastLiveResult=j;
+  recordEtaEvent('live_update',j);
   const current=j.segments[0];
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('livePanel').classList.add('show');
@@ -830,10 +1190,26 @@ $('autoRouteBtn').onclick=findAutoRoute;
 setupGlobalStationAutocomplete($('autoFrom'));
 setupGlobalStationAutocomplete($('autoTo'));
 $('stopTrack').onclick=()=>stopTracking(true);
+$('expArrive').onclick=completeExperimentNow;
+$('expCsv').onclick=exportExperimentCsv;
+$('expJson').onclick=exportExperimentJson;
+$('expDrop').onclick=()=>{
+ const ex=getActiveExperiment();if(!ex)return;
+ if(!confirm('현재 실험 기록을 제외/삭제할까요?'))return;
+ const all=getExperiments().filter(x=>x.id!==ex.id);
+ localStorage.setItem(EXP_KEY,JSON.stringify(all));setActiveExperiment(null);toast('현재 실험을 제외했습니다.');
+};
+$('expNote').onclick=()=>{
+ const ex=getActiveExperiment();if(!ex)return;
+ const note=prompt('실험 메모',ex.note||'');
+ if(note===null)return;ex.note=note;updateExperiment(ex);
+};
+$('expEnabled').addEventListener('change',renderExperimentPanel);
 
 setRelativeTime(10);
 loadRoute([{line:'2호선',from:'',to:'',transfer_walk:3}]);
 refreshFavorites();
+renderExperimentPanel();
 init().then?.(()=>restoreTrip());
 setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
 </script>
