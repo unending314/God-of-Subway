@@ -7,6 +7,15 @@
 <title>지금타 · 라이브 지하철 ETA</title>
 <link rel="icon" type="image/png" href="/jigeumta_logo_140.png">
 <link rel="apple-touch-icon" href="/jigeumta_logo_140.png">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-HHYSX8GQ95"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-HHYSX8GQ95');
+</script>
 <style>
 :root{
  --bg:#f3f5f7;--surface:#fff;--surface2:#f8fafb;--text:#11161d;--muted:#6b7581;
@@ -937,7 +946,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11.2`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
