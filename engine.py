@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.2 — 1~9호선 다중 환승 ETA
+지금타 V12.3 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -124,7 +124,15 @@ def align_clock(actual_dt, sched_sec):
     return min(candidates, key=lambda x: abs(x - sched_sec))
 
 def status_name(v):
-    return {"0": "진입", "1": "도착", "2": "출발"}.get(str(v or ""), str(v or "") or "위치")
+    raw = str(v or "").strip()
+    known = {"0": "진입", "1": "도착", "2": "출발"}
+    if raw in known:
+        return known[raw]
+    # 서울시 API가 3 등 문서화되지 않은/원시 숫자 코드를 반환하더라도
+    # 사용자 화면에는 숫자 상태값을 노출하지 않는다.
+    if re.fullmatch(r"[-+]?\d+(?:\.\d+)?", raw):
+        return ""
+    return raw or ""
 
 def scheduled_reference(stop, status):
     arr, dep = stop["arr"], stop["dep"]
@@ -926,7 +934,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.2/1.0",
+        "User-Agent": "JigeumTa-V12.3/1.0",
         "Accept": "application/json",
     })
     try:

@@ -894,7 +894,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.2`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.3`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -909,9 +909,25 @@ function boardButton(s,routeIndex){
  return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`;
 }
 function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
+function cleanStatusText(value){
+ const t=String(value??'').trim();
+ if(!t||/^[-+]?\d+(?:\.\d+)?$/.test(t))return '';
+ return t;
+}
+function cleanLocationLabel(value){
+ const t=String(value??'').trim();
+ // 예: "신당 3" → "신당"
+ return t.replace(/\s+[-+]?\d+(?:\.\d+)?\s*$/,'').trim();
+}
 function trainLocationText(s){
- if(s?.location_label)return s.location_label;
- if(s?.current_station)return `${s.current_station}${s.status?` ${s.status}`:''}`;
+ if(s?.location_label){
+  const cleaned=cleanLocationLabel(s.location_label);
+  if(cleaned)return cleaned;
+ }
+ if(s?.current_station){
+  const status=cleanStatusText(s.status);
+  return `${s.current_station}${status?` ${status}`:''}`;
+ }
  return s?.projected?'예상 소재 계산 중':'실시간 소재 확인 중';
 }
 function trainLocationHtml(s){
