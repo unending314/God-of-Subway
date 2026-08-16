@@ -202,7 +202,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .candidateRow{display:grid;grid-template-columns:auto 1fr auto auto;gap:7px;align-items:center;padding:8px 9px;border-radius:10px;background:#f7f9fb;border:1px solid #edf0f3}
 .candidateRow.selected{border-color:#b7cae8;background:#f3f7fd}
 .candidateTrain{font-size:9px;font-weight:900}
-.candidateMeta{font-size:8px;color:#6e7984;line-height:1.35}
+.candidateMeta{font-size:8px;color:#6e7984;line-height:1.35;min-width:0}
+.candidateMetaLine{display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;min-width:0}
+.metaSep{color:#a0a9b2}
+.sourceCompact,.serviceCompact{display:none}
+.candidateAction{min-width:0}
 .candidateTime{font-size:9px;font-weight:900;text-align:right;white-space:nowrap}
 .locationLine{margin-top:4px;font-size:8px;font-weight:850;line-height:1.4}
 .locationLine.live{color:#167053}
@@ -274,6 +278,95 @@ header{margin-bottom:30px}
 @media(max-width:760px){.wrap{padding:16px 11px 50px}.searchStage{margin-top:4vh}.searchStage h2{font-size:28px}.journeySearch{grid-template-columns:1fr 34px 1fr 44px}.searchBtn{grid-column:1/-1;padding:13px}.settingsBtn{grid-column:4}.settingsGrid{grid-template-columns:1fr}.legTop{grid-template-columns:auto 1fr}.clock{grid-column:2;text-align:left}.trainOverview{grid-template-columns:1fr 1fr}.details{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:1fr 1fr 1fr}}
 @media(max-width:520px){.flowCard .sectionHead{align-items:flex-start;flex-direction:column}.routeHeadMeta{width:100%;justify-content:space-between}.routeStampLine{justify-content:flex-start}.refreshRoute{margin-left:auto}header .brand p{display:none}.logo{width:46px;height:46px}.searchStage{margin-top:3vh}.journeySearch{grid-template-columns:1fr 36px}.stationBig{grid-column:1/-1}.swapBtn{grid-column:1/-1;height:32px}.settingsBtn{grid-column:1}.searchBtn{grid-column:2;padding:12px}.summaryCard h3{font-size:21px}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{display:none}.lineBadge{min-width:52px}.leg h4{font-size:13px}.trainOverview{grid-template-columns:1fr}.transferWrap{padding:15px 5px}}
 
+
+/* V12.5 — mobile density / primary search action */
+@media(max-width:520px){
+ .searchCard{padding:12px;border-radius:20px}
+ .journeySearch{
+   grid-template-columns:48px minmax(0,1fr);
+   gap:9px;
+ }
+ .stationBig{grid-column:1/-1;padding:9px 12px}
+ .stationBig input{font-size:17px}
+ .swapBtn{
+   grid-column:1/-1;
+   justify-self:center;
+   width:44px;
+   height:32px;
+   border-radius:999px;
+   margin:-2px 0;
+   background:#f8fafc;
+ }
+ .settingsBtn{
+   grid-column:1;
+   width:48px;
+   height:46px;
+   border-radius:14px;
+   background:#fff;
+ }
+ .searchBtn{
+   grid-column:2;
+   width:100%;
+   min-height:46px;
+   padding:0 20px;
+   border-radius:14px;
+   font-size:12px;
+   letter-spacing:-.15px;
+   box-shadow:0 6px 16px rgba(23,58,94,.18);
+ }
+ .searchBtn:active{transform:translateY(1px);box-shadow:0 3px 9px rgba(23,58,94,.16)}
+
+ .candidateList{gap:7px}
+ .candidateRow{
+   grid-template-columns:minmax(0,1fr) auto;
+   grid-template-areas:
+     "train time"
+     "meta meta"
+     "action action";
+   gap:5px 8px;
+   align-items:center;
+   padding:10px 11px;
+ }
+ .candidateTrain{grid-area:train;font-size:10px;min-width:0}
+ .candidateTime{grid-area:time;font-size:8px}
+ .candidateMeta{grid-area:meta;font-size:8px;line-height:1.25;min-width:0}
+ .candidateAction{grid-area:action}
+ .candidateMetaLine{
+   display:flex;
+   flex-wrap:nowrap;
+   align-items:center;
+   gap:3px;
+   white-space:nowrap;
+   overflow:hidden;
+   min-width:0;
+ }
+ .candidateMetaLine .trainRun{
+   overflow:hidden;
+   text-overflow:ellipsis;
+   min-width:0;
+   flex:0 1 auto;
+ }
+ .candidateMetaLine .sourceBadge{flex:0 0 auto;margin-top:0;padding:2px 5px}
+ .sourceFull,.serviceFull{display:none}
+ .sourceCompact,.serviceCompact{display:inline}
+ .locationLine{
+   display:block;
+   margin-top:4px;
+   font-size:8px;
+   line-height:1.25;
+   white-space:nowrap;
+   overflow:hidden;
+   text-overflow:ellipsis;
+ }
+ .candidateBoard{
+   width:100%;
+   padding:7px 10px;
+   border-radius:8px;
+ }
+ .candidateBox summary{font-size:9px}
+ .startHint{font-size:8px;line-height:1.4;padding:8px 9px}
+}
+
 </style>
 </head>
 <body>
@@ -296,11 +389,10 @@ header{margin-bottom:30px}
   </div>
   <div id="settingsPanel" class="settingsPanel">
    <div class="settingsGrid">
-    <div class="settingsSection"><label>플랫폼 도착 예정</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip active" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div><input id="startTime" type="time"></div>
+    <div class="settingsSection"><label>플랫폼 도착 예정</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button class="timeChip active" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div><input id="startTime" type="time"></div>
     <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
     <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
    </div>
-   <div class="settingsNote">기본값은 지금부터 10분 후 플랫폼 도착입니다. AUTO는 새벽 02:00까지 전날 운행일로 계산합니다.</div>
   </div>
   <div id="autoRouteResult" class="autoRouteResult"></div>
  </div>
@@ -894,7 +986,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.4`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.5`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -945,23 +1037,28 @@ function candidateRows(s,routeIndex){
  if(!list.length)return '';
  const rows=list.map(c=>{
   const source=c.live_detected
-    ? `<span class="sourceBadge live">실시간 확인</span>`
-    : `<span class="sourceBadge sched">시간표 후보 · 미포착</span>`;
+    ? `<span class="sourceBadge live"><span class="sourceFull">실시간 확인</span><span class="sourceCompact">실시간</span></span>`
+    : `<span class="sourceBadge sched"><span class="sourceFull">시간표 후보 · 미포착</span><span class="sourceCompact">미포착</span></span>`;
   const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
   const btn=canBoard(c)
     ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`
     : '';
+  const serviceFull=trainServiceText(c);
+  const serviceCompact=c.service==='express'?'급행':'일반';
   return `<div class="candidateRow ${c.selected?'selected':''}">
    <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
-   <div class="candidateMeta"><span class="trainRun">${esc(trainRunText(c))}</span> · ${trainServiceText(c)}<br>${fmtDelay(c.delay_seconds)} · ${source}${trainLocationHtml(c)}</div>
+   <div class="candidateMeta">
+    <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${fmtDelay(c.delay_seconds)}</span><span class="metaSep">·</span>${source}</div>
+    ${trainLocationHtml(c)}
+   </div>
    <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
-   <div>${btn}</div>
+   <div class="candidateAction">${btn}</div>
   </div>`;
  }).join('');
  const hasUnseen=list.some(c=>!c.live_detected);
  return `<details class="candidateBox">
   <summary><span>근처 열차 후보 ${list.length}개</span><span>${hasUnseen?'미포착 열차 포함':''}</span></summary>
-  ${hasUnseen?`<div class="startHint">공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 시발역에서 실제 탑승했다면 해당 열차의 ‘탑승’을 누르세요. 이후 실시간 위치에 나타나는 순간 자동으로 높은 신뢰도로 전환됩니다.</div>`:''}
+  ${hasUnseen?`<div class="startHint">공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 시발역에서 실제 탑승했다면 해당 열차의 ‘이 열차를 탔어요’를 누르세요. 이후 실시간 위치에 나타나는 순간 자동으로 높은 신뢰도로 전환됩니다.</div>`:''}
   <div class="candidateList">${rows}</div>
  </details>`;
 }
@@ -1282,7 +1379,7 @@ $('expNote').onclick=()=>{
 };
 $('expEnabled').addEventListener('change',renderExperimentPanel);
 
-setRelativeTime(10);
+setRelativeTime(0);
 loadRoute([]);
 refreshFavorites();
 renderExperimentPanel();
