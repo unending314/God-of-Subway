@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12 — 1~9호선 다중 환승 ETA
+지금타 V12.1 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -726,7 +726,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12/1.0",
+        "User-Agent": "JigeumTa-V12.1/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1374,7 +1374,12 @@ def calculate_route(payload):
 
     requested_mode = str(payload.get("day") or "AUTO")
     mode, mode_reason = resolve_service_mode(requested_mode, start_dt)
-    ready_dt = start_dt
+
+    # 수동 새로고침에서는 사용자가 처음 정한 플랫폼 도착 예정시각 자체는
+    # 고정한다. 다만 그 시각이 이미 지났다면 이미 지나간 열차가 다시
+    # 추천되지 않도록 첫 구간의 실제 탑승 가능 기준만 현재 시각으로 올린다.
+    refresh_only = bool(payload.get("refresh_only"))
+    ready_dt = max(start_dt, now) if refresh_only else start_dt
     position_cache = {}
     results = []
     warnings = []
@@ -1432,6 +1437,8 @@ def calculate_route(payload):
         "service_mode": mode,
         "service_mode_reason": mode_reason,
         "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "calculated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "refresh_only": refresh_only,
         "arrival_time": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
         "total_seconds": total_seconds,
         "baseline_minutes": baseline,
