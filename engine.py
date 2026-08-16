@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.3 — 1~9호선 다중 환승 ETA
+지금타 V12.4 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -404,6 +404,7 @@ def all_trains(line, mode):
 _CONTINUATION_CACHE = {}
 _VIRTUAL_TRAIN_CACHE = {}
 MAX_CONTINUATION_GAP_SECONDS = 180
+LINE2_MAX_CONTINUATION_GAP_SECONDS = 120  # 성수에서 3분(180초) 연결은 차량기지 입고 등 오판 가능성이 높아 배제
 
 
 def _first_train_sec(tr):
@@ -460,35 +461,70 @@ def continuation_links(line, mode):
     preds.sort(key=lambda x: x[2])
     succs.sort(key=lambda x: x[2])
     links = {}
-    used_successors = set()
-    for ptn, pred, pend in preds:
-        candidates = []
-        for stn, succ, sstart in succs:
-            if stn in used_successors:
+
+    if line == "2호선":
+        # 2호선은 성수 종착열차를 시간순으로 먼저 처리하면,
+        # 더 이른 종착열차가 후속 열번을 '선점'하는 문제가 생길 수 있다.
+        # 예: 평일 2087(09:02 종착)이 2151(09:05 시발)을 180초로 먼저 잡으면
+        # 실제 30초 연결인 2089(09:04:30 종착) → 2151이 사라진다.
+        #
+        # 따라서 모든 유효 후보쌍을 만든 뒤 '간격이 가장 짧은 쌍'부터
+        # 1:1로 확정한다. 180초(3분)는 아예 후보에서 제외한다.
+        edges = []
+        for ptn, pred, pend in preds:
+            for stn, succ, sstart in succs:
+                if succ.get("direction") != pred.get("direction"):
+                    continue
+                gap = sstart - pend
+                while gap < 0:
+                    gap += 86400
+                if 0 <= gap <= LINE2_MAX_CONTINUATION_GAP_SECONDS:
+                    edges.append((gap, pend, sstart, ptn, stn))
+
+        # 짧은 연결을 최우선. 동일 gap이면 실제 시각 순서로 안정적으로 결정.
+        edges.sort(key=lambda x: (x[0], x[1], x[2], x[3], x[4]))
+        used_preds = set()
+        used_successors = set()
+        for gap, pend, sstart, ptn, stn in edges:
+            if ptn in used_preds or stn in used_successors:
                 continue
-            if line == "2호선" and succ.get("direction") != pred.get("direction"):
+            used_preds.add(ptn)
+            used_successors.add(stn)
+            links[ptn] = {
+                "next_train_no": stn,
+                "gap_seconds": int(gap),
+                "station": "성수",
+                "next_start_sec": int(sstart),
+            }
+    else:
+        # 6호선은 사용자 수동 검증에서 30초 초과 연결까지 모두 정상 확인됨.
+        # 기존 180초 + 선행열번 기준 최근접 매칭을 유지한다.
+        used_successors = set()
+        for ptn, pred, pend in preds:
+            candidates = []
+            for stn, succ, sstart in succs:
+                if stn in used_successors:
+                    continue
+                gap = sstart - pend
+                while gap < 0:
+                    gap += 86400
+                if 0 <= gap <= MAX_CONTINUATION_GAP_SECONDS:
+                    candidates.append((gap, stn, succ, sstart))
+            if not candidates:
                 continue
-            gap = sstart - pend
-            while gap < 0:
-                gap += 86400
-            if 0 <= gap <= MAX_CONTINUATION_GAP_SECONDS:
-                candidates.append((gap, stn, succ, sstart))
-        if not candidates:
-            continue
-        candidates.sort(key=lambda x: (x[0], x[1]))
-        min_gap = candidates[0][0]
-        nearest = [x for x in candidates if x[0] == min_gap]
-        # 같은 최소 gap 후보가 복수면 물리 차량을 확정할 근거가 부족하므로 연결하지 않는다.
-        if len(nearest) != 1:
-            continue
-        gap, stn, succ, sstart = nearest[0]
-        used_successors.add(stn)
-        links[ptn] = {
-            "next_train_no": stn,
-            "gap_seconds": int(gap),
-            "station": "성수" if line == "2호선" else "응암",
-            "next_start_sec": int(sstart),
-        }
+            candidates.sort(key=lambda x: (x[0], x[1]))
+            min_gap = candidates[0][0]
+            nearest = [x for x in candidates if x[0] == min_gap]
+            if len(nearest) != 1:
+                continue
+            gap, stn, succ, sstart = nearest[0]
+            used_successors.add(stn)
+            links[ptn] = {
+                "next_train_no": stn,
+                "gap_seconds": int(gap),
+                "station": "응암",
+                "next_start_sec": int(sstart),
+            }
     _CONTINUATION_CACHE[key] = links
     return links
 
@@ -934,7 +970,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.3/1.0",
+        "User-Agent": "JigeumTa-V12.4/1.0",
         "Accept": "application/json",
     })
     try:
