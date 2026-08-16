@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.1 — 1~9호선 다중 환승 ETA
+지금타 V12.2 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -144,8 +144,19 @@ def clock_to_sec(v):
     return int(p[0]) * 3600 + int(p[1]) * 60 + (int(p[2]) if len(p) > 2 else 0)
 
 def clock_dt_near(v, ref=None):
+    """
+    HH:MM[:SS]뿐 아니라 이전 API 응답의 YYYY-MM-DD HH:MM:SS도 허용한다.
+    V12.1 새로고침은 고정 플랫폼 시각을 full datetime으로 다시 보내므로
+    이를 HH:MM 파서에 넣으면 `invalid literal for int()`가 발생했다.
+    """
     ref = ref or now_kst()
-    sec = clock_to_sec(v)
+    text = str(v or "").strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y%m%d%H%M%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except Exception:
+            pass
+    sec = clock_to_sec(text)
     base = ref.replace(hour=0, minute=0, second=0, microsecond=0)
     return min(
         [base + timedelta(days=d, seconds=sec) for d in (-1, 0, 1)],
@@ -375,6 +386,199 @@ def all_trains(line, mode):
     ]
 
 
+
+# ---------- Same-vehicle train-number continuation (2호선 / 6호선) ----------
+# 서울교통공사 시간표는 운행단위(열번) 기준이라 물리적으로 같은 차량이
+# 짧은 정차 후 열번을 바꾸는 경우가 별도 열차로 끊겨 있다.
+# - 2호선 본선: 성수에서 같은 방향의 다음 열번으로 이어짐
+# - 6호선: 봉화산/신내 쪽에서 온 열차가 응암에서 열번을 바꿔 응암순환 구간으로 이어짐
+# 실제 승객에게는 환승이 아니므로, 아래에서 두 시간표를 '연속운행 가상열차'로 묶는다.
+_CONTINUATION_CACHE = {}
+_VIRTUAL_TRAIN_CACHE = {}
+MAX_CONTINUATION_GAP_SECONDS = 180
+
+
+def _first_train_sec(tr):
+    for st in tr.get("stops", []):
+        sec = st.get("dep") if st.get("dep") is not None else st.get("arr")
+        if sec is not None:
+            return sec
+    return None
+
+
+def _last_train_sec(tr):
+    for st in reversed(tr.get("stops", [])):
+        sec = st.get("arr") if st.get("arr") is not None else st.get("dep")
+        if sec is not None:
+            return sec
+    return None
+
+
+def _line2_mainline(tr):
+    names = {canon_station(x.get("station")) for x in tr.get("stops", [])}
+    # 성수지선(신설동 방면)을 순환 본선 연속열번으로 잘못 묶지 않기 위한 방어조건.
+    return len(tr.get("stops", [])) > 10 and "성수" in names and ("뚝섬" in names or "건대입구" in names)
+
+
+def continuation_links(line, mode):
+    """시간표의 종착/시발 시각으로 같은 차량의 다음 열번을 추론한다."""
+    key = (line, mode)
+    if key in _CONTINUATION_CACHE:
+        return _CONTINUATION_CACHE[key]
+    if line not in ("2호선", "6호선"):
+        _CONTINUATION_CACHE[key] = {}
+        return {}
+
+    trains = {norm_train(t["train_no"]): t for t in all_trains(line, mode)}
+    preds, succs = [], []
+    for tn, tr in trains.items():
+        first = _first_train_sec(tr)
+        last = _last_train_sec(tr)
+        if first is None or last is None:
+            continue
+        if line == "2호선":
+            if not _line2_mainline(tr):
+                continue
+            if canon_station(tr.get("dest")) == "성수":
+                preds.append((tn, tr, last))
+            if canon_station(tr.get("start")) == "성수":
+                succs.append((tn, tr, first))
+        else:  # 6호선
+            if canon_station(tr.get("dest")) == "응암" and tr.get("direction") == "UP":
+                preds.append((tn, tr, last))
+            if canon_station(tr.get("start")) == "응암" and tr.get("direction") == "DOWN":
+                succs.append((tn, tr, first))
+
+    preds.sort(key=lambda x: x[2])
+    succs.sort(key=lambda x: x[2])
+    links = {}
+    used_successors = set()
+    for ptn, pred, pend in preds:
+        candidates = []
+        for stn, succ, sstart in succs:
+            if stn in used_successors:
+                continue
+            if line == "2호선" and succ.get("direction") != pred.get("direction"):
+                continue
+            gap = sstart - pend
+            while gap < 0:
+                gap += 86400
+            if 0 <= gap <= MAX_CONTINUATION_GAP_SECONDS:
+                candidates.append((gap, stn, succ, sstart))
+        if not candidates:
+            continue
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        min_gap = candidates[0][0]
+        nearest = [x for x in candidates if x[0] == min_gap]
+        # 같은 최소 gap 후보가 복수면 물리 차량을 확정할 근거가 부족하므로 연결하지 않는다.
+        if len(nearest) != 1:
+            continue
+        gap, stn, succ, sstart = nearest[0]
+        used_successors.add(stn)
+        links[ptn] = {
+            "next_train_no": stn,
+            "gap_seconds": int(gap),
+            "station": "성수" if line == "2호선" else "응암",
+            "next_start_sec": int(sstart),
+        }
+    _CONTINUATION_CACHE[key] = links
+    return links
+
+
+def _shifted_stop(stop, offset=0):
+    return {
+        "station": canon_station(stop.get("station")),
+        "arr": None if stop.get("arr") is None else int(stop.get("arr")) + offset,
+        "dep": None if stop.get("dep") is None else int(stop.get("dep")) + offset,
+        "call": bool(stop.get("call", True)),
+    }
+
+
+def merged_continuation_train(line, mode, train_no):
+    """train_no와 바로 이어지는 다음 열번을 한 번만 붙인 가상 열차를 반환한다."""
+    key = (line, mode, norm_train(train_no))
+    if key in _VIRTUAL_TRAIN_CACHE:
+        return _VIRTUAL_TRAIN_CACHE[key]
+    link = continuation_links(line, mode).get(norm_train(train_no))
+    if not link:
+        _VIRTUAL_TRAIN_CACHE[key] = None
+        return None
+    pred = get_train(line, mode, train_no)
+    succ = get_train(line, mode, link["next_train_no"])
+    if not pred or not succ:
+        _VIRTUAL_TRAIN_CACHE[key] = None
+        return None
+
+    pend = _last_train_sec(pred)
+    sstart = _first_train_sec(succ)
+    offset = 0
+    while sstart is not None and pend is not None and sstart + offset < pend:
+        offset += 86400
+
+    merged = [_shifted_stop(x) for x in pred.get("stops", [])]
+    next_stops = [_shifted_stop(x, offset) for x in succ.get("stops", [])]
+    boundary = link["station"]
+    # 종착 응암/성수 + 다음 시발 응암/성수는 한 번의 정차로 합친다.
+    if merged and next_stops and canon_station(merged[-1]["station"]) == boundary and canon_station(next_stops[0]["station"]) == boundary:
+        first_next = next_stops.pop(0)
+        if merged[-1].get("arr") is None:
+            merged[-1]["arr"] = first_next.get("arr")
+        if first_next.get("dep") is not None:
+            merged[-1]["dep"] = first_next.get("dep")
+        merged[-1]["call"] = bool(merged[-1].get("call", True) or first_next.get("call", True))
+    merged.extend(next_stops)
+
+    virtual = {
+        "train_no": pred["train_no"],
+        "continuation_train_no": succ["train_no"],
+        "train_numbers": [pred["train_no"], succ["train_no"]],
+        "continuation_station": boundary,
+        "continuation_gap_seconds": link["gap_seconds"],
+        "continuation_start_sec": link["next_start_sec"] + offset,
+        "physical_continuation": True,
+        "direction": pred.get("direction", ""),
+        "continuation_direction": succ.get("direction", ""),
+        "service": pred.get("service", "local"),
+        "start": pred.get("start", ""),
+        "dest": succ.get("dest", ""),
+        "stops": merged,
+    }
+    _VIRTUAL_TRAIN_CACHE[key] = virtual
+    return virtual
+
+
+def route_trains(line, mode, start, end):
+    """start→end를 실제로 한 차량에서 이동할 수 있는 원본/연속운행 열차를 반환."""
+    originals = all_trains(line, mode)
+    for tr in originals:
+        if route_pair(tr.get("stops", []), start, end):
+            yield tr
+    if line not in ("2호선", "6호선"):
+        return
+    links = continuation_links(line, mode)
+    for ptn, info in links.items():
+        pred = get_train(line, mode, ptn)
+        succ = get_train(line, mode, info["next_train_no"])
+        if not pred or not succ:
+            continue
+        # 두 개별 열번 중 어느 하나가 이미 전 구간을 커버한다면 가상 후보를 중복 추가하지 않는다.
+        if route_pair(pred.get("stops", []), start, end) or route_pair(succ.get("stops", []), start, end):
+            continue
+        virtual = merged_continuation_train(line, mode, ptn)
+        if virtual and route_pair(virtual.get("stops", []), start, end):
+            yield virtual
+
+
+def active_train_no_for_virtual(tr, ref_dt, delay=0):
+    if not tr.get("physical_continuation") or not tr.get("continuation_train_no"):
+        return tr.get("train_no", "")
+    boundary_sec = tr.get("continuation_start_sec")
+    if boundary_sec is None:
+        return tr.get("train_no", "")
+    midnight = _service_occurrence_midnight(tr, ref_dt, delay)
+    switch_dt = midnight + timedelta(seconds=boundary_sec + delay)
+    return tr.get("continuation_train_no") if ref_dt >= switch_dt else tr.get("train_no", "")
+
 def station_options():
     s1 = sorted({canon_station(x) for x in S1_STATIONS})
     out = {"1호선": s1}
@@ -413,7 +617,7 @@ def transfer_seconds(station, from_line, to_line):
 def _direction_station(line, mode, start, end):
     """start→end를 운행하는 열차에서 end 다음 물리 역명을 방향 힌트로 구한다."""
     start = canon_station(start); end = canon_station(end)
-    for tr in all_trains(line, mode):
+    for tr in route_trains(line, mode, start, end):
         pair = route_pair(tr.get("stops", []), start, end)
         if not pair:
             continue
@@ -428,7 +632,7 @@ def _direction_station(line, mode, start, end):
 def _outgoing_direction_station(line, mode, start, end):
     """start에서 end 쪽으로 출발할 때 start 다음 물리 역명을 구한다."""
     start = canon_station(start); end = canon_station(end)
-    for tr in all_trains(line, mode):
+    for tr in route_trains(line, mode, start, end):
         pair = route_pair(tr.get("stops", []), start, end)
         if not pair:
             continue
@@ -543,11 +747,7 @@ def _segment_has_train(line, mode, start, end):
     key = (line, mode, canon_station(start), canon_station(end))
     if key in _SEGMENT_SERVE_CACHE:
         return _SEGMENT_SERVE_CACHE[key]
-    ok = False
-    for tr in all_trains(line, mode):
-        if route_pair(tr["stops"], start, end):
-            ok = True
-            break
+    ok = any(True for _ in route_trains(line, mode, start, end))
     _SEGMENT_SERVE_CACHE[key] = ok
     return ok
 
@@ -726,7 +926,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.1/1.0",
+        "User-Agent": "JigeumTa-V12.2/1.0",
         "Accept": "application/json",
     })
     try:
@@ -896,10 +1096,15 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
         stops = tr["stops"]
         # Find a route start after the currently observed position.
         ci = first_current_index(stops, o["current_station"])
-        if ci is None:
-            continue
-        pair = route_pair(stops, start, end, min_start_idx=ci)
-        if not pair:
+        pair = route_pair(stops, start, end, min_start_idx=ci or 0) if ci is not None else None
+        if not pair and line in ("2호선", "6호선"):
+            virtual = merged_continuation_train(line, mode, tr.get("train_no"))
+            if virtual:
+                tr = virtual
+                stops = tr["stops"]
+                ci = first_current_index(stops, o["current_station"])
+                pair = route_pair(stops, start, end, min_start_idx=ci or 0) if ci is not None else None
+        if ci is None or not pair:
             continue
         si, ei = pair
         # If the current train is already beyond the boarding station, reject it.
@@ -929,6 +1134,8 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "from": canon_station(start),
             "to": canon_station(end),
             "train_no": tr["train_no"],
+            "continuation_train_no": tr.get("continuation_train_no", ""),
+            "physical_continuation": bool(tr.get("physical_continuation")),
             "service": tr["service"],
             "direction": tr["direction"],
             "origin": tr["start"],
@@ -951,7 +1158,7 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
 
 def static_projected_candidates(line, mode, start, end, ready_dt, observations):
     out = []
-    for tr in all_trains(line, mode):
+    for tr in route_trains(line, mode, start, end):
         pair = route_pair(tr["stops"], start, end)
         if not pair:
             continue
@@ -977,6 +1184,8 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             "from": canon_station(start),
             "to": canon_station(end),
             "train_no": tr["train_no"],
+            "continuation_train_no": tr.get("continuation_train_no", ""),
+            "physical_continuation": bool(tr.get("physical_continuation")),
             "service": tr["service"],
             "direction": tr["direction"],
             "origin": tr["start"],
@@ -1000,6 +1209,8 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
 def public_candidate(c, selected=False):
     return {
         "train_no": c.get("train_no", ""),
+        "continuation_train_no": c.get("continuation_train_no", ""),
+        "physical_continuation": bool(c.get("physical_continuation")),
         "service": c.get("service", "local"),
         "direction": c.get("direction", ""),
         "origin": c.get("origin", ""),
@@ -1098,14 +1309,20 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     다른 후보 열차로 절대 교체하지 않고 지정 train_no만 따라간다.
     """
     now = now_kst()
-    tr = get_train(line, mode, train_no)
-    if not tr:
+    base_tr = get_train(line, mode, train_no)
+    if not base_tr:
         return {
             "ok": False,
             "error": f"{line} 공식 시간표에서 탑승 열차 {train_no}을 찾지 못했습니다."
         }
 
+    tr = base_tr
     pair = route_pair(tr["stops"], start, end)
+    if not pair and line in ("2호선", "6호선"):
+        virtual = merged_continuation_train(line, mode, base_tr.get("train_no"))
+        if virtual and route_pair(virtual.get("stops", []), start, end):
+            tr = virtual
+            pair = route_pair(tr["stops"], start, end)
     if not pair:
         return {
             "ok": False,
@@ -1125,10 +1342,13 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
 
     positions = position_cache[line]
     observations, diag = observe_delays(line, mode, positions)
-    wanted = norm_train(tr["train_no"])
+    wanted_numbers = {norm_train(tr.get("train_no"))}
+    if tr.get("continuation_train_no"):
+        wanted_numbers.add(norm_train(tr.get("continuation_train_no")))
 
-    # get_train()을 거쳐 정규화된 공식 열차번호가 같은 관측값만 고정 추적.
-    live = next((o for o in observations if norm_train(o["train_no"]) == wanted), None)
+    # 열번이 응암/성수에서 바뀌어도 같은 물리 차량의 후속 열번까지 추적한다.
+    live_options = [o for o in observations if norm_train(o.get("train_no")) in wanted_numbers]
+    live = max(live_options, key=lambda o: o.get("observed") or now, default=None)
 
     board_dt = None
     if boarded_at:
@@ -1150,15 +1370,20 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                 "arrived": True,
                 "chosen": {
                     "line": line, "from": canon_station(start), "to": canon_station(end),
-                    "train_no": tr["train_no"], "service": tr["service"],
-                    "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
+                    "train_no": live.get("train_no"),
+                    "continuation_train_no": tr.get("continuation_train_no", ""),
+                    "physical_continuation": bool(tr.get("physical_continuation")),
+                    "service": tr["service"],
+                    "direction": live.get("direction") or tr["direction"],
+                    "origin": live.get("train", {}).get("start") or tr["start"],
+                    "destination": live.get("train", {}).get("dest") or tr["dest"],
                     "board_dt": board_dt or now, "alight_dt": now,
                     "wait_seconds": 0, "ride_seconds": 0,
                     "remaining_seconds": 0, "delay_seconds": round(live["delay"]),
                     "current_station": live["current_station"],
                     "location_kind": "live",
                     "location_label": f"{live['current_station']} {live['status']}",
-                    "confidence": "높음", "method": "탑승 열차 실시간 고정 추적",
+                    "confidence": "높음", "method": "탑승 열차 연속운행 추적" if tr.get("physical_continuation") else "탑승 열차 실시간 고정 추적",
                     "projected": False, "tracking": True, "arrived": True,
                     "status": live["status"],
                 },
@@ -1181,8 +1406,13 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                     "arrived": False,
                     "chosen": {
                         "line": line, "from": canon_station(start), "to": canon_station(end),
-                        "train_no": tr["train_no"], "service": tr["service"],
-                        "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
+                        "train_no": live.get("train_no"),
+                        "continuation_train_no": tr.get("continuation_train_no", ""),
+                        "physical_continuation": bool(tr.get("physical_continuation")),
+                        "service": tr["service"],
+                        "direction": live.get("direction") or tr["direction"],
+                        "origin": live.get("train", {}).get("start") or tr["start"],
+                        "destination": live.get("train", {}).get("dest") or tr["dest"],
                         "board_dt": shown_board, "alight_dt": alight_dt,
                         "wait_seconds": 0,
                         "ride_seconds": max(0, round((alight_dt - shown_board).total_seconds())),
@@ -1192,7 +1422,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                         "location_kind": "live",
                         "location_label": f"{live['current_station']} {live['status']}",
                         "confidence": "높음",
-                        "method": "탑승 열차 실시간 고정 추적",
+                        "method": "탑승 열차 연속운행 추적" if tr.get("physical_continuation") else "탑승 열차 실시간 고정 추적",
                         "projected": False, "tracking": True, "arrived": False,
                         "status": live["status"],
                         "data_age_seconds": max(0, round((now - live["observed"]).total_seconds())),
@@ -1202,7 +1432,10 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
 
     # API에서 순간적으로 열차가 사라져도 잠금을 해제하지 않는다.
     # 공식 시간표 + 현재 같은 방향/등급 열차 지연 중앙값으로 임시 유지.
-    delay = median_delay(observations, tr["direction"], tr["service"])
+    fallback_direction = tr.get("direction", "")
+    if tr.get("physical_continuation") and active_train_no_for_virtual(tr, now, 0) == tr.get("continuation_train_no"):
+        fallback_direction = tr.get("continuation_direction") or fallback_direction
+    delay = median_delay(observations, fallback_direction, tr["service"])
     expected_location = estimated_train_location(tr, now, delay)
     target_dt = schedule_dt_after(target_sec, now, delay)
     if not target_dt:
@@ -1220,8 +1453,11 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
         "arrived": False,
         "chosen": {
             "line": line, "from": canon_station(start), "to": canon_station(end),
-            "train_no": tr["train_no"], "service": tr["service"],
-            "direction": tr["direction"], "origin": tr["start"], "destination": tr["dest"],
+            "train_no": active_train_no_for_virtual(tr, now, delay),
+            "continuation_train_no": tr.get("continuation_train_no", ""),
+            "physical_continuation": bool(tr.get("physical_continuation")),
+            "service": tr["service"],
+            "direction": fallback_direction, "origin": tr["start"], "destination": tr["dest"],
             "board_dt": board_dt or now, "alight_dt": target_dt,
             "wait_seconds": 0,
             "ride_seconds": max(0, round((target_dt - (board_dt or now)).total_seconds())),
@@ -1231,7 +1467,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             "location_kind": "expected",
             "location_label": expected_location.get("label", "예상 소재 계산 중"),
             "confidence": "중간",
-            "method": "탑승 열차 잠금 · 실시간 위치 재포착 대기",
+            "method": "연속운행 열차 잠금 · 실시간 위치 재포착 대기" if tr.get("physical_continuation") else "탑승 열차 잠금 · 실시간 위치 재포착 대기",
             "projected": True, "tracking": True, "arrived": False,
             "status": expected_location.get("status", "위치 재포착 대기"),
         },
@@ -1344,7 +1580,7 @@ def calculate_live_trip(payload):
         "service_mode": mode,
         "service_mode_reason": mode_reason,
         "active_index": active_index,
-        "boarded_train_no": boarded_train_no,
+        "boarded_train_no": current.get("train_no") or boarded_train_no,
         "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "arrival_time": final_dt.strftime("%Y-%m-%d %H:%M:%S"),
         "remaining_seconds": max(0, round((final_dt - now).total_seconds())),

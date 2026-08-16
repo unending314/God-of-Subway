@@ -894,7 +894,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.2`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1167,6 +1167,11 @@ async function pollLiveTrip(first=false){
  try{
   const j=await postJson('/api/trip_update',payload);
   if(!liveTrip)return;
+  // 2호선 성수 / 6호선 응암에서 같은 차량이 열번을 바꿔 운행하면
+  // 백엔드가 반환한 현재 열번으로 추적 잠금을 자연스럽게 넘긴다.
+  if(j.boarded_train_no && String(j.boarded_train_no)!==String(liveTrip.boardedTrainNo)){
+   liveTrip.boardedTrainNo=String(j.boarded_train_no);saveTrip();
+  }
   lastLiveResult=j;
   recordEtaEvent('live_update',j);
   const current=j.segments[0];
