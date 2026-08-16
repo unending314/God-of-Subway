@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V11.2 — 1~9호선 다중 환승 ETA
+지금타 V12 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -40,6 +40,7 @@ OFF = load_json("official_2to9_schedule.json")
 EXTRA = load_json("korail_extra_lines_schedule.json")
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
 ROUTE_GRAPH = load_json("route_graph.json")
+TRANSFER_DATA = load_json("transfer_data.json")
 EXTRA_LINES = ("경의중앙선", "수인분당선")
 
 LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
@@ -192,10 +193,21 @@ def auto_service_mode(d):
     return "DAY", "평일"
 
 
+def service_day_reference(ref_dt=None):
+    """02:00 이전은 철도 운행일 기준으로 전날에 속한다."""
+    ref_dt = ref_dt or now_kst()
+    cutoff = ref_dt.replace(hour=2, minute=0, second=0, microsecond=0)
+    if ref_dt < cutoff:
+        return ref_dt - timedelta(days=1), True
+    return ref_dt, False
+
 def resolve_service_mode(mode, ref_dt=None):
     ref_dt = ref_dt or now_kst()
     if mode == "AUTO":
-        resolved, reason = auto_service_mode(ref_dt)
+        service_ref, rolled = service_day_reference(ref_dt)
+        resolved, reason = auto_service_mode(service_ref)
+        if rolled:
+            reason = f"전일 운행일 · {reason} (02시 기준)"
         return resolved, reason
     labels = {"DAY": "평일 수동 선택", "SAT": "토요일 수동 선택", "END": "일요일·공휴일 수동 선택"}
     return mode, labels.get(mode, mode)
@@ -377,6 +389,109 @@ def station_options():
 STATIONS_BY_LINE = station_options()
 
 
+# ---------- Transfer data ----------
+def _transfer_key(station, from_line, to_line):
+    return f"{canon_station(station)}|{from_line}|{to_line}"
+
+def transfer_pair_info(station, from_line, to_line):
+    # JSON 역명은 현재 canon_station 별칭과 대부분 동일하므로 direct/canonical 둘 다 시도.
+    direct = TRANSFER_DATA.get("pairs", {}).get(f"{station}|{from_line}|{to_line}")
+    if direct:
+        return direct
+    c = canon_station(station)
+    for p in TRANSFER_DATA.get("pairs", {}).values():
+        if canon_station(p.get("station")) == c and p.get("from_line") == from_line and p.get("to_line") == to_line:
+            return p
+    return None
+
+def transfer_seconds(station, from_line, to_line):
+    p = transfer_pair_info(station, from_line, to_line)
+    if p:
+        return int(p.get("default_seconds") or p.get("distance_seconds") or DEFAULT_TRANSFER_SECONDS)
+    return DEFAULT_TRANSFER_SECONDS
+
+def _direction_station(line, mode, start, end):
+    """start→end를 운행하는 열차에서 end 다음 물리 역명을 방향 힌트로 구한다."""
+    start = canon_station(start); end = canon_station(end)
+    for tr in all_trains(line, mode):
+        pair = route_pair(tr.get("stops", []), start, end)
+        if not pair:
+            continue
+        _, ei = pair
+        stops = tr.get("stops", [])
+        for j in range(ei + 1, len(stops)):
+            st = canon_station(stops[j].get("station"))
+            if st and st != end:
+                return st
+    return ""
+
+def _outgoing_direction_station(line, mode, start, end):
+    """start에서 end 쪽으로 출발할 때 start 다음 물리 역명을 구한다."""
+    start = canon_station(start); end = canon_station(end)
+    for tr in all_trains(line, mode):
+        pair = route_pair(tr.get("stops", []), start, end)
+        if not pair:
+            continue
+        si, _ = pair
+        stops = tr.get("stops", [])
+        for j in range(si + 1, len(stops)):
+            st = canon_station(stops[j].get("station"))
+            if st and st != start:
+                return st
+    return ""
+
+def best_transfer_detail(station, from_seg, to_seg, mode):
+    p = transfer_pair_info(station, from_seg.get("line"), to_seg.get("line"))
+    if not p:
+        return {
+            "station": canon_station(station),
+            "seconds": DEFAULT_TRANSFER_SECONDS,
+            "distance_m": None,
+            "alight_position": "",
+            "board_position": "",
+            "from_direction": "",
+            "to_direction": "",
+            "matched": "fallback",
+        }
+    in_dir = _direction_station(from_seg["line"], mode, from_seg["from"], from_seg["to"])
+    out_dir = _outgoing_direction_station(to_seg["line"], mode, to_seg["from"], to_seg["to"])
+    records = p.get("records") or []
+    def canon_dir(x): return canon_station(str(x or "").replace(" 방면", "").strip())
+    both = [r for r in records if canon_dir(r.get("from_direction")) == canon_station(in_dir) and canon_dir(r.get("to_direction")) == canon_station(out_dir)]
+    one_out = [r for r in records if canon_dir(r.get("to_direction")) == canon_station(out_dir)]
+    one_in = [r for r in records if canon_dir(r.get("from_direction")) == canon_station(in_dir)]
+    chosen = (both or one_out or one_in or records or [None])[0]
+    matched = "direction" if both else "outgoing" if one_out else "incoming" if one_in else "pair"
+    sec = int((chosen or {}).get("seconds") or p.get("default_seconds") or DEFAULT_TRANSFER_SECONDS)
+    def pos(car, door):
+        car=str(car or "").strip(); door=str(door or "").strip()
+        return f"{car}-{door}" if car and door else car or door
+    return {
+        "station": canon_station(station),
+        "seconds": sec,
+        "distance_m": p.get("distance_m"),
+        "alight_position": pos((chosen or {}).get("alight_car"), (chosen or {}).get("alight_door")),
+        "board_position": pos((chosen or {}).get("board_car"), (chosen or {}).get("board_door")),
+        "from_direction": (chosen or {}).get("from_direction") or in_dir,
+        "to_direction": (chosen or {}).get("to_direction") or out_dir,
+        "matched": matched,
+    }
+
+def enrich_transfer_segments(segments, mode):
+    for i in range(len(segments)-1):
+        a, b = segments[i], segments[i+1]
+        if canon_station(a.get("to")) != canon_station(b.get("from")):
+            continue
+        info = best_transfer_detail(a["to"], a, b, mode)
+        a["transfer_info"] = info
+        a["transfer_seconds"] = int(info["seconds"])
+        a["transfer_walk"] = round(info["seconds"] / 60, 3)
+    if segments:
+        segments[-1]["transfer_seconds"] = 0
+        segments[-1]["transfer_walk"] = 0
+        segments[-1]["transfer_info"] = None
+    return segments
+
 # ---------- Automatic route search ----------
 TRANSFER_EXCLUDE = set(ROUTE_GRAPH.get("meta", {}).get("excluded_same_name_transfer_stations", []))
 DEFAULT_TRANSFER_SECONDS = int(ROUTE_GRAPH.get("meta", {}).get("default_transfer_seconds", 240))
@@ -412,7 +527,7 @@ def _route_adjacency(mode):
         for a in uniq:
             for b in uniq:
                 if a != b:
-                    adj[(a, st)].append(((b, st), DEFAULT_TRANSFER_SECONDS, "transfer"))
+                    adj[(a, st)].append(((b, st), transfer_seconds(st, a, b), "transfer"))
 
     _ROUTE_ADJ_CACHE[mode] = adj
     return adj
@@ -456,7 +571,6 @@ def auto_find_path(start, end, mode, transfer_seconds=None):
         raise ValueError(f"지원 노선에서 도착역 '{end}'을 찾지 못했습니다.")
 
     adj = _route_adjacency(mode)
-    transfer_seconds = int(transfer_seconds or DEFAULT_TRANSFER_SECONDS)
 
     # If user changes default transfer penalty, adjust transfer edges at traversal time.
     dist = {}
@@ -478,7 +592,7 @@ def auto_find_path(start, end, mode, transfer_seconds=None):
             target = u
             break
         for v, base_w, kind in adj.get(u, []):
-            w = transfer_seconds if kind == "transfer" else base_w
+            w = base_w
             nd = d + w
             if nd < dist.get(v, 10**18):
                 dist[v] = nd
@@ -503,7 +617,7 @@ def auto_find_path(start, end, mode, transfer_seconds=None):
         "edges": edges,
     }
 
-def auto_path_to_segments(path, mode, transfer_minutes=4):
+def auto_path_to_segments(path, mode):
     """
     station-line path를 기존 지금타 segment 포맷으로 압축.
     같은 노선이라도 하나의 실제 열차가 start→end를 운행하지 못하면
@@ -523,7 +637,7 @@ def auto_path_to_segments(path, mode, transfer_minutes=4):
 
     for u, v, kind, w in edges:
         if kind == "transfer":
-            finish_current(transfer_minutes)
+            finish_current(w / 60)
             continue
 
         line = u[0]
@@ -554,7 +668,7 @@ def auto_path_to_segments(path, mode, transfer_minutes=4):
                     "transfer_walk": 0,
                 }
         else:
-            finish_current(transfer_minutes)
+            finish_current(DEFAULT_TRANSFER_SECONDS / 60)
             current = {
                 "line": line,
                 "from": fr,
@@ -583,11 +697,9 @@ def calculate_auto_route(payload):
 
     start = canon_station(payload.get("from"))
     end = canon_station(payload.get("to"))
-    transfer_minutes = float(payload.get("transfer_minutes") or 4)
-    transfer_seconds = max(0, round(transfer_minutes * 60))
-
-    path = auto_find_path(start, end, mode, transfer_seconds)
-    segments = auto_path_to_segments(path, mode, transfer_minutes)
+    path = auto_find_path(start, end, mode)
+    segments = auto_path_to_segments(path, mode)
+    segments = enrich_transfer_segments(segments, mode)
 
     # Human-readable interchange list.
     interchanges = []
@@ -614,7 +726,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V11.2/1.0",
+        "User-Agent": "JigeumTa-V12/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1177,12 +1289,14 @@ def calculate_live_trip(payload):
     current["segment_index"] = active_index + 1
     current["diagnostics"] = tracked.get("diagnostics", {})
     current["nearby_candidates"] = [public_candidate(current, selected=True)]
+    current["transfer_info"] = active.get("transfer_info")
+    current["transfer_seconds"] = int(active.get("transfer_seconds") or round(float(active.get("transfer_walk") or 0) * 60))
     results.append(current)
 
     # 2) 현재 열차의 최신 도착 ETA + 환승시간을 다음 구간 ready 시각으로 사용.
     ready_dt = current["alight_dt"]
     if active_index < len(segments) - 1:
-        ready_dt += timedelta(minutes=max(0, float(active.get("transfer_walk") or 0)))
+        ready_dt += timedelta(seconds=max(0, int(active.get("transfer_seconds") or round(float(active.get("transfer_walk") or 0) * 60))))
 
     # 3) 이후 모든 구간을 지금 시점에서 다시 탐색.
     for idx in range(active_index + 1, len(segments)):
@@ -1206,6 +1320,8 @@ def calculate_live_trip(payload):
         chosen["ready_dt"] = ready_dt
         chosen["diagnostics"] = r.get("diagnostics", {})
         chosen["nearby_candidates"] = r.get("public_candidates", [])
+        chosen["transfer_info"] = s.get("transfer_info")
+        chosen["transfer_seconds"] = int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60))
         results.append(chosen)
 
         if chosen["confidence"] != "높음":
@@ -1215,7 +1331,7 @@ def calculate_live_trip(payload):
 
         if idx < len(segments) - 1:
             ready_dt = chosen["alight_dt"] + timedelta(
-                minutes=max(0, float(s.get("transfer_walk") or 0))
+                seconds=max(0, int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60)))
             )
         else:
             ready_dt = chosen["alight_dt"]
@@ -1287,6 +1403,8 @@ def calculate_route(payload):
         chosen["ready_dt"] = ready_dt
         chosen["diagnostics"] = r.get("diagnostics", {})
         chosen["nearby_candidates"] = r.get("public_candidates", [])
+        chosen["transfer_info"] = s.get("transfer_info")
+        chosen["transfer_seconds"] = int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60))
         results.append(chosen)
 
         if chosen["confidence"] != "높음":
@@ -1294,9 +1412,9 @@ def calculate_route(payload):
                 f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
             )
 
-        transfer_walk = max(0, float(s.get("transfer_walk") or 0))
+        transfer_seconds_value = max(0, int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60)))
         if idx < len(segments) - 1:
-            ready_dt = chosen["alight_dt"] + timedelta(minutes=transfer_walk)
+            ready_dt = chosen["alight_dt"] + timedelta(seconds=transfer_seconds_value)
         else:
             ready_dt = chosen["alight_dt"]
 

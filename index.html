@@ -237,162 +237,97 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
  .hero h2{font-size:21px}.timeRow{grid-template-columns:1fr}.segGrid{grid-template-columns:1fr 1fr}
  .segGrid>div:first-child{grid-column:1/-1}.summaryCard h3{font-size:23px}.summaryIcon{display:none}
 }
+
+/* V12 — simplified search-first interface */
+body{background:#f6f8fb}
+.wrap{max-width:980px;padding:26px 18px 76px}
+header{margin-bottom:30px}
+.brand p{font-size:10px}.status{font-size:9px}
+.searchStage{max-width:820px;margin:7vh auto 30px;text-align:center}
+.searchStage h2{font-size:34px;letter-spacing:-1.5px;margin:0 0 8px}.searchLead{font-size:12px;color:var(--muted);margin:0 0 22px}
+.searchCard{background:#fff;border:1px solid #dde4eb;border-radius:24px;padding:15px;box-shadow:0 18px 55px rgba(33,52,75,.10)}
+.journeySearch{display:grid;grid-template-columns:1fr 38px 1fr auto auto;gap:8px;align-items:stretch}
+.stationBig{position:relative;text-align:left;border:1px solid #dbe2e9;border-radius:15px;padding:8px 12px;background:#fff;min-width:0}
+.stationBig:focus-within{border-color:#8eafe6;box-shadow:0 0 0 3px #edf4ff}.stationBig label{margin:0 0 2px;font-size:8px;color:#7a8591}.stationBig input{border:0;padding:3px 0;font-size:16px;font-weight:850;box-shadow:none;border-radius:0}.stationBig input:focus{box-shadow:none}
+.swapBtn,.settingsBtn{border:1px solid #dbe2e9;background:#fff;border-radius:13px;cursor:pointer;font-weight:900;color:#5c6874}.swapBtn{font-size:16px}.settingsBtn{width:44px;font-size:17px}
+.searchBtn{border:0;background:var(--navy);color:#fff;border-radius:14px;padding:0 22px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap}.searchBtn:disabled{opacity:.55}
+.settingsPanel{display:none;text-align:left;margin-top:11px;padding:14px;border-top:1px solid #edf0f3;background:#fbfcfe;border-radius:0 0 16px 16px}.settingsPanel.open{display:block}
+.settingsGrid{display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:12px}.settingsSection label{font-size:8px}.settingsPanel .quickTime{margin:5px 0 8px}.settingsNote{font-size:8px;color:#7a8591;line-height:1.5;margin-top:9px}
+#autoRouteResult{margin-top:10px;text-align:left}.autoRouteResult.show{display:block}
+.legacyControls{display:none!important}
+.resultCol{display:none;flex-direction:column;gap:16px;margin-top:26px}.resultsReady .resultCol{display:flex}
+.summaryCard{padding:22px 24px}.summaryCard h3{font-size:25px}.metrics{grid-template-columns:repeat(3,1fr)}.metrics .metric:nth-child(3){display:none}.summaryIcon{display:none}
+.flowCard{padding:20px 22px}.flow{gap:0}.leg{padding:17px 16px;border-radius:17px}.legTop{grid-template-columns:auto 1fr auto;gap:13px}.leg h4{font-size:15px;letter-spacing:-.3px}.leg h4 .timePoint{color:#1d64d6}.leg .journeyMinutes{font-size:9px;font-weight:850;color:#596572;margin-top:4px}.leg .meta{margin-top:9px}.clock{font-size:10px}.details{grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px}.details .detail:last-child{display:none}.detail{padding:10px}.detail b{font-size:11px}
+.trainOverview{margin-top:10px;padding:11px 12px;border-radius:12px;background:#f7f9fb;border:1px solid #edf0f3;display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px}.trainOverview span{display:block;font-size:7px;color:var(--muted)}.trainOverview b{display:block;margin-top:3px;font-size:10px}.trainOverview .wide{grid-column:auto}
+.boardBtn,.candidateBoard{font-size:8px;padding:8px 10px}.candidateBox{margin-top:12px}
+.transferWrap{padding:18px 12px;margin:3px 0}.transferCard{max-width:560px;margin:auto;border-left:3px solid #d6dee7;padding:8px 14px;text-align:left}.transferTitle{font-size:12px;font-weight:950;color:#394653}.transferDetail{font-size:9px;color:#66727d;margin-top:5px;line-height:1.55}.fastPos{font-weight:900;color:#245b9e}
+.experimentCard{display:none}.showExperiment .experimentCard{display:block}
+.footNote{font-size:8px;color:#84909b}
+@media(max-width:760px){.wrap{padding:16px 11px 50px}.searchStage{margin-top:4vh}.searchStage h2{font-size:28px}.journeySearch{grid-template-columns:1fr 34px 1fr 44px}.searchBtn{grid-column:1/-1;padding:13px}.settingsBtn{grid-column:4}.settingsGrid{grid-template-columns:1fr}.legTop{grid-template-columns:auto 1fr}.clock{grid-column:2;text-align:left}.trainOverview{grid-template-columns:1fr 1fr}.details{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:520px){header .brand p{display:none}.logo{width:46px;height:46px}.searchStage{margin-top:3vh}.journeySearch{grid-template-columns:1fr 36px}.stationBig{grid-column:1/-1}.swapBtn{grid-column:1/-1;height:32px}.settingsBtn{grid-column:1}.searchBtn{grid-column:2;padding:12px}.summaryCard h3{font-size:21px}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{display:none}.lineBadge{min-width:52px}.leg h4{font-size:13px}.trainOverview{grid-template-columns:1fr}.transferWrap{padding:15px 5px}}
+
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
- <div class="brand"><div class="logo"><img src="/jigeumta_logo_140.png" alt="지금타 로고"></div><div><h1>지금타</h1><p>1~9호선·경의중앙선·수인분당선의 시간표 후보부터 탑승 열차까지 추적</p></div></div>
+ <div class="brand"><div class="logo"><img src="/jigeumta_logo_140.png" alt="지금타 로고"></div><div><h1>지금타</h1><p>실시간 운행정보 기반 지하철 길찾기</p></div></div>
  <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
 </header>
 
-<section class="hero">
- <h2>출발역과 도착역만 입력하면,<br><strong>경로부터 실시간 도착시간까지 한 번에.</strong></h2>
- <p>공식 시간표로 빠른 지하철 경로를 자동 생성한 뒤, 현재 열차 위치와 지연을 반영해 환승열차와 최종 도착시간을 계속 다시 계산합니다.</p>
+<section class="searchStage">
+ <h2>어디로 갈까요?</h2>
+ <p class="searchLead">출발역과 도착역만 입력하세요. 현재 열차 위치와 실제 환승시간까지 반영합니다.</p>
+ <div class="searchCard">
+  <div class="journeySearch">
+   <div class="stationBig stationInputWrap"><label>출발역</label><input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off"><div class="stationSuggest"></div></div>
+   <button id="swapStations" class="swapBtn" type="button" aria-label="출발역과 도착역 바꾸기">⇄</button>
+   <div class="stationBig stationInputWrap"><label>도착역</label><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off"><div class="stationSuggest"></div></div>
+   <button id="settingsBtn" class="settingsBtn" type="button" aria-label="상세 설정" aria-expanded="false">⚙</button>
+   <button id="autoRouteBtn" class="searchBtn" type="button">조회</button>
+  </div>
+  <div id="settingsPanel" class="settingsPanel">
+   <div class="settingsGrid">
+    <div class="settingsSection"><label>플랫폼 도착 예정</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip active" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div><input id="startTime" type="time"></div>
+    <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
+    <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
+   </div>
+   <div class="settingsNote">기본값은 지금부터 10분 후 플랫폼 도착입니다. AUTO는 새벽 02:00까지 전날 운행일로 계산합니다.</div>
+  </div>
+  <div id="autoRouteResult" class="autoRouteResult"></div>
+ </div>
 </section>
 
-<div class="main">
- <aside class="card builder">
-  <div class="sectionHead"><h3>경로 설정</h3><span class="subtle">자동 또는 직접 입력</span></div>
-
-  <div class="autoRouteBox">
-   <div class="autoRouteHead"><b>자동 길찾기</b><span>지원 노선 전체 검색</span></div>
-   <div class="autoRouteGrid">
-    <div class="stationInputWrap globalStationWrap">
-     <input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off">
-     <div class="stationSuggest"></div>
-    </div>
-    <div class="routeArrow">→</div>
-    <div class="stationInputWrap globalStationWrap">
-     <input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off">
-     <div class="stationSuggest"></div>
-    </div>
-   </div>
-   <button id="autoRouteBtn" class="autoRouteBtn">빠른 경로 찾고 ETA 계산</button>
-   <div id="autoRouteResult" class="autoRouteResult"></div>
-  </div>
-
-  <div class="field">
-   <label>첫 승강장 도착</label>
-   <div class="quickTime" id="quickTime">
-    <button class="timeChip" data-min="0">지금</button>
-    <button class="timeChip" data-min="5">+5분</button>
-    <button class="timeChip active" data-min="10">+10분</button>
-    <button class="timeChip" data-min="15">+15분</button>
-    <button class="timeChip" data-min="20">+20분</button>
-    <button class="timeChip" data-min="30">+30분</button>
-   </div>
-   <div class="timeRow">
-    <div><label>정확한 시각</label><input id="startTime" type="time"></div>
-    <div><label>운행일</label>
-     <select id="day">
-      <option value="AUTO">자동</option>
-      <option value="DAY">평일</option>
-      <option value="SAT">토요일</option>
-      <option value="END">일요일·공휴일</option>
-     </select>
-     <div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div>
-    </div>
-   </div>
-  </div>
-
-  <div class="sectionHead" style="margin-top:3px"><h3>즐겨찾기</h3><span class="subtle">이 브라우저에 저장</span></div>
-  <div class="favRow">
-   <select id="favoriteSelect" class="favSelect"><option value="">저장된 경로 없음</option></select>
-   <button id="loadFav" class="iconBtn" title="불러오기">↗</button>
-  </div>
-  <div class="favActions">
-   <button id="saveFav" class="smallBtn">현재 경로 저장</button>
-   <button id="deleteFav" class="smallBtn danger">선택 삭제</button>
-  </div>
-
-  <div class="sectionHead"><h3>노선 구간</h3><span class="subtle">하차 후 다음 환승시간 입력</span></div>
-  <div id="segments"></div>
-  <button id="addBtn" class="addBtn">+ 구간 추가</button>
-
-  <div class="field" style="margin-top:13px;margin-bottom:0">
-   <label>기존 앱 예상 총시간 · 선택사항</label>
-   <input id="baseline" type="number" min="1" placeholder="예: 62">
-  </div>
-
-  <label class="expToggle" style="margin-top:10px">
-   <input id="expEnabled" type="checkbox" checked>
-   기말 실험 기록 자동 저장
-  </label>
-
-  <button id="calcBtn" class="primary">실시간 ETA 계산</button>
-  <div class="helper">즐겨찾기는 경로와 환승시간만 저장하며 출발시각은 저장하지 않습니다.</div>
- </aside>
-
- <main class="resultCol">
-  <section class="card summaryCard">
-   <div class="summaryTop">
-    <div><div class="eyebrow">실시간 경로 재계산</div><h3 id="sumTitle">경로를 설정하세요</h3><p id="sumText">경로 계산 후 실제 탑승한 열차를 표시하면 이동 중에도 ETA를 계속 갱신합니다.</p></div>
-    <div class="summaryIcon">🧭</div>
-   </div>
-   <div class="metrics">
-    <div class="metric"><b id="total">-</b><span>예상 총 소요시간</span></div>
-    <div class="metric"><b id="arrival">-</b><span>예상 도착</span></div>
-    <div class="metric"><b id="diff">-</b><span>기존 앱 대비</span></div>
-    <div class="metric"><b id="quality">-</b><span>최저 신뢰도</span></div>
-   </div>
-  </section>
-
-  <section class="card experimentCard">
-   <div class="expHead">
-    <div><h3>기말 실험 기록</h3><p>검색 → 탑승 → ETA 갱신 → 실제 도착을 이 브라우저에 기록합니다.</p></div>
-    <span id="expCount" class="subtle">완료 0건</span>
-   </div>
-   <div id="expStatus" class="expStatus">실험 기록이 켜져 있습니다. 다음 ETA 계산부터 자동으로 기록합니다.</div>
-   <div class="expActions">
-    <button id="expArrive" class="expBtn primaryExp" disabled>지금 목적지 도착 기록</button>
-    <button id="expNote" class="expBtn" disabled>메모</button>
-    <button id="expCsv" class="expBtn">요약 CSV</button>
-    <button id="expJson" class="expBtn">상세 JSON</button>
-    <button id="expDrop" class="expBtn danger" disabled>현재 실험 제외</button>
-   </div>
-   <div class="expMetrics">
-    <div class="expMetric"><span>완료 이동</span><b id="expN">0건</b></div>
-    <div class="expMetric"><span>지금타 초기 ETA MAE</span><b id="expJMaE">-</b></div>
-    <div class="expMetric"><span>기존 앱 ETA MAE</span><b id="expBMaE">-</b></div>
-    <div class="expMetric"><span>ETA 오차 감소</span><b id="expGain">-</b></div>
-    <div class="expMetric"><span>평균 첫 승강장 대기</span><b id="expWait">-</b></div>
-   </div>
-   <details class="expList">
-    <summary>최근 실험 기록 보기</summary>
-    <div id="expRows" class="expRows"></div>
-   </details>
-   <div class="expHint">기존 앱과 비교할 실험에서는 ETA 계산 전에 왼쪽의 ‘기존 앱 예상 총시간’을 입력하세요. 실험 종료 후 CSV를 반드시 내보내 보관하세요.</div>
-  </section>
-
-  <section id="livePanel" class="card livePanel">
-   <div class="liveHead">
-    <div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div>
-    <button id="stopTrack" class="stopTrack">추적 종료</button>
-   </div>
-   <div class="liveBody">
-    <div class="liveStats">
-     <div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div>
-     <div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div>
-     <div class="liveStat"><span>환승역까지</span><b id="liveRemain">-</b></div>
-     <div class="liveStat"><span>최종 도착</span><b id="liveArrival">-</b></div>
-    </div>
-    <div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div>
-   </div>
-  </section>
-
-  <section class="card flowCard">
-   <div class="sectionHead"><h3>구간별 결과</h3><span id="stamp" class="subtle">아직 계산하지 않음</span></div>
-   <div id="flow" class="empty">경로를 입력한 뒤 실시간 ETA 계산을 누르세요.</div>
-  </section>
-
-  <div class="footNote">
-   <b>계산 기준</b> · 시발역 근처에서 아직 실시간 위치에 잡히지 않은 열차는 공식 시간표 후보로 먼저 표시합니다. 현재 실제로 운행 중인 열차가 승차역 이전에 확인되면 직접 ETA를 계산합니다. 다음 환승 시각이 너무 멀어 해당 열차가 아직 실시간 위치에 잡히지 않으면 공식 시간표에 현재 동일 방향·등급 열차들의 지연 중앙값을 적용하며 신뢰도를 낮춰 표시합니다.
-  </div>
- </main>
+<div class="legacyControls">
+ <div id="segments"></div><button id="addBtn"></button><button id="calcBtn"></button>
+ <select id="favoriteSelect"><option value="">저장된 경로 없음</option></select><button id="loadFav"></button><button id="saveFav"></button><button id="deleteFav"></button>
 </div>
-</div>
+
+<main class="resultCol">
+ <section class="card summaryCard">
+  <div class="summaryTop"><div><div class="eyebrow">현재 운행상황 반영</div><h3 id="sumTitle">경로를 조회하세요</h3><p id="sumText">실시간 열차 위치와 공식 시간표를 함께 계산합니다.</p></div></div>
+  <div class="metrics"><div class="metric"><b id="total">-</b><span>예상 총 소요시간</span></div><div class="metric"><b id="arrival">-</b><span>최종 도착 예정</span></div><div class="metric"><b id="diff">-</b><span>기존 앱 대비</span></div><div class="metric"><b id="quality">-</b><span>예측 신뢰도</span></div></div>
+ </section>
+
+ <section id="livePanel" class="card livePanel">
+  <div class="liveHead"><div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div><button id="stopTrack" class="stopTrack">추적 종료</button></div>
+  <div class="liveBody"><div class="liveStats"><div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div><div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div><div class="liveStat"><span>다음 환승까지</span><b id="liveRemain">-</b></div><div class="liveStat"><span>최종 도착</span><b id="liveArrival">-</b></div></div><div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div></div>
+ </section>
+
+ <section class="card flowCard"><div class="sectionHead"><h3>이동 경로</h3><span id="stamp" class="subtle">아직 계산하지 않음</span></div><div id="flow" class="empty">출발역과 도착역을 입력하고 조회하세요.</div></section>
+
+ <section class="card experimentCard">
+  <div class="expHead"><div><h3>기말 실험 기록</h3><p>검색 → 탑승 → ETA 갱신 → 실제 도착을 이 브라우저에 기록합니다.</p></div><span id="expCount" class="subtle">완료 0건</span></div>
+  <div id="expStatus" class="expStatus">실험 기록이 켜져 있습니다. 다음 ETA 계산부터 자동으로 기록합니다.</div>
+  <div class="expActions"><button id="expArrive" class="expBtn primaryExp" disabled>지금 목적지 도착 기록</button><button id="expNote" class="expBtn" disabled>메모</button><button id="expCsv" class="expBtn">요약 CSV</button><button id="expJson" class="expBtn">상세 JSON</button><button id="expDrop" class="expBtn danger" disabled>현재 실험 제외</button></div>
+  <div class="expMetrics"><div class="expMetric"><span>완료 이동</span><b id="expN">0건</b></div><div class="expMetric"><span>지금타 초기 ETA MAE</span><b id="expJMaE">-</b></div><div class="expMetric"><span>기존 앱 ETA MAE</span><b id="expBMaE">-</b></div><div class="expMetric"><span>ETA 오차 감소</span><b id="expGain">-</b></div><div class="expMetric"><span>평균 첫 승강장 대기</span><b id="expWait">-</b></div></div>
+  <details class="expList"><summary>최근 실험 기록 보기</summary><div id="expRows" class="expRows"></div></details>
+ </section>
+
+ <div class="footNote"><b>예측 기준</b> · 실시간 위치가 확인되면 해당 열차의 실제 지연을 우선 사용합니다. 아직 포착되지 않은 열차는 공식 시간표와 동일 방향 열차의 현재 지연을 이용해 ETA와 예상 소재를 표시합니다.</div>
+</main>
 <div id="toast" class="toast"></div>
+</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -575,6 +510,8 @@ function refreshDatalist(seg){
 function addSegment(data={}){
  if(document.querySelectorAll('.segment').length>=8){toast('최대 8개 구간까지 추가할 수 있습니다.');return}
  segId++;const div=document.createElement('div');div.className='segment';
+ div.dataset.transferSeconds=String(data.transfer_seconds??Math.round((data.walk??0)*60));
+ div.dataset.transferInfo=data.transfer_info?JSON.stringify(data.transfer_info):'';
  div.innerHTML=`<div class="segHead"><div class="segTitle"><span class="lineMark">1</span><span>구간 <span class="num"></span></span></div><button class="remove" aria-label="구간 삭제">×</button></div>
  <div class="segGrid">
   <div><label>노선</label><select class="line">${lineOpts(data.line||'1호선')}</select></div>
@@ -589,9 +526,9 @@ function addSegment(data={}){
 }
 function renumber(){[...document.querySelectorAll('.segment')].forEach((x,i)=>x.querySelector('.num').textContent=i+1)}
 function clearSegments(){$('segments').innerHTML='';segId=0}
-function collect(){return [...document.querySelectorAll('.segment')].map(x=>({line:x.querySelector('.line').value,from:x.querySelector('.from').value.trim(),to:x.querySelector('.to').value.trim(),transfer_walk:Number(x.querySelector('.walk').value)||0}))}
+function collect(){return [...document.querySelectorAll('.segment')].map(x=>({line:x.querySelector('.line').value,from:x.querySelector('.from').value.trim(),to:x.querySelector('.to').value.trim(),transfer_walk:Number(x.querySelector('.walk').value)||0,transfer_seconds:Number(x.dataset.transferSeconds)||0,transfer_info:x.dataset.transferInfo?JSON.parse(x.dataset.transferInfo):null}))}
 function loadRoute(segments){
- clearSegments();(segments||[]).forEach(s=>addSegment({line:s.line,from:s.from,to:s.to,walk:s.transfer_walk}));
+ clearSegments();(segments||[]).forEach(s=>addSegment({line:s.line,from:s.from,to:s.to,walk:s.transfer_walk,transfer_seconds:s.transfer_seconds,transfer_info:s.transfer_info}));
  if(!segments?.length)addSegment();
 }
 
@@ -946,7 +883,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V11.2`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -958,7 +895,7 @@ function canBoard(s){
 function boardButton(s,routeIndex){
  if(!canBoard(s))return '';
  const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
- return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차 탑승'}</button>`;
+ return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`;
 }
 function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
 function trainLocationText(s){
@@ -985,7 +922,7 @@ function candidateRows(s,routeIndex){
     : `<span class="sourceBadge sched">시간표 후보 · 미포착</span>`;
   const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
   const btn=canBoard(c)
-    ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'탑승'}</button>`
+    ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`
     : '';
   return `<div class="candidateRow ${c.selected?'selected':''}">
    <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
@@ -1001,24 +938,37 @@ function candidateRows(s,routeIndex){
   <div class="candidateList">${rows}</div>
  </details>`;
 }
-function legHtml(s,walk,routeIndex){
- const svc=s.service==='express'?'<span class="expressBadge">급행</span>':'일반',diag=s.diagnostics||{};
+function fmtTransferSeconds(sec){
+ sec=Math.max(0,Math.round(Number(sec)||0));const m=Math.floor(sec/60),s=sec%60;
+ return s?`${m}분 ${s}초`:`${m}분`;
+}
+function minutesUntil(dt,fallbackSec=0){const d=parseLocalDT(dt);if(!d)return Math.max(0,Math.round((Number(fallbackSec)||0)/60));const m=(d-new Date())/60000;if(!Number.isFinite(m)||m<-5||m>360)return Math.max(0,Math.round((Number(fallbackSec)||0)/60));return Math.max(0,Math.round(m));}
+function transferHtml(info,walk){
+ const sec=Number(info?.seconds)||Math.round((Number(walk)||0)*60);
+ if(sec<=0)return '';
+ const pos=[];
+ if(info?.alight_position)pos.push(`<span class="fastPos">${esc(info.alight_position)}</span> 하차`);
+ if(info?.board_position)pos.push(`<span class="fastPos">${esc(info.board_position)}</span> 승차`);
+ const dist=info?.distance_m?` · ${info.distance_m}m`:'';
+ return `<div class="transferWrap"><div class="transferCard"><div class="transferTitle">↓ 환승시간 ${fmtTransferSeconds(sec)}</div>${pos.length?`<div class="transferDetail">빠른 환승 · ${pos.join(' → ')}${dist}</div>`:''}</div></div>`;
+}
+function legHtml(s,walk,routeIndex,transferInfo){
  const tracking=s.tracking?' · <b style="color:#087451">고정 추적</b>':'';
+ const until=minutesUntil(s.board_dt,s.wait_seconds);
+ const source=s.location_kind==='live'?'실시간':'예상';
  return `<div class="leg ${confClass(s.confidence)}">
   <div class="legTop">
    <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
-   <div><h4>${esc(s.from)} → ${esc(s.to)}</h4><div class="meta">${esc(s.method)}${tracking}<br><span class="trainRun">${esc(trainRunText(s))}</span> · ${trainServiceText(s)} · 신뢰도 ${esc(s.confidence)}<br>현재 지연 ${fmtDelay(s.delay_seconds)}${trainLocationHtml(s)}</div></div>
-   <div class="clock">${fmtClock(s.board_dt)} → ${fmtClock(s.alight_dt)}<div style="margin-top:6px">${boardButton(s,routeIndex)}</div></div>
+   <div><h4>${esc(s.from)} <span class="timePoint">(${fmtClock(s.board_dt)})</span> → ${esc(s.to)} <span class="timePoint">(${fmtClock(s.alight_dt)})</span></h4><div class="journeyMinutes">${fmtDur(s.ride_seconds)} 이동 · ${source} 예측 · 신뢰도 ${esc(s.confidence)}${tracking}</div></div>
+   <div class="clock">${boardButton(s,routeIndex)}</div>
   </div>
-  <div class="details">
-   <div class="detail"><span>열차번호</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
-   <div class="detail"><span>${s.tracking?'남은 시간':'탑승까지'}</span><b>${fmtDur(s.tracking?s.remaining_seconds:s.wait_seconds)}</b></div>
-   <div class="detail"><span>차내 이동</span><b>${fmtDur(s.ride_seconds)}</b></div>
-   <div class="detail"><span>다음 환승</span><b>${walk>0?walk+'분':'도착'}</b></div>
-   <div class="detail"><span>위치 매칭</span><b>${diag.matched??'-'} / ${diag.positions??'-'}</b></div>
+  <div class="trainOverview">
+   <div><span>열차</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
+   <div><span>현재 소재</span><b>${esc(trainLocationText(s))}</b></div>
+   <div><span>실시간 지연</span><b>${fmtDelay(s.delay_seconds)}</b><span>${s.tracking?'탑승 중':`${until}분 후 ${esc(s.from)} 도착 예정`}</span></div>
   </div>
   ${candidateRows(s,routeIndex)}
- </div>${walk>0?`<div class="transfer">↓ 환승 이동 ${walk}분</div>`:''}`;
+ </div>${transferHtml(transferInfo,walk)}`;
 }
 function bindBoardButtons(){
  document.querySelectorAll('[data-board]').forEach(btn=>btn.onclick=()=>{
@@ -1031,7 +981,8 @@ function renderRouteSegments(result,baseIndex=0){
  $('flow').innerHTML=result.segments.map((s,i)=>{
   const absoluteIndex=baseIndex+i;
   const walk=absoluteIndex<route.length-1?route[absoluteIndex].transfer_walk:0;
-  return legHtml(s,walk,absoluteIndex);
+  const transferInfo=s.transfer_info||route[absoluteIndex]?.transfer_info||null;
+  return legHtml(s,walk,absoluteIndex,transferInfo);
  }).join('');
  if(result.warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>예측 구간</b><br>${result.warnings.map(esc).join('<br>')}</div>`;
  bindBoardButtons();
@@ -1045,24 +996,24 @@ async function findAutoRoute(){
  const from=$('autoFrom').value.trim(),to=$('autoTo').value.trim();
  if(!from||!to){toast('출발역과 도착역을 입력하세요.');return}
  const btn=$('autoRouteBtn');
- btn.disabled=true;btn.textContent='경로 찾는 중…';
+ btn.disabled=true;btn.textContent='조회 중…';
  try{
   const j=await postJson('/api/auto_route',{
    from,to,
    start_time:$('startTime').value||timePlus(0),
    day:$('day').value,
-   transfer_minutes:4
   });
   loadRoute(j.segments);
   $('autoRouteResult').innerHTML=autoRouteSummary(j);
   $('autoRouteResult').classList.add('show');
+  $('settingsPanel').classList.remove('open');$('settingsBtn').setAttribute('aria-expanded','false');
   toast(`경로 생성 완료 · ${j.transfer_count}회 환승`);
   await calculate();
  }catch(e){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message)}</span>`;
   $('autoRouteResult').classList.add('show');
  }finally{
-  btn.disabled=false;btn.textContent='빠른 경로 찾고 ETA 계산';
+  btn.disabled=false;btn.textContent='조회';
  }
 }
 
@@ -1076,6 +1027,7 @@ async function calculate(){
   const j=await postJson('/api/route',{start_time:$('startTime').value||timePlus(0),baseline_minutes:$('baseline').value,day:$('day').value,segments});
   lastRouteResult=j;
   lastLiveResult=null;
+  document.body.classList.add('resultsReady');
   beginOrUpdateExperiment(j,segments);
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('total').textContent=fmtDur(j.total_seconds);$('arrival').textContent=fmtClock(j.arrival_time);
@@ -1083,11 +1035,12 @@ async function calculate(){
   else $('diff').textContent=j.difference_seconds<0?`${Math.round(Math.abs(j.difference_seconds)/60)}분 단축`:j.difference_seconds>0?`${Math.round(j.difference_seconds/60)}분 증가`:'거의 동일';
   const rank={'높음':3,'중간':2,'낮음':1};$('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
   const first=segments[0],last=segments[segments.length-1];
-  $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
-  $('sumText').textContent=`${first.from}에서 ${last.to}까지 현재 운행상황으로 계산했습니다. 실제 열차에 탑승하면 해당 구간의 ‘이 열차 탑승’을 눌러 라이브 추적을 시작하세요.`;
+  $('sumTitle').textContent=`${first.from} → ${last.to} · ${fmtClock(j.arrival_time)} 도착`;
+  $('sumText').textContent=`현재 운행상황과 실제 환승시간을 반영했습니다. 실제 열차에 탑승하면 ‘이 열차를 탔어요’를 눌러 이동 중 ETA를 계속 갱신할 수 있습니다.`;
   $('stamp').textContent=new Date().toLocaleTimeString()+' 기준';
   renderRouteSegments(j,0);
  }catch(e){
+  document.body.classList.add('resultsReady');
   const p=e.payload||{},d=p.diagnostics||{};
   $('flow').innerHTML=`<div class="error"><b>이 구간은 계산하지 못했습니다.</b><br>${esc(e.message)}${p.failed_segment?`<br>실패 구간: ${p.failed_segment}번`:''}${d.positions!=null?`<br><br>실시간 위치 ${d.positions}건 · 시간표 매칭 ${d.matched??0}건`:''}</div>`;
  }finally{
@@ -1203,6 +1156,13 @@ function restoreTrip(){
  }catch(e){sessionStorage.removeItem(TRIP_KEY)}
 }
 
+$('settingsBtn').onclick=()=>{
+ const panel=$('settingsPanel'),open=!panel.classList.contains('open');
+ panel.classList.toggle('open',open);$('settingsBtn').setAttribute('aria-expanded',String(open));
+};
+$('swapStations').onclick=()=>{const a=$('autoFrom').value;$('autoFrom').value=$('autoTo').value;$('autoTo').value=a;};
+$('showExpTools').addEventListener('change',()=>document.body.classList.toggle('showExperiment',$('showExpTools').checked));
+$('autoTo').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)setTimeout(()=>{if($('autoTo').value.trim())findAutoRoute()},0);});
 document.querySelectorAll('.timeChip').forEach(b=>b.onclick=()=>setRelativeTime(b.dataset.min));
 $('startTime').addEventListener('input',clearQuickSelection);
 $('day').addEventListener('change',()=>{if($('day').value!=='AUTO')updateAutoDayInfo($('day').value,'수동 선택',false);else init();});
@@ -1232,7 +1192,7 @@ $('expNote').onclick=()=>{
 $('expEnabled').addEventListener('change',renderExperimentPanel);
 
 setRelativeTime(10);
-loadRoute([{line:'2호선',from:'',to:'',transfer_walk:3}]);
+loadRoute([]);
 refreshFavorites();
 renderExperimentPanel();
 init().then?.(()=>restoreTrip());
