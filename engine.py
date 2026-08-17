@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.2 — 1~9호선 다중 환승 ETA
+지금타 V13.2.1 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -1198,7 +1198,7 @@ def auto_path_to_segments(path, mode):
 
 def calculate_auto_route(payload):
     """
-    V13.2:
+    V13.2.1:
     1) 정적 route graph에서 상위 topology 후보 여러 개 생성
     2) 각 후보를 실제 출발시각의 열차 시간표로 1차 채점
     3) realtimePosition을 후보 간 공유하면서 모든 후보를 실시간 ETA로 재채점
@@ -1347,7 +1347,7 @@ def fetch_position(line, timeout=5):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.2/1.0",
+        "User-Agent": "JigeumTa-V13.2.1/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1640,7 +1640,7 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
     return out
 
 def static_projected_candidates(line, mode, start, end, ready_dt, observations):
-    # V13.2: 모든 열차에 예상 소재를 계산한 뒤 자르는 대신,
+    # V13.2.1: 모든 열차에 예상 소재를 계산한 뒤 자르는 대신,
     # 먼저 시간표상 탑승 가능한 후보를 추린 뒤 상위 30개만 소재를 계산한다.
     raw = []
     now = now_kst()
@@ -2057,9 +2057,14 @@ def calculate_live_trip(payload):
         except Exception:
             pass
     mode, mode_reason = resolve_service_mode(requested_mode, mode_ref)
-    # 일반 조회도 segment 노선을 병렬 prefetch한다. 다중 후보 채점에서는 caller cache를 공유한다.
-    if position_cache is None:
-        position_cache = prefetch_position_cache([s.get("line") for s in segments], timeout=5)
+
+    # V13.2.1 regression fix:
+    # calculate_live_trip()에는 position_cache 인자가 없으므로
+    # 추적 요청마다 필요한 노선을 한 번 병렬 prefetch하여 공유한다.
+    position_cache = prefetch_position_cache(
+        [s.get("line") for s in segments],
+        timeout=5,
+    )
     results = []
     warnings = []
 
@@ -2176,7 +2181,7 @@ def calculate_route(payload, position_cache=None):
     refresh_only = bool(payload.get("refresh_only"))
     ready_dt = max(start_dt, now) if refresh_only else start_dt
 
-    # V13.2: caller가 넘긴 cache를 절대 초기화하지 않는다.
+    # V13.2.1: caller가 넘긴 cache를 절대 초기화하지 않는다.
     # V13/V13.1에서는 여기서 position_cache={}로 덮어써 다중 후보마다
     # realtimePosition을 다시 순차 호출하는 중대 성능 버그가 있었다.
     if position_cache is None:

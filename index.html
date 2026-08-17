@@ -236,7 +236,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .liveTitle{font-size:12px;font-weight:900}.liveSub{font-size:9px;color:#557268;margin-top:2px}
 .stopTrack{border:1px solid #bcd6cb;background:white;color:#356050;border-radius:10px;padding:7px 9px;font-size:9px;font-weight:850;cursor:pointer}
 .liveBody{padding:16px 17px}
-.liveStats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.liveStats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .liveStat{background:#f7faf8;border-radius:10px;padding:9px}
 .liveStat span{display:block;font-size:7px;color:#718079}.liveStat b{display:block;font-size:11px;margin-top:3px}
 .progressNote{font-size:9px;color:#61716a;line-height:1.5;margin-top:10px}
@@ -488,7 +488,7 @@ header{margin-bottom:30px}
 
  <section id="livePanel" class="card livePanel">
   <div class="liveHead"><div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div><button id="stopTrack" class="stopTrack">이제 내렸어요</button></div>
-  <div class="liveBody"><div class="liveStats"><div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div><div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div><div class="liveStat"><span>다음 환승까지</span><b id="liveRemain">-</b></div><div class="liveStat"><span>최종 도착</span><b id="liveArrival">-</b></div></div><div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div></div>
+  <div class="liveBody"><div class="liveStats"><div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div><div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div><div class="liveStat"><span id="liveRemainLabel">다음 환승까지</span><b id="liveRemain">-</b></div></div><div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div></div>
  </section>
 
  <section class="card flowCard"><div class="sectionHead"><h3>이동 경로</h3><div class="routeHeadMeta"><div class="routeStampLine"><span id="stamp" class="subtle">아직 계산하지 않음</span><span id="platformStamp" class="subtle">플랫폼 도착시간 -</span></div><button id="refreshRoute" class="refreshRoute" type="button" disabled aria-label="실시간 운행정보 새로고침">↻ 새로고침</button></div></div><div id="flow" class="empty">출발역과 도착역을 입력하고 조회하세요.</div></section>
@@ -1151,7 +1151,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.2`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.2.1`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1482,6 +1482,24 @@ function saveTrip(){
  if(liveTrip)sessionStorage.setItem(TRIP_KEY,JSON.stringify(liveTrip));
  else sessionStorage.removeItem(TRIP_KEY);
 }
+function trackingSeedFor(activeIndex,trainNo){
+ const base=liveTrip?.displaySegments?.[activeIndex]||lastRouteResult?.segments?.[activeIndex]||null;
+ const pool=[];
+ if(base)pool.push(base);
+ if(base?.nearby_candidates?.length)pool.push(...base.nearby_candidates);
+ if(base?.previous_candidate)pool.push(base.previous_candidate);
+ return pool.find(x=>String(x?.train_no||'')===String(trainNo||''))||base||null;
+}
+function setLiveRemainingLabel(){
+ if(!liveTrip)return;
+ const label=$('liveRemainLabel');
+ if(!label)return;
+ if(liveTrip.phase==='transfer')label.textContent='환승 완료까지';
+ else if(liveTrip.phase==='waiting')label.textContent='다음 열차 탑승';
+ else label.textContent=liveTrip.activeIndex < (liveTrip.segments?.length||0)-1
+  ?'다음 환승까지'
+  :'목적지 하차까지';
+}
 function startTracking(activeIndex,trainNo,selectedBoardDt=''){
  const segments=collect();
  if(!segments[activeIndex])return;
@@ -1520,6 +1538,18 @@ function startTracking(activeIndex,trainNo,selectedBoardDt=''){
  $('stopTrack').textContent='이제 내렸어요';
  $('liveTrain').textContent=`${segments[activeIndex].line} ${trainNo}`;
  $('liveTitle').textContent=`${trainNo}열차 탑승 중`;
+ setLiveRemainingLabel();
+
+ // 첫 추적 API 응답 전에도 직전 계산값으로 즉시 채운다.
+ const seed=trackingSeedFor(activeIndex,trainNo);
+ $('liveStation').textContent=seed?trainLocationText(seed):'위치 확인 중';
+ if(seed?.alight_dt){
+  const target=parseLocalDT(seed.alight_dt);
+  $('liveRemain').textContent=target?fmtDur(Math.max(0,(target-new Date())/1000)):'계산 중';
+ }else{
+  $('liveRemain').textContent='계산 중';
+ }
+
  toast(`${trainNo}열차 추적을 시작했습니다.`);
  renderLiveJourney([],activeIndex,[]);
  pollLiveTrip(true);
@@ -1557,6 +1587,7 @@ function beginTransfer(manual=false){
  $('liveSub').textContent=`다음 구간으로 이동 중입니다. 환승시간 ${fmtTransferSeconds(sec)}를 기준으로 열차를 다시 계산합니다.`;
  $('liveTrain').textContent='환승';
  $('liveStation').textContent=segment.to;
+ setLiveRemainingLabel();
  $('liveRemain').textContent=fmtTransferSeconds(sec);
  $('stopTrack').style.display='';
  $('stopTrack').textContent='환승을 마쳤어요';
@@ -1581,6 +1612,7 @@ async function completeTransfer(manual=false){
  $('liveSub').textContent=manual?'환승 완료를 반영해 현재시각 기준으로 다음 열차를 다시 계산합니다.':'환승시간이 지나 다음 구간 열차를 확인합니다.';
  $('liveTrain').textContent=liveTrip.segments[next].line;
  $('liveStation').textContent=liveTrip.segments[next].from;
+ setLiveRemainingLabel();
  $('liveRemain').textContent='탑승 대기';
  $('stopTrack').style.display='none';
  renderLiveJourney([],0,[]);
@@ -1685,8 +1717,8 @@ async function pollLiveTrip(first=false){
   $('livePanel').classList.add('show');
   $('liveTrain').textContent=`${current.line} ${j.boarded_train_no}`;
   $('liveStation').textContent=trainLocationText(current);
+  setLiveRemainingLabel();
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
-  $('liveArrival').textContent=fmtClock(j.arrival_time);
   $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
   $('stopTrack').style.display='';
   $('stopTrack').textContent='이제 내렸어요';
@@ -1722,7 +1754,9 @@ async function pollLiveTrip(first=false){
    liveTrip.previousNextTrain=sig;saveTrip();
   }
  }catch(e){
-  $('progressNote').textContent=`갱신 실패: ${e.message} · 다음 주기에 다시 시도합니다.`;
+  $('progressNote').textContent=`추적 갱신 실패: ${e.message} · 현재 표시값을 유지하고 다음 주기에 다시 시도합니다.`;
+  if($('liveStation').textContent==='-')$('liveStation').textContent='위치 재확인 중';
+  if($('liveRemain').textContent==='-')$('liveRemain').textContent='재계산 중';
  }finally{
   if(liveTrip&&liveTrip.phase==='ride')scheduleNextPoll();
  }
@@ -1742,6 +1776,7 @@ function restoreTrip(){
   if(fixedPlatformStart)updateRouteStamps(localDateTimeString(new Date()),fixedPlatformStart);
   updateRefreshAvailability();
   $('livePanel').classList.add('show');
+  setLiveRemainingLabel();
   renderLiveJourney([],0,[]);
   if(liveTrip.phase==='ride'){
    $('liveTrain').textContent=`${saved.segments[saved.activeIndex].line} ${saved.boardedTrainNo}`;
