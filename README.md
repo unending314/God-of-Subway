@@ -11,7 +11,7 @@
 
 ---
 
-## 왜 만들었나
+## 개발 동기
 
 지도 앱에서는 "곧 도착"이라고 하는데, 정작 그 열차가 어디 있는지는 알 수 없습니다. 환승역에 도착해 보면 타야 할 열차는 이미 떠난 뒤인 경험, 한 번쯤 있으셨을 겁니다.
 
@@ -19,7 +19,7 @@
 
 지금타는 **지금 실제로 운행 중인 열차의 위치**를 반영해 도착 예정 시간을 계산합니다.
 
-## 무엇이 다른가
+## '지금타'의 차별점
 
 **1. 실제 열차 위치를 반영합니다**
 시간표상 도착시간만 계산하지 않습니다. 현재 열차가 어디에 있는지 확인하고 실제 지연 상황을 반영합니다.
@@ -98,6 +98,21 @@ Vercel에 배포되어 있습니다. `server.py`의 FastAPI 앱이 Python Functi
 본 서비스가 제공하는 정보는 실제 운행정보와 다를 수 있습니다. 잘못된 정보의 표출로 인한 피해에 대해 개발자는 책임지지 않습니다. 또한 본 서비스를 근거로 운영기관에 민원을 제기하는 행위는 삼가주시기 바랍니다.
 
 데이터 출처: 서울특별시 열린데이터광장 — 지하철 실시간 도착정보
+
+## 스크린샷
+<img width="1280" height="2510" alt="image" src="https://github.com/user-attachments/assets/4a983127-a931-432f-b1a9-e23dd68e8851" />
+초기화면
+<br/>
+<img width="1280" height="6114" alt="image" src="https://github.com/user-attachments/assets/2fe0128f-eb8a-44e2-8765-f7c9bd941d67" />
+<br/>
+출발지와 목적지를 입력하면 이동 경로가 산출됨
+<br/>
+<img width="1280" height="549" alt="image" src="https://github.com/user-attachments/assets/f83e96de-f860-47d8-b251-82f146588ecd" />
+열차 탑승시 추적 버튼을 누르면 실시간으로 내 위치를 알 수 있고, 이 열차의 지연 상황에 따라 후행 열차 일정도 결정됨
+<br/>
+<img width="1280" height="2510" alt="image" src="https://github.com/user-attachments/assets/93c07e37-135e-4d56-a166-9ba7433b900f" />
+환승 중에는 환승 정보도 알 수 있음
+<br/>
 
 ## 변경 기록
 
