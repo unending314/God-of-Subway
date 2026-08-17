@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.1 — 1~9호선 다중 환승 ETA
+지금타 V13.2 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
   모든 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
 """
 import json, os, re, urllib.request, urllib.parse, time, statistics, heapq
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -438,20 +440,22 @@ def get_train(line, mode, raw_train_no):
     return None
 
 
+@lru_cache(maxsize=None)
 def all_trains(line, mode):
+    """정규화된 노선별 전체 시간표는 프로세스 생명주기 동안 재사용한다."""
     korail_day, metro_week = choose_modes(mode)
     if line == "1호선":
-        return [normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items()]
+        return tuple(normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items())
     if line in EXTRA_LINES:
-        return [
+        return tuple(
             normalize_extra_train(tn, tr)
             for tn, tr in EXTRA[line]["trains"][korail_day].items()
-        ]
+        )
     num = LINE_NUM[line]
-    return [
+    return tuple(
         normalize_metro_train(tn, raw)
         for tn, raw in OFF["days"].get(metro_week, {}).get(num, {}).items()
-    ]
+    )
 
 
 
@@ -651,26 +655,31 @@ def merged_continuation_train(line, mode, train_no):
     return virtual
 
 
-def route_trains(line, mode, start, end):
-    """start→end를 실제로 한 차량에서 이동할 수 있는 원본/연속운행 열차를 반환."""
+@lru_cache(maxsize=1024)
+def _route_trains_cached(line, mode, start, end):
+    start = canon_station(start); end = canon_station(end)
+    result = []
     originals = all_trains(line, mode)
     for tr in originals:
         if route_pair(tr.get("stops", []), start, end):
-            yield tr
-    if line not in ("2호선", "6호선"):
-        return
-    links = continuation_links(line, mode)
-    for ptn, info in links.items():
-        pred = get_train(line, mode, ptn)
-        succ = get_train(line, mode, info["next_train_no"])
-        if not pred or not succ:
-            continue
-        # 두 개별 열번 중 어느 하나가 이미 전 구간을 커버한다면 가상 후보를 중복 추가하지 않는다.
-        if route_pair(pred.get("stops", []), start, end) or route_pair(succ.get("stops", []), start, end):
-            continue
-        virtual = merged_continuation_train(line, mode, ptn)
-        if virtual and route_pair(virtual.get("stops", []), start, end):
-            yield virtual
+            result.append(tr)
+    if line in ("2호선", "6호선"):
+        links = continuation_links(line, mode)
+        for ptn, info in links.items():
+            pred = get_train(line, mode, ptn)
+            succ = get_train(line, mode, info["next_train_no"])
+            if not pred or not succ:
+                continue
+            if route_pair(pred.get("stops", []), start, end) or route_pair(succ.get("stops", []), start, end):
+                continue
+            virtual = merged_continuation_train(line, mode, ptn)
+            if virtual and route_pair(virtual.get("stops", []), start, end):
+                result.append(virtual)
+    return tuple(result)
+
+def route_trains(line, mode, start, end):
+    """start→end 운행 가능 열차 목록을 캐시하여 다중 경로 채점의 반복 스캔을 제거."""
+    yield from _route_trains_cached(line, mode, canon_station(start), canon_station(end))
 
 
 def active_train_no_for_virtual(tr, ref_dt, delay=0):
@@ -1189,7 +1198,7 @@ def auto_path_to_segments(path, mode):
 
 def calculate_auto_route(payload):
     """
-    V13.1:
+    V13.2:
     1) 정적 route graph에서 상위 topology 후보 여러 개 생성
     2) 각 후보를 실제 출발시각의 열차 시간표로 1차 채점
     3) realtimePosition을 후보 간 공유하면서 모든 후보를 실시간 ETA로 재채점
@@ -1261,8 +1270,14 @@ def calculate_auto_route(payload):
         x["path"]["seconds"],
     ))
 
-    # 2차: 후보 전체를 실시간으로 다시 채점하되 API 결과는 노선별 1회만 가져온다.
-    live_cache = {}
+    # 2차: 후보 전체의 노선 실시간 API를 병렬로 1회씩만 조회한 뒤 공유한다.
+    # 서울 API 일부 노선이 느려도 노선 수 × timeout으로 직렬 누적되지 않는다.
+    live_lines = {
+        s.get("line")
+        for c in schedule_scored
+        for s in c.get("segments", [])
+    }
+    live_cache = prefetch_position_cache(live_lines, timeout=5)
     live_scored = []
     for c in schedule_scored:
         live = calculate_route({
@@ -1327,16 +1342,16 @@ def calculate_auto_route(payload):
 
 
 # ---------- Live API ----------
-def fetch_position(line):
+def fetch_position(line, timeout=5):
     require_api_key()
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.1/1.0",
+        "User-Agent": "JigeumTa-V13.2/1.0",
         "Accept": "application/json",
     })
     try:
-        with urllib.request.urlopen(req, timeout=12) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             raw = r.read().decode("utf-8", errors="replace")
         data = json.loads(raw)
         if isinstance(data, dict) and isinstance(data.get("RESULT"), dict):
@@ -1347,6 +1362,29 @@ def fetch_position(line):
 
 def position_rows(data):
     return data.get("realtimePositionList", []) if isinstance(data, dict) else []
+
+def prefetch_position_cache(lines, timeout=5):
+    """여러 노선 realtimePosition을 병렬 조회. 한 노선 장애가 전체 요청을 직렬로 지연시키지 않는다."""
+    unique = sorted({str(x) for x in lines if x in LINE_NAMES})
+    if not unique:
+        return {}
+    cache = {}
+    workers = min(6, len(unique))
+    def one(line):
+        try:
+            ok, err, data = fetch_position(line, timeout=timeout)
+            if ok:
+                return line, {"rows": position_rows(data), "error": "", "available": True}
+            message = (err or {}).get("message", err) if isinstance(err, dict) else err
+            return line, {"rows": [], "error": str(message or "실시간 위치 조회 실패"), "available": False}
+        except Exception as e:
+            return line, {"rows": [], "error": f"{type(e).__name__}: {e}", "available": False}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(one, line) for line in unique]
+        for fut in as_completed(futures):
+            line, value = fut.result()
+            cache[line] = value
+    return cache
 
 def cached_position_rows(line, position_cache):
     """
@@ -1602,7 +1640,10 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
     return out
 
 def static_projected_candidates(line, mode, start, end, ready_dt, observations):
-    out = []
+    # V13.2: 모든 열차에 예상 소재를 계산한 뒤 자르는 대신,
+    # 먼저 시간표상 탑승 가능한 후보를 추린 뒤 상위 30개만 소재를 계산한다.
+    raw = []
+    now = now_kst()
     for tr in route_trains(line, mode, start, end):
         pair = route_pair(tr["stops"], start, end)
         if not pair:
@@ -1614,16 +1655,19 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             continue
         while asec < bsec:
             asec += 86400
-
         delay = median_delay(observations, tr["direction"], tr["service"])
-        expected_location = estimated_train_location(tr, now_kst(), delay)
         board_dt = schedule_dt_after(bsec, ready_dt, delay)
         if not board_dt:
             continue
-        alight_dt = board_dt + timedelta(seconds=asec - bsec)
         if (board_dt - ready_dt).total_seconds() > 4 * 3600:
             continue
+        alight_dt = board_dt + timedelta(seconds=asec - bsec)
+        raw.append((alight_dt, board_dt, tr, delay))
 
+    raw.sort(key=lambda x: (x[0], x[1]))
+    out = []
+    for alight_dt, board_dt, tr, delay in raw[:30]:
+        expected_location = estimated_train_location(tr, now, delay)
         out.append({
             "line": line,
             "from": canon_station(start),
@@ -1648,8 +1692,7 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             "method": "공식 시간표 + 현재 동일방향 지연 중앙값" if observations else "공식 시간표만 사용",
             "projected": True,
         })
-    out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
-    return out[:30]
+    return out
 
 def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
     """
@@ -2014,9 +2057,9 @@ def calculate_live_trip(payload):
         except Exception:
             pass
     mode, mode_reason = resolve_service_mode(requested_mode, mode_ref)
-    # 자동경로 다중 후보 채점에서는 후보 간 realtimePosition 결과를 공유한다.
-    # 일반 /api/route 호출에서는 기존처럼 새로운 cache를 사용한다.
-    position_cache = {} if position_cache is None else position_cache
+    # 일반 조회도 segment 노선을 병렬 prefetch한다. 다중 후보 채점에서는 caller cache를 공유한다.
+    if position_cache is None:
+        position_cache = prefetch_position_cache([s.get("line") for s in segments], timeout=5)
     results = []
     warnings = []
 
@@ -2132,7 +2175,13 @@ def calculate_route(payload, position_cache=None):
     # 추천되지 않도록 첫 구간의 실제 탑승 가능 기준만 현재 시각으로 올린다.
     refresh_only = bool(payload.get("refresh_only"))
     ready_dt = max(start_dt, now) if refresh_only else start_dt
-    position_cache = {}
+
+    # V13.2: caller가 넘긴 cache를 절대 초기화하지 않는다.
+    # V13/V13.1에서는 여기서 position_cache={}로 덮어써 다중 후보마다
+    # realtimePosition을 다시 순차 호출하는 중대 성능 버그가 있었다.
+    if position_cache is None:
+        position_cache = prefetch_position_cache([s.get("line") for s in segments], timeout=5)
+
     results = []
     warnings = []
 

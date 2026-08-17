@@ -1109,10 +1109,18 @@ async function getJson(u){
  try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
  if(!r.ok||!j.ok)throw new Error(j.error||'요청 실패');return j;
 }
-async function postJson(u,o){
- const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store'}),t=await r.text();let j;
- try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
- if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;throw er}return j;
+async function postJson(u,o,timeoutMs=20000){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),timeoutMs);
+ try{
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store',signal:controller.signal}),t=await r.text();let j;
+  try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
+  if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;throw er}
+  return j;
+ }catch(e){
+  if(e?.name==='AbortError')throw new Error('조회가 20초를 초과했습니다. 잠시 후 다시 시도해 주세요.');
+  throw e;
+ }finally{clearTimeout(timer)}
 }
 function serviceModeLabel(mode){
  return mode==='DAY'?'평일 시간표':mode==='SAT'?'토요일 시간표':'휴일 시간표';
@@ -1143,7 +1151,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.2`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1354,7 +1362,7 @@ async function findAutoRoute(){
  const from=$('autoFrom').value.trim(),to=$('autoTo').value.trim();
  if(!from||!to){toast('출발역과 도착역을 입력하세요.');return}
  const btn=$('autoRouteBtn');
- btn.disabled=true;btn.textContent='조회 중…';
+ btn.disabled=true;btn.textContent='경로 비교 중…';
  try{
   const queryStartTime=resolvedSearchTime();
   const j=await postJson('/api/auto_route',{

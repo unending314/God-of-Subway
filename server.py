@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 import engine
 
@@ -30,7 +31,7 @@ def health():
     today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V13.1-vercel",
+        "version": "V13.2-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
@@ -59,7 +60,7 @@ def stations():
 async def auto_route(request: Request):
     try:
         payload = await request.json()
-        result = engine.calculate_auto_route(payload)
+        result = await run_in_threadpool(engine.calculate_auto_route, payload)
         status = 200 if result.get("ok") else 422
         return JSONResponse(result, status_code=status)
     except Exception as e:
@@ -72,7 +73,7 @@ async def auto_route(request: Request):
 async def route(request: Request):
     try:
         payload = await request.json()
-        result = engine.calculate_route(payload)
+        result = await run_in_threadpool(engine.calculate_route, payload)
         status = 200 if result.get("ok") else 422
         return JSONResponse(result, status_code=status)
     except Exception as e:
@@ -85,7 +86,7 @@ async def route(request: Request):
 async def trip_update(request: Request):
     try:
         payload = await request.json()
-        result = engine.calculate_live_trip(payload)
+        result = await run_in_threadpool(engine.calculate_live_trip, payload)
         status = 200 if result.get("ok") else 422
         return JSONResponse(result, status_code=status)
     except Exception as e:
