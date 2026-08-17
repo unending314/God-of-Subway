@@ -430,6 +430,12 @@ header{margin-bottom:30px}
  .legTop .clock{width:100%}
 }
 
+
+.routeChoiceMeta{margin-top:6px;font-size:9px;font-weight:850;color:#315373}
+.routeAlternatives{margin-top:8px;border-top:1px solid #e8edf2;padding-top:6px}
+.routeAlternatives summary{cursor:pointer;font-size:8px;font-weight:900;color:#607080}
+.altRoute{padding:5px 2px;font-size:8px;color:#6a7580;line-height:1.35}
+
 </style>
 </head>
 <body>
@@ -1137,7 +1143,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.8.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.1`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1328,7 +1334,21 @@ function renderRouteSegments(result,baseIndex=0){
 function autoRouteSummary(j){
  const pills=j.segments.map(s=>`<span class="routePill">${esc(s.line)} ${esc(s.from)} → ${esc(s.to)}</span>`).join('');
  const via=j.interchanges?.length?` · 환승 ${j.interchanges.map(esc).join(' → ')}`:' · 무환승';
- return `<b>${esc(j.from)} → ${esc(j.to)}</b>${via}<div class="routePills">${pills}</div><div style="margin-top:5px">시간표 그래프 기준 약 ${fmtDur(j.route_seconds)} · 실시간 ETA는 아래 결과에서 다시 계산됩니다.</div>`;
+ const eta=j.estimated_total_seconds!=null
+  ?`예상 ${fmtDur(j.estimated_total_seconds)} · ${fmtClock(j.estimated_arrival_time)} 도착`
+  :`정적 그래프 약 ${fmtDur(j.route_seconds)}`;
+ const compare=j.candidate_count>1
+  ?` · 후보 ${j.candidate_count}개 비교`
+  :'';
+ const alternatives=(j.alternatives||[]).length
+  ?`<details class="routeAlternatives"><summary>다른 경로 ${j.alternatives.length}개 보기</summary>${
+    j.alternatives.map((a,i)=>{
+      const v=a.interchanges?.length?a.interchanges.map(esc).join(' → '):'무환승';
+      return `<div class="altRoute"><b>${i+2}안</b> · ${v} · ${fmtDur(a.total_seconds)} · ${fmtClock(a.arrival_time)} 도착</div>`;
+    }).join('')
+   }</details>`
+  :'';
+ return `<b>${esc(j.from)} → ${esc(j.to)}</b>${via}<div class="routePills">${pills}</div><div class="routeChoiceMeta">${eta}${compare} · 배차·환승·실시간 반영</div>${alternatives}`;
 }
 async function findAutoRoute(){
  const from=$('autoFrom').value.trim(),to=$('autoTo').value.trim();
@@ -1346,7 +1366,7 @@ async function findAutoRoute(){
   $('autoRouteResult').innerHTML=autoRouteSummary(j);
   $('autoRouteResult').classList.add('show');
   $('settingsPanel').classList.remove('open');$('settingsBtn').setAttribute('aria-expanded','false');
-  toast(`경로 생성 완료 · ${j.transfer_count}회 환승`);
+  toast(`현재 최적 경로 · 후보 ${j.candidate_count||1}개 비교 · ${j.transfer_count}회 환승`);
   await calculate({startValue:queryStartTime});
  }catch(e){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message)}</span>`;

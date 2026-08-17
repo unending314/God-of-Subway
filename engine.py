@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.8.1 — 1~9호선 다중 환승 ETA
+지금타 V13.1 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -921,6 +921,204 @@ def auto_find_path(start, end, mode, transfer_seconds=None):
         "edges": edges,
     }
 
+
+AUTO_ROUTE_MAX_UNIQUE_CANDIDATES = 8
+AUTO_ROUTE_MAX_RAW_PATHS = 36
+
+def _route_graph_shortest_with_bans(start, end, mode, source_node=None, banned_edges=None, banned_nodes=None):
+    """
+    Yen K-shortest-path용 Dijkstra.
+    synthetic source/target를 사용해 출발/도착역의 여러 노선을 하나의 그래프로 취급한다.
+    """
+    start = canon_station(start)
+    end = canon_station(end)
+    banned_edges = set(banned_edges or ())
+    banned_nodes = set(banned_nodes or ())
+
+    source = ("__SOURCE__", start)
+    target = ("__TARGET__", end)
+    start_nodes = [(_line, start) for _line in _station_lines(start)]
+    target_nodes = {(_line, end) for _line in _station_lines(end)}
+    adj = _route_adjacency(mode)
+
+    src = source if source_node is None else source_node
+    pq = [(0, 0, src)]
+    dist = {src: 0}
+    prev = {}
+    seq = 1
+
+    while pq:
+        d, _, u = heapq.heappop(pq)
+        if d != dist.get(u):
+            continue
+
+        if u == target:
+            nodes = []
+            edges = []
+            cur = target
+            while cur != src:
+                pu, kind, w = prev[cur]
+                nodes.append(cur)
+                edges.append((pu, cur, kind, w))
+                cur = pu
+            nodes.append(src)
+            nodes.reverse()
+            edges.reverse()
+            return {"cost": int(d), "nodes": nodes, "edges": edges}
+
+        if u in banned_nodes and u != src:
+            continue
+
+        if u == source:
+            options = [(n, 0, "start") for n in start_nodes]
+        elif u in target_nodes:
+            options = list(adj.get(u, [])) + [(target, 0, "end")]
+        else:
+            options = adj.get(u, [])
+
+        for v, w, kind in options:
+            if (u, v) in banned_edges:
+                continue
+            if v in banned_nodes and v != target:
+                continue
+            nd = d + int(w)
+            if nd < dist.get(v, 10**18):
+                dist[v] = nd
+                prev[v] = (u, kind, int(w))
+                heapq.heappush(pq, (nd, seq, v))
+                seq += 1
+    return None
+
+def _yen_route_paths(start, end, mode, max_raw=AUTO_ROUTE_MAX_RAW_PATHS):
+    """
+    정적 route graph에서 비용순 simple path를 생성한다.
+    후보 생성만 정적 그래프를 사용하고, 최종 선택은 아래에서 실제 시간표/실시간 ETA로 다시 한다.
+    """
+    first = _route_graph_shortest_with_bans(start, end, mode)
+    if not first:
+        return []
+
+    accepted = [first]
+    candidate_heap = []
+    candidate_seen = set()
+    seq = 0
+
+    while len(accepted) < max_raw:
+        previous = accepted[-1]
+        nodes = previous["nodes"]
+        edges = previous["edges"]
+
+        for i in range(len(nodes) - 1):
+            spur_node = nodes[i]
+            root_nodes = nodes[:i + 1]
+            root_edges = edges[:i]
+            root_cost = sum(int(e[3]) for e in root_edges)
+
+            removed_edges = set()
+            for p in accepted:
+                if len(p["nodes"]) > i and p["nodes"][:i + 1] == root_nodes:
+                    if i < len(p["nodes"]) - 1:
+                        removed_edges.add((p["nodes"][i], p["nodes"][i + 1]))
+
+            removed_nodes = set(root_nodes[:-1])
+            spur = _route_graph_shortest_with_bans(
+                start, end, mode,
+                source_node=spur_node,
+                banned_edges=removed_edges,
+                banned_nodes=removed_nodes,
+            )
+            if not spur:
+                continue
+
+            total_nodes = root_nodes[:-1] + spur["nodes"]
+            signature = tuple(total_nodes)
+            if signature in candidate_seen or any(tuple(x["nodes"]) == signature for x in accepted):
+                continue
+
+            total_edges = root_edges + spur["edges"]
+            total_cost = root_cost + spur["cost"]
+            candidate_seen.add(signature)
+            heapq.heappush(candidate_heap, (
+                total_cost, seq,
+                {"cost": int(total_cost), "nodes": total_nodes, "edges": total_edges},
+            ))
+            seq += 1
+
+        if not candidate_heap:
+            break
+        _, _, nxt = heapq.heappop(candidate_heap)
+        accepted.append(nxt)
+
+    return accepted
+
+def auto_candidate_routes(start, end, mode, max_unique=AUTO_ROUTE_MAX_UNIQUE_CANDIDATES):
+    """
+    정적 최단경로 하나만 쓰지 않고 여러 topology 후보를 만든다.
+    동일한 segment 구성이 반복되는 path는 제거한다.
+    """
+    out = []
+    seen = set()
+
+    for raw in _yen_route_paths(start, end, mode):
+        usable_edges = [
+            e for e in raw["edges"]
+            if e[2] not in ("start", "end")
+        ]
+        path = {
+            "start": canon_station(start),
+            "end": canon_station(end),
+            "seconds": int(raw["cost"]),
+            "edges": usable_edges,
+        }
+        try:
+            segments = auto_path_to_segments(path, mode)
+            segments = enrich_transfer_segments(segments, mode)
+        except Exception:
+            continue
+
+        sig = tuple(
+            (s.get("line"), canon_station(s.get("from")), canon_station(s.get("to")))
+            for s in segments
+        )
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.append({
+            "path": path,
+            "segments": segments,
+            "signature": sig,
+        })
+        if len(out) >= max_unique:
+            break
+
+    if not out:
+        # 기존 단일 경로를 마지막 fallback으로 유지.
+        path = auto_find_path(start, end, mode)
+        segments = enrich_transfer_segments(auto_path_to_segments(path, mode), mode)
+        out.append({
+            "path": path,
+            "segments": segments,
+            "signature": tuple((s["line"], s["from"], s["to"]) for s in segments),
+        })
+    return out
+
+def _candidate_interchanges(segments):
+    return [
+        segments[i]["to"]
+        for i in range(len(segments) - 1)
+        if canon_station(segments[i]["to"]) == canon_station(segments[i+1]["from"])
+    ]
+
+def _route_confidence(result):
+    rank = {"높음": 3, "중간": 2, "낮음": 1}
+    if not result or not result.get("segments"):
+        return "낮음"
+    return min(
+        (s.get("confidence", "낮음") for s in result["segments"]),
+        key=lambda x: rank.get(x, 0),
+    )
+
+
 def auto_path_to_segments(path, mode):
     """
     station-line path를 기존 지금타 segment 포맷으로 압축.
@@ -990,6 +1188,14 @@ def auto_path_to_segments(path, mode):
     return segments
 
 def calculate_auto_route(payload):
+    """
+    V13.1:
+    1) 정적 route graph에서 상위 topology 후보 여러 개 생성
+    2) 각 후보를 실제 출발시각의 열차 시간표로 1차 채점
+    3) realtimePosition을 후보 간 공유하면서 모든 후보를 실시간 ETA로 재채점
+    4) 실제 도착예정시각이 가장 빠른 후보를 선택
+       - ETA 동률이면 환승이 적은 경로 우선
+    """
     now = now_kst()
     start_text = str(payload.get("start_time") or now.strftime("%H:%M"))
     start_dt = clock_dt_near(start_text, now)
@@ -1001,15 +1207,104 @@ def calculate_auto_route(payload):
 
     start = canon_station(payload.get("from"))
     end = canon_station(payload.get("to"))
-    path = auto_find_path(start, end, mode)
-    segments = auto_path_to_segments(path, mode)
-    segments = enrich_transfer_segments(segments, mode)
+    candidates = auto_candidate_routes(start, end, mode)
 
-    # Human-readable interchange list.
-    interchanges = []
-    for i in range(len(segments) - 1):
-        if segments[i]["to"] == segments[i+1]["from"]:
-            interchanges.append(segments[i]["to"])
+    # 1차: 실시간 API 호출 없이 실제 시간표 배차/대기/환승을 반영.
+    schedule_only_cache = {
+        line: {
+            "rows": [],
+            "error": "자동경로 시간표 사전채점",
+            "available": False,
+        }
+        for line in LINE_NAMES
+    }
+
+    schedule_scored = []
+    for c in candidates:
+        score = calculate_route({
+            "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "day": mode,
+            "segments": c["segments"],
+            "refresh_only": False,
+        }, position_cache=schedule_only_cache)
+        if not score.get("ok"):
+            continue
+        schedule_scored.append({
+            **c,
+            "schedule_result": score,
+        })
+
+    if not schedule_scored:
+        # 최악의 경우 기존 정적 경로 선택을 유지.
+        path = auto_find_path(start, end, mode)
+        segments = enrich_transfer_segments(auto_path_to_segments(path, mode), mode)
+        interchanges = _candidate_interchanges(segments)
+        return {
+            "ok": True,
+            "service_mode": mode,
+            "service_mode_reason": mode_reason,
+            "from": start,
+            "to": end,
+            "route_seconds": path["seconds"],
+            "transfer_count": max(0, len(segments) - 1),
+            "interchanges": interchanges,
+            "segments": segments,
+            "selection_method": "정적 그래프 fallback",
+            "candidate_count": 1,
+            "live_scored_count": 0,
+            "alternatives": [],
+        }
+
+    schedule_scored.sort(key=lambda x: (
+        x["schedule_result"]["arrival_time"],
+        max(0, len(x["segments"]) - 1),
+        x["path"]["seconds"],
+    ))
+
+    # 2차: 후보 전체를 실시간으로 다시 채점하되 API 결과는 노선별 1회만 가져온다.
+    live_cache = {}
+    live_scored = []
+    for c in schedule_scored:
+        live = calculate_route({
+            "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "day": mode,
+            "segments": c["segments"],
+            "refresh_only": False,
+        }, position_cache=live_cache)
+
+        # 실시간 API 장애여도 calculate_route 내부 schedule fallback으로 보통 ok가 유지된다.
+        if not live.get("ok"):
+            live = c["schedule_result"]
+
+        live_scored.append({
+            **c,
+            "live_result": live,
+        })
+
+    live_scored.sort(key=lambda x: (
+        x["live_result"]["arrival_time"],
+        max(0, len(x["segments"]) - 1),
+        x["schedule_result"]["arrival_time"],
+        x["path"]["seconds"],
+    ))
+
+    selected = live_scored[0]
+    selected_segments = selected["segments"]
+    selected_result = selected["live_result"]
+    interchanges = _candidate_interchanges(selected_segments)
+
+    alternatives = []
+    for item in live_scored[1:4]:
+        result = item["live_result"]
+        alternatives.append({
+            "segments": item["segments"],
+            "interchanges": _candidate_interchanges(item["segments"]),
+            "transfer_count": max(0, len(item["segments"]) - 1),
+            "route_seconds": int(item["path"]["seconds"]),
+            "total_seconds": int(result["total_seconds"]),
+            "arrival_time": result["arrival_time"],
+            "confidence": _route_confidence(result),
+        })
 
     return {
         "ok": True,
@@ -1017,10 +1312,17 @@ def calculate_auto_route(payload):
         "service_mode_reason": mode_reason,
         "from": start,
         "to": end,
-        "route_seconds": path["seconds"],
-        "transfer_count": max(0, len(segments) - 1),
+        "route_seconds": int(selected["path"]["seconds"]),
+        "estimated_total_seconds": int(selected_result["total_seconds"]),
+        "estimated_arrival_time": selected_result["arrival_time"],
+        "estimated_confidence": _route_confidence(selected_result),
+        "transfer_count": max(0, len(selected_segments) - 1),
         "interchanges": interchanges,
-        "segments": segments,
+        "segments": selected_segments,
+        "selection_method": "다중 후보 시간표 + 실시간 ETA 비교",
+        "candidate_count": len(candidates),
+        "live_scored_count": len(live_scored),
+        "alternatives": alternatives,
     }
 
 
@@ -1030,7 +1332,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.8.1/1.0",
+        "User-Agent": "JigeumTa-V13.1/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1712,7 +2014,9 @@ def calculate_live_trip(payload):
         except Exception:
             pass
     mode, mode_reason = resolve_service_mode(requested_mode, mode_ref)
-    position_cache = {}
+    # 자동경로 다중 후보 채점에서는 후보 간 realtimePosition 결과를 공유한다.
+    # 일반 /api/route 호출에서는 기존처럼 새로운 cache를 사용한다.
+    position_cache = {} if position_cache is None else position_cache
     results = []
     warnings = []
 
@@ -1809,7 +2113,7 @@ def serialize_seg(x):
         d[k] = v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
     return d
 
-def calculate_route(payload):
+def calculate_route(payload, position_cache=None):
     segments = payload.get("segments") or []
     if not 1 <= len(segments) <= 8:
         raise ValueError("구간은 1~8개로 입력하세요.")
