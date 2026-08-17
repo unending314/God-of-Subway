@@ -534,6 +534,13 @@ function toast(msg){
  const t=$('toast');t.textContent=msg;t.classList.add('show');
  clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>t.classList.remove('show'),1700);
 }
+function trackGaEvent(name,params={}){
+ try{
+  if(typeof gtag==='function')gtag('event',name,params);
+ }catch(e){
+  // Analytics failure must never interrupt route search or tracking.
+ }
+}
 function fmtDur(sec){sec=Math.max(0,Number(sec)||0);let m=Math.round(sec/60);return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`}
 function fmtClock(s){if(!s)return'-';let m=String(s).match(/(\d{2}):(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:s}
 function fmtDelay(s){s=Number(s)||0;if(Math.abs(s)<30)return'정시권';return`${s>=0?'+':'−'}${Math.round(Math.abs(s)/60)}분`}
@@ -1151,7 +1158,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.2.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.2.2`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1532,6 +1539,15 @@ function startTracking(activeIndex,trainNo,selectedBoardDt=''){
   journeyStartedAt:previous?.journeyStartedAt||localDateTimeString(new Date())
  };
  saveTrip();
+
+ // GA4: 실제 열차 추적 기능 사용 집계.
+ // startTracking()에서만 전송하므로 20초 poll/새로고침/session restore는 중복 집계하지 않는다.
+ trackGaEvent('train_tracking_start',{
+  line:String(segments[activeIndex]?.line||''),
+  train_no:String(trainNo||''),
+  segment_index:Number(activeIndex)+1
+ });
+
  updateRefreshAvailability();
  $('livePanel').classList.add('show');
  $('stopTrack').style.display='';
