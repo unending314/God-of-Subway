@@ -367,6 +367,61 @@ header{margin-bottom:30px}
  .startHint{font-size:8px;line-height:1.4;padding:8px 9px}
 }
 
+
+.searchQuickTime{
+ display:flex;align-items:center;justify-content:center;gap:6px;
+ margin-top:10px;padding-top:10px;border-top:1px solid #edf0f3;
+}
+.searchQuickTime button{
+ border:1px solid #dbe2e9;background:#fff;color:#52606d;
+ border-radius:10px;min-height:34px;padding:0 10px;
+ font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap;
+}
+.searchQuickTime button:hover{background:#f6f9fc}
+.searchQuickTime .searchNowBtn.active{background:var(--bluebg);border-color:#9ebae8;color:#174f9c}
+.searchTimeDisplay{
+ min-width:102px!important;background:#f8fafc!important;
+ color:#1d2a36!important;cursor:default!important;font-size:10px!important;
+}
+.refreshRoute{display:none;align-items:center;justify-content:center}
+.refreshRoute.available{display:inline-flex}
+
+.boardActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.previousBoardBtn{
+ border:1px solid #d7dde5;background:#fff;color:#586675;border-radius:9px;
+ padding:6px 8px;font-size:7px;font-weight:850;cursor:pointer;white-space:nowrap;
+}
+.previousBoardBtn:hover{background:#f5f7f9}
+
+.leg.sequence-active{
+ position:relative;border-color:#75a8ec!important;
+ box-shadow:0 0 0 2px rgba(74,137,224,.17),0 0 24px rgba(47,113,204,.18);
+}
+.leg.sequence-active::after{
+ content:"";position:absolute;inset:-1px;border-radius:15px;pointer-events:none;
+ box-shadow:inset 0 0 0 1px rgba(62,126,217,.22);
+}
+.leg.sequence-completed{opacity:.43;filter:grayscale(.72);box-shadow:none}
+.transferWrap.sequence-active .transferCard{
+ border-left-color:#3e7ed2;background:#f2f7ff;border-radius:10px;
+ box-shadow:0 0 22px rgba(47,113,204,.15);
+}
+.transferWrap.sequence-completed{opacity:.42;filter:grayscale(.72)}
+.transferPhaseAction{
+ margin-top:8px;border:1px solid #9ebae8;background:#fff;color:#245b9e;
+ border-radius:9px;padding:7px 10px;font-size:8px;font-weight:900;cursor:pointer;
+}
+
+
+@media(max-width:520px){
+ .searchQuickTime{gap:4px;justify-content:space-between;overflow:hidden}
+ .searchQuickTime button{padding:0 7px;min-height:32px;font-size:8px;flex:0 0 auto}
+ .searchTimeDisplay{min-width:82px!important;padding:0 6px!important}
+ .boardActions{align-items:stretch;width:100%}
+ .previousBoardBtn{width:100%;padding:7px 8px}
+ .legTop .clock{width:100%}
+}
+
 </style>
 </head>
 <body>
@@ -386,6 +441,14 @@ header{margin-bottom:30px}
    <div class="stationBig stationInputWrap"><label>도착역</label><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off"><div class="stationSuggest"></div></div>
    <button id="settingsBtn" class="settingsBtn" type="button" aria-label="상세 설정" aria-expanded="false">⚙</button>
    <button id="autoRouteBtn" class="searchBtn" type="button">조회</button>
+  </div>
+  <div class="searchQuickTime" aria-label="플랫폼 도착시간 빠른 조절">
+   <button id="searchNowBtn" class="searchNowBtn active" type="button">지금</button>
+   <button class="searchTimeStep" data-time-step="-5" type="button">-5분</button>
+   <button class="searchTimeStep" data-time-step="-1" type="button">-1분</button>
+   <button id="searchTimeDisplay" class="searchTimeDisplay" type="button" aria-label="선택된 플랫폼 도착시간"></button>
+   <button class="searchTimeStep" data-time-step="1" type="button">+1분</button>
+   <button class="searchTimeStep" data-time-step="5" type="button">+5분</button>
   </div>
   <div id="settingsPanel" class="settingsPanel">
    <div class="settingsGrid">
@@ -410,7 +473,7 @@ header{margin-bottom:30px}
  </section>
 
  <section id="livePanel" class="card livePanel">
-  <div class="liveHead"><div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div><button id="stopTrack" class="stopTrack">추적 종료</button></div>
+  <div class="liveHead"><div class="liveIdentity"><span class="pulse"></span><div><div id="liveTitle" class="liveTitle">라이브 추적 중</div><div id="liveSub" class="liveSub">탑승한 열차의 현재 위치를 확인하고 있습니다.</div></div></div><button id="stopTrack" class="stopTrack">이제 내렸어요</button></div>
   <div class="liveBody"><div class="liveStats"><div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div><div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div><div class="liveStat"><span>다음 환승까지</span><b id="liveRemain">-</b></div><div class="liveStat"><span>최종 도착</span><b id="liveArrival">-</b></div></div><div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div></div>
  </section>
 
@@ -474,11 +537,56 @@ function localDateTimeString(d){
  const s=String(d.getSeconds()).padStart(2,'0');
  return `${y}-${mo}-${da} ${h}:${mi}:${s}`;
 }
-function setRelativeTime(mins){
- $('startTime').value=timePlus(Number(mins));
- document.querySelectorAll('.timeChip').forEach(x=>x.classList.toggle('active',Number(x.dataset.min)===Number(mins)));
+const initialSearchTime=new Date();
+let searchTimeCursor=new Date(initialSearchTime);
+let searchTimeMode='now';
+
+function hhmmFromDate(d){
+ return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-function clearQuickSelection(){document.querySelectorAll('.timeChip').forEach(x=>x.classList.remove('active'))}
+function koShortTime(d){
+ return d.toLocaleTimeString('ko-KR',{hour:'numeric',minute:'2-digit',hour12:true});
+}
+function syncSearchTimeUI(){
+ $('searchTimeDisplay').textContent=koShortTime(searchTimeCursor);
+ $('startTime').value=hhmmFromDate(searchTimeCursor);
+ $('searchNowBtn').classList.toggle('active',searchTimeMode==='now');
+}
+function resetSearchTimeNow(){
+ searchTimeMode='now';
+ searchTimeCursor=new Date();
+ syncSearchTimeUI();
+ document.querySelectorAll('.timeChip').forEach(x=>x.classList.toggle('active',Number(x.dataset.min)===0));
+}
+function adjustSearchTime(minutes){
+ if(searchTimeMode==='now')searchTimeCursor=new Date(initialSearchTime);
+ searchTimeCursor=new Date(searchTimeCursor.getTime()+Number(minutes)*60000);
+ searchTimeMode='manual';
+ syncSearchTimeUI();
+ clearQuickSelection();
+}
+function resolvedSearchTime(){
+ if(searchTimeMode==='now'){
+  const now=new Date();
+  $('startTime').value=hhmmFromDate(now);
+  return $('startTime').value;
+ }
+ return $('startTime').value||hhmmFromDate(searchTimeCursor);
+}
+function setRelativeTime(mins){
+ const n=Number(mins);
+ if(n===0){
+  resetSearchTimeNow();
+ }else{
+  searchTimeCursor=new Date(Date.now()+n*60000);
+  searchTimeMode='manual';
+  syncSearchTimeUI();
+  document.querySelectorAll('.timeChip').forEach(x=>x.classList.toggle('active',Number(x.dataset.min)===n));
+ }
+}
+function clearQuickSelection(){
+ document.querySelectorAll('.timeChip').forEach(x=>x.classList.remove('active'));
+}
 
 const CHOSEONG=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 
@@ -986,7 +1094,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.5`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.6`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -997,8 +1105,13 @@ function canBoard(s){
 }
 function boardButton(s,routeIndex){
  if(!canBoard(s))return '';
- const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
- return `<button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`;
+ const active=liveTrip && liveTrip.phase==='ride' && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
+ const previous=s?.previous_candidate;
+ const previousAllowed=previous&&canBoard(previous)&&(!liveTrip||routeIndex>=liveTrip.activeIndex);
+ const prevBtn=previousAllowed
+   ?`<button class="previousBoardBtn" data-board="${routeIndex}" data-train="${esc(previous.train_no)}">앞 열차를 탄 것 같아요</button>`
+   :'';
+ return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${prevBtn}</div>`;
 }
 function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
 function cleanStatusText(value){
@@ -1039,7 +1152,7 @@ function candidateRows(s,routeIndex){
   const source=c.live_detected
     ? `<span class="sourceBadge live"><span class="sourceFull">실시간 확인</span><span class="sourceCompact">실시간</span></span>`
     : `<span class="sourceBadge sched"><span class="sourceFull">시간표 후보 · 미포착</span><span class="sourceCompact">미포착</span></span>`;
-  const active=liveTrip && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
+  const active=liveTrip && liveTrip.phase==='ride' && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
   const btn=canBoard(c)
     ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`
     : '';
@@ -1067,20 +1180,23 @@ function fmtTransferSeconds(sec){
  return s?`${m}분 ${s}초`:`${m}분`;
 }
 function minutesUntil(dt,fallbackSec=0){const d=parseLocalDT(dt);if(!d)return Math.max(0,Math.round((Number(fallbackSec)||0)/60));const m=(d-new Date())/60000;if(!Number.isFinite(m)||m<-5||m>360)return Math.max(0,Math.round((Number(fallbackSec)||0)/60));return Math.max(0,Math.round(m));}
-function transferHtml(info,walk){
+function transferHtml(info,walk,state=''){
  const sec=Number(info?.seconds)||Math.round((Number(walk)||0)*60);
  if(sec<=0)return '';
  const fast=info?.alight_position?`<span class="fastPos">${esc(info.alight_position)}</span>`:'';
  const parts=[];
  if(fast)parts.push(`빠른 환승 · ${fast}`);
  if(info?.distance_m)parts.push(`${info.distance_m}m`);
- return `<div class="transferWrap"><div class="transferCard"><div class="transferTitle">↓ 환승시간 ${fmtTransferSeconds(sec)}</div>${parts.length?`<div class="transferDetail">${parts.join(' · ')}</div>`:''}</div></div>`;
+ const manual=(state==='active'&&liveTrip?.phase==='transfer')
+   ?`<button class="transferPhaseAction" id="finishTransferBtn" type="button">환승을 마쳤어요</button>`
+   :'';
+ return `<div class="transferWrap ${state?`sequence-${state}`:''}"><div class="transferCard"><div class="transferTitle">↓ 환승시간 ${fmtTransferSeconds(sec)}</div>${parts.length?`<div class="transferDetail">${parts.join(' · ')}</div>`:''}${manual}</div></div>`;
 }
-function legHtml(s,walk,routeIndex,transferInfo){
+function legHtml(s,walk,routeIndex,transferInfo,state=''){
  const tracking=s.tracking?' · <b style="color:#087451">고정 추적</b>':'';
  const until=minutesUntil(s.board_dt,s.wait_seconds);
  const source=s.location_kind==='live'?'실시간':'예상';
- return `<div class="leg ${confClass(s.confidence)}">
+ return `<div class="leg ${confClass(s.confidence)} ${state?`sequence-${state}`:''}">
   <div class="legTop">
    <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
    <div><h4>${esc(s.from)} <span class="timePoint">(${fmtClock(s.board_dt)})</span> → ${esc(s.to)} <span class="timePoint">(${fmtClock(s.alight_dt)})</span></h4><div class="journeyMinutes">${fmtDur(s.ride_seconds)} 이동 · ${source} 예측 · 신뢰도 ${esc(s.confidence)}${tracking}</div></div>
@@ -1092,7 +1208,7 @@ function legHtml(s,walk,routeIndex,transferInfo){
    <div><span>실시간 지연</span><b>${fmtDelay(s.delay_seconds)}</b><span>${s.tracking?'탑승 중':`${until}분 후 ${esc(s.from)} 도착 예정`}</span></div>
   </div>
   ${candidateRows(s,routeIndex)}
- </div>${transferHtml(transferInfo,walk)}`;
+ </div>${transferHtml(transferInfo,walk,journeyTransferState(routeIndex))}`;
 }
 function bindBoardButtons(){
  document.querySelectorAll('[data-board]').forEach(btn=>btn.onclick=()=>{
@@ -1100,13 +1216,68 @@ function bindBoardButtons(){
   startTracking(idx,train);
  });
 }
+function journeyLegState(index){
+ if(!liveTrip)return '';
+ if(liveTrip.phase==='ride'){
+  if(index<liveTrip.activeIndex)return 'completed';
+  if(index===liveTrip.activeIndex)return 'active';
+  return '';
+ }
+ if(liveTrip.phase==='transfer'){
+  if(index<=liveTrip.activeIndex)return 'completed';
+  return '';
+ }
+ if(liveTrip.phase==='waiting'){
+  if(index<liveTrip.activeIndex)return 'completed';
+  if(index===liveTrip.activeIndex)return 'active';
+ }
+ return '';
+}
+function journeyTransferState(index){
+ if(!liveTrip)return '';
+ if(liveTrip.phase==='ride'){
+  return index<liveTrip.activeIndex?'completed':'';
+ }
+ if(liveTrip.phase==='transfer'){
+  if(index<liveTrip.activeIndex)return 'completed';
+  if(index===liveTrip.activeIndex)return 'active';
+  return '';
+ }
+ if(liveTrip.phase==='waiting'){
+  return index<liveTrip.activeIndex?'completed':'';
+ }
+ return '';
+}
+function updateDisplaySegments(resultSegments,baseIndex){
+ if(!liveTrip)return;
+ if(!Array.isArray(liveTrip.displaySegments))liveTrip.displaySegments=[];
+ (resultSegments||[]).forEach((s,i)=>{liveTrip.displaySegments[baseIndex+i]=s});
+ saveTrip();
+}
+function renderLiveJourney(resultSegments=[],baseIndex=0,warnings=[]){
+ if(!liveTrip)return;
+ updateDisplaySegments(resultSegments,baseIndex);
+ const route=liveTrip.segments||collect();
+ const display=liveTrip.displaySegments||[];
+ $('flow').innerHTML=route.map((cfg,i)=>{
+  const s=display[i];
+  if(!s)return '';
+  const walk=i<route.length-1?route[i].transfer_walk:0;
+  const transferInfo=s.transfer_info||route[i]?.transfer_info||null;
+  return legHtml(s,walk,i,transferInfo,journeyLegState(i));
+ }).join('');
+ if(warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>예측 구간</b><br>${warnings.map(esc).join('<br>')}</div>`;
+ bindBoardButtons();
+ const finish=$('finishTransferBtn');
+ if(finish)finish.onclick=()=>completeTransfer(true);
+}
 function renderRouteSegments(result,baseIndex=0){
  const route=collect();
  $('flow').innerHTML=result.segments.map((s,i)=>{
   const absoluteIndex=baseIndex+i;
   const walk=absoluteIndex<route.length-1?route[absoluteIndex].transfer_walk:0;
   const transferInfo=s.transfer_info||route[absoluteIndex]?.transfer_info||null;
-  return legHtml(s,walk,absoluteIndex,transferInfo);
+  return legHtml(s,walk,absoluteIndex,transferInfo,'');
  }).join('');
  if(result.warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>예측 구간</b><br>${result.warnings.map(esc).join('<br>')}</div>`;
  bindBoardButtons();
@@ -1122,9 +1293,10 @@ async function findAutoRoute(){
  const btn=$('autoRouteBtn');
  btn.disabled=true;btn.textContent='조회 중…';
  try{
+  const queryStartTime=resolvedSearchTime();
   const j=await postJson('/api/auto_route',{
    from,to,
-   start_time:$('startTime').value||timePlus(0),
+   start_time:queryStartTime,
    day:$('day').value,
   });
   loadRoute(j.segments);
@@ -1132,7 +1304,7 @@ async function findAutoRoute(){
   $('autoRouteResult').classList.add('show');
   $('settingsPanel').classList.remove('open');$('settingsBtn').setAttribute('aria-expanded','false');
   toast(`경로 생성 완료 · ${j.transfer_count}회 환승`);
-  await calculate();
+  await calculate({startValue:queryStartTime});
  }catch(e){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message)}</span>`;
   $('autoRouteResult').classList.add('show');
@@ -1152,26 +1324,38 @@ function updateRouteStamps(calculatedAt,platformStart){
    ?`플랫폼 도착시간 ${fmtClock(platformStart)} 기준`
    :'플랫폼 도착시간 -';
 }
-async function refreshDisplayedRoute(){
+function updateRefreshAvailability(){
  const btn=$('refreshRoute');
- if(liveTrip){
-  btn.disabled=true;btn.classList.add('refreshing');btn.textContent='↻ 갱신 중…';
-  if(liveTimer)clearTimeout(liveTimer);
-  if(countdownTimer)clearInterval(countdownTimer);
-  try{await pollLiveTrip(true)}
-  finally{btn.disabled=false;btn.classList.remove('refreshing');btn.textContent='↻ 새로고침'}
+ const available=Boolean(liveTrip);
+ btn.classList.toggle('available',available);
+ btn.disabled=!available;
+}
+async function refreshDisplayedRoute(){
+ if(!liveTrip){
+  toast('새로고침은 열차 탑승 후 사용할 수 있습니다.');
   return;
  }
- if(!fixedPlatformStart||!fixedSearchSegments?.length){
-  toast('먼저 경로를 조회하세요.');
-  return;
+ const btn=$('refreshRoute');
+ btn.disabled=true;btn.classList.add('refreshing');btn.textContent='↻ 갱신 중…';
+ if(liveTimer)clearTimeout(liveTimer);
+ if(countdownTimer)clearInterval(countdownTimer);
+ try{
+  await pollJourney(true);
+ }finally{
+  if(liveTrip){
+   btn.disabled=false;btn.classList.add('available');
+  }
+  btn.classList.remove('refreshing');btn.textContent='↻ 새로고침';
  }
- await calculate({refreshOnly:true});
 }
 
 async function calculate(options={}){
  const refreshOnly=Boolean(options.refreshOnly);
- if(!refreshOnly)stopTracking(false);
+ if(!refreshOnly&&liveTrip){
+  if(liveTimer){clearTimeout(liveTimer);liveTimer=null}
+  if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null}
+  liveTrip=null;saveTrip();$('livePanel').classList.remove('show');updateRefreshAvailability();
+ }
  const segments=refreshOnly
    ?JSON.parse(JSON.stringify(fixedSearchSegments||[]))
    :collect();
@@ -1185,7 +1369,7 @@ async function calculate(options={}){
   $('calcBtn').disabled=true;$('calcBtn').textContent='계산 중…';
  }
  try{
-  const startValue=refreshOnly?fixedPlatformStart:($('startTime').value||timePlus(0));
+  const startValue=refreshOnly?fixedPlatformStart:(options.startValue||resolvedSearchTime());
   const j=await postJson('/api/route',{start_time:startValue,baseline_minutes:$('baseline').value,day:$('day').value,segments,refresh_only:refreshOnly});
   lastRouteResult=j;
   lastLiveResult=null;
@@ -1206,7 +1390,7 @@ async function calculate(options={}){
   $('sumTitle').textContent=`${first.from} → ${last.to} · ${fmtClock(j.arrival_time)} 도착`;
   $('sumText').textContent=`현재 운행상황과 실제 환승시간을 반영했습니다. 실제 열차에 탑승하면 ‘이 열차를 탔어요’를 눌러 이동 중 ETA를 계속 갱신할 수 있습니다.`;
   updateRouteStamps(j.calculated_at||localDateTimeString(new Date()),fixedPlatformStart||j.start_time);
-  $('refreshRoute').disabled=false;
+  updateRefreshAvailability();
   renderRouteSegments(j,0);
  }catch(e){
   document.body.classList.add('resultsReady');
@@ -1214,7 +1398,7 @@ async function calculate(options={}){
   $('flow').innerHTML=`<div class="error"><b>이 구간은 계산하지 못했습니다.</b><br>${esc(e.message)}${p.failed_segment?`<br>실패 구간: ${p.failed_segment}번`:''}${d.positions!=null?`<br><br>실시간 위치 ${d.positions}건 · 시간표 매칭 ${d.matched??0}건`:''}</div>`;
  }finally{
   if(refreshOnly){
-   $('refreshRoute').disabled=false;
+   updateRefreshAvailability();
    $('refreshRoute').classList.remove('refreshing');
    $('refreshRoute').textContent='↻ 새로고침';
   }else{
@@ -1231,33 +1415,159 @@ function startTracking(activeIndex,trainNo){
  const segments=collect();
  if(!segments[activeIndex])return;
  recordBoardEvent(activeIndex,trainNo);
+
+ const previous=liveTrip;
+ const existingDisplay=previous?.displaySegments?.length
+   ?previous.displaySegments
+   :(lastRouteResult?.segments||[]).map(x=>({...x}));
+
  liveTrip={
   activeIndex,
+  phase:'ride',
   boardedTrainNo:String(trainNo),
   boardedAt:localDateTimeString(new Date()),
-  platformStart:fixedPlatformStart||lastRouteResult?.start_time||null,
-  segments,
-  day:$('day').value,
-  baseline:$('baseline').value,
-  previousNextTrain:null
+  platformStart:previous?.platformStart||fixedPlatformStart||lastRouteResult?.start_time||null,
+  segments:previous?.segments?.length?previous.segments:segments,
+  day:previous?.day||$('day').value,
+  baseline:previous?.baseline??$('baseline').value,
+  previousNextTrain:null,
+  displaySegments:existingDisplay,
+  transferEndsAt:null,
+  journeyStartedAt:previous?.journeyStartedAt||localDateTimeString(new Date())
  };
  saveTrip();
+ updateRefreshAvailability();
  $('livePanel').classList.add('show');
+ $('stopTrack').style.display='';
+ $('stopTrack').textContent='이제 내렸어요';
  $('liveTrain').textContent=`${segments[activeIndex].line} ${trainNo}`;
  $('liveTitle').textContent=`${trainNo}열차 탑승 중`;
  toast(`${trainNo}열차 추적을 시작했습니다.`);
+ renderLiveJourney([],activeIndex,[]);
  pollLiveTrip(true);
 }
-function stopTracking(showToast=true){
+function finishJourneyTracking(showToast=true){
  if(liveTimer){clearTimeout(liveTimer);liveTimer=null}
  if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null}
- liveTrip=null;saveTrip();$('livePanel').classList.remove('show');
- if(showToast)toast('라이브 추적을 종료했습니다.');
+ if(liveTrip){
+  liveTrip.phase='done';
+  if(Array.isArray(liveTrip.segments))liveTrip.activeIndex=liveTrip.segments.length;
+  renderLiveJourney([],0,[]);
+ }
+ liveTrip=null;
+ saveTrip();
+ $('livePanel').classList.remove('show');
+ updateRefreshAvailability();
+ if(showToast)toast('여정을 마쳤습니다.');
+}
+function beginTransfer(manual=false){
+ if(!liveTrip||liveTrip.phase!=='ride')return;
+ const idx=liveTrip.activeIndex;
+ const segment=liveTrip.segments[idx];
+ if(idx>=liveTrip.segments.length-1){
+  finishJourneyTracking(true);
+  return;
+ }
+ const sec=Math.max(0,Number(segment?.transfer_seconds)||Math.round(Number(segment?.transfer_walk||0)*60));
+ liveTrip.phase='transfer';
+ liveTrip.transferEndsAt=localDateTimeString(new Date(Date.now()+sec*1000));
+ liveTrip.boardedTrainNo='';
+ liveTrip.boardedAt=null;
+ saveTrip();
+
+ $('liveTitle').textContent=`${segment.to} 환승 중`;
+ $('liveSub').textContent=`다음 구간으로 이동 중입니다. 환승시간 ${fmtTransferSeconds(sec)}를 기준으로 열차를 다시 계산합니다.`;
+ $('liveTrain').textContent='환승';
+ $('liveStation').textContent=segment.to;
+ $('liveRemain').textContent=fmtTransferSeconds(sec);
+ $('stopTrack').style.display='';
+ $('stopTrack').textContent='환승을 마쳤어요';
+ renderLiveJourney([],0,[]);
+ refreshRemainingJourney(true);
+}
+async function completeTransfer(manual=false){
+ if(!liveTrip||liveTrip.phase!=='transfer')return;
+ const next=liveTrip.activeIndex+1;
+ if(next>=liveTrip.segments.length){
+  finishJourneyTracking(true);return;
+ }
+ liveTrip.activeIndex=next;
+ liveTrip.phase='waiting';
+ liveTrip.transferEndsAt=null;
+ liveTrip.boardedTrainNo='';
+ liveTrip.boardedAt=null;
+ liveTrip.previousNextTrain=null;
+ saveTrip();
+
+ $('liveTitle').textContent='다음 열차 탑승 대기';
+ $('liveSub').textContent=manual?'환승 완료를 반영해 현재시각 기준으로 다음 열차를 다시 계산합니다.':'환승시간이 지나 다음 구간 열차를 확인합니다.';
+ $('liveTrain').textContent=liveTrip.segments[next].line;
+ $('liveStation').textContent=liveTrip.segments[next].from;
+ $('liveRemain').textContent='탑승 대기';
+ $('stopTrack').style.display='none';
+ renderLiveJourney([],0,[]);
+ await refreshRemainingJourney(true);
+}
+function currentRemainingStart(){
+ if(!liveTrip)return null;
+ if(liveTrip.phase==='transfer'&&liveTrip.transferEndsAt)return liveTrip.transferEndsAt;
+ return localDateTimeString(new Date());
+}
+async function refreshRemainingJourney(first=false){
+ if(!liveTrip)return;
+ let nextIndex=liveTrip.activeIndex;
+ if(liveTrip.phase==='transfer')nextIndex=liveTrip.activeIndex+1;
+ if(nextIndex>=liveTrip.segments.length){
+  finishJourneyTracking(false);return;
+ }
+
+ const startRef=currentRemainingStart();
+ const remaining=liveTrip.segments.slice(nextIndex);
+ try{
+  const j=await postJson('/api/route',{
+   start_time:startRef,
+   baseline_minutes:liveTrip.baseline,
+   day:liveTrip.day,
+   segments:remaining,
+   refresh_only:false
+  });
+  if(!liveTrip)return;
+  lastLiveResult=j;
+  updateDisplaySegments(j.segments,nextIndex);
+  recordEtaEvent(liveTrip.phase==='transfer'?'transfer_update':'waiting_update',j);
+
+  $('total').textContent=fmtDur(Math.max(0,(parseLocalDT(j.arrival_time)-new Date())/1000));
+  $('arrival').textContent=fmtClock(j.arrival_time);
+  $('diff').textContent='이동 중';
+  const rank={'높음':3,'중간':2,'낮음':1};
+  $('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
+  $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
+  $('sumText').textContent=liveTrip.phase==='transfer'
+   ?'실제 하차시각 + 환승시간을 기준으로 다음 구간 열차를 갱신하고 있습니다.'
+   :'현재시각 기준으로 다음 구간 탑승 가능 열차를 갱신하고 있습니다.';
+  updateRouteStamps(j.calculated_at||localDateTimeString(new Date()),fixedPlatformStart);
+  renderLiveJourney(j.segments,nextIndex,j.warnings||[]);
+ }catch(e){
+  $('progressNote').textContent=`갱신 실패: ${e.message} · 시간표 기반 결과를 다시 시도합니다.`;
+ }finally{
+  if(liveTrip)scheduleNextPoll();
+ }
 }
 function updateCountdown(){
  if(!liveTrip)return;
  const left=Math.max(0,Math.ceil((nextRefreshAt-Date.now())/1000));
- $('progressNote').textContent=`20초마다 자동 갱신 · 다음 갱신 ${left}초 후`;
+ if(liveTrip.phase==='transfer'&&liveTrip.transferEndsAt){
+  const end=parseLocalDT(liveTrip.transferEndsAt);
+  const transferLeft=end?Math.max(0,Math.ceil((end-new Date())/1000)):0;
+  $('progressNote').textContent=`환승 중 · 약 ${fmtTransferSeconds(transferLeft)} 남음 · 다음 자동 갱신 ${left}초 후`;
+  $('liveRemain').textContent=fmtTransferSeconds(transferLeft);
+  if(transferLeft<=0){
+   if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null}
+   completeTransfer(false);
+  }
+ }else{
+  $('progressNote').textContent=`20초마다 자동 갱신 · 다음 갱신 ${left}초 후`;
+ }
 }
 function scheduleNextPoll(){
  if(liveTimer)clearTimeout(liveTimer);
@@ -1265,10 +1575,15 @@ function scheduleNextPoll(){
  nextRefreshAt=Date.now()+20000;
  updateCountdown();
  countdownTimer=setInterval(updateCountdown,1000);
- liveTimer=setTimeout(()=>pollLiveTrip(false),20000);
+ liveTimer=setTimeout(()=>pollJourney(false),20000);
+}
+async function pollJourney(first=false){
+ if(!liveTrip)return;
+ if(liveTrip.phase==='ride')return pollLiveTrip(first);
+ return refreshRemainingJourney(first);
 }
 async function pollLiveTrip(first=false){
- if(!liveTrip)return;
+ if(!liveTrip||liveTrip.phase!=='ride')return;
  const payload={
   segments:liveTrip.segments,
   active_index:liveTrip.activeIndex,
@@ -1279,15 +1594,15 @@ async function pollLiveTrip(first=false){
  };
  try{
   const j=await postJson('/api/trip_update',payload);
-  if(!liveTrip)return;
-  // 2호선 성수 / 6호선 응암에서 같은 차량이 열번을 바꿔 운행하면
-  // 백엔드가 반환한 현재 열번으로 추적 잠금을 자연스럽게 넘긴다.
-  if(j.boarded_train_no && String(j.boarded_train_no)!==String(liveTrip.boardedTrainNo)){
+  if(!liveTrip||liveTrip.phase!=='ride')return;
+  if(j.boarded_train_no&&String(j.boarded_train_no)!==String(liveTrip.boardedTrainNo)){
    liveTrip.boardedTrainNo=String(j.boarded_train_no);saveTrip();
   }
   lastLiveResult=j;
   recordEtaEvent('live_update',j);
   const current=j.segments[0];
+  updateDisplaySegments(j.segments,j.active_index);
+
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('livePanel').classList.add('show');
   $('liveTrain').textContent=`${current.line} ${j.boarded_train_no}`;
@@ -1295,24 +1610,32 @@ async function pollLiveTrip(first=false){
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
   $('liveArrival').textContent=fmtClock(j.arrival_time);
   $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
+  $('stopTrack').style.display='';
+  $('stopTrack').textContent='이제 내렸어요';
+
   $('total').textContent=fmtDur(j.remaining_seconds);
   $('arrival').textContent=fmtClock(j.arrival_time);
   $('diff').textContent='이동 중';
-  const rank={'높음':3,'중간':2,'낮음':1};$('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
+  const rank={'높음':3,'중간':2,'낮음':1};
+  $('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
   $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
-  $('sumText').textContent=`${j.boarded_train_no}열차를 고정 추적하며, 이 열차의 최신 환승역 ETA를 기준으로 이후 경로를 계속 다시 계산하고 있습니다.`;
+  $('sumText').textContent=`${j.boarded_train_no}열차의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.`;
   fixedPlatformStart=liveTrip.platformStart||fixedPlatformStart;
   updateRouteStamps(j.updated_at||localDateTimeString(new Date()),fixedPlatformStart);
-  $('refreshRoute').disabled=false;
-  renderRouteSegments(j,j.active_index);
+  updateRefreshAvailability();
+  renderLiveJourney(j.segments,j.active_index,j.warnings||[]);
 
-  // 다음 구간의 신뢰도/열차가 실제 관측으로 바뀌는 순간 사용자에게 알려줌.
+  if(current.arrived){
+   beginTransfer(false);
+   return;
+  }
+
   if(j.segments.length>1){
    const next=j.segments[1];
    const sig=`${next.train_no}|${next.confidence}`;
-   if(liveTrip.previousNextTrain && liveTrip.previousNextTrain!==sig){
+   if(liveTrip.previousNextTrain&&liveTrip.previousNextTrain!==sig){
     const old=liveTrip.previousNextTrain.split('|');
-    if(old[1]!=='높음' && next.confidence==='높음'){
+    if(old[1]!=='높음'&&next.confidence==='높음'){
      toast(`다음 ${next.line} 열차가 실시간으로 확인됐습니다: ${next.train_no}`);
     }else if(old[0]!==String(next.train_no)){
      toast(`다음 추천 열차가 ${next.train_no}로 변경됐습니다.`);
@@ -1323,7 +1646,7 @@ async function pollLiveTrip(first=false){
  }catch(e){
   $('progressNote').textContent=`갱신 실패: ${e.message} · 다음 주기에 다시 시도합니다.`;
  }finally{
-  if(liveTrip)scheduleNextPoll();
+  if(liveTrip&&liveTrip.phase==='ride')scheduleNextPoll();
  }
 }
 function restoreTrip(){
@@ -1331,17 +1654,41 @@ function restoreTrip(){
   const saved=JSON.parse(sessionStorage.getItem(TRIP_KEY)||'null');
   if(!saved||!saved.segments?.length)return;
   liveTrip=saved;
+  if(!liveTrip.phase)liveTrip.phase='ride';
+  if(!Array.isArray(liveTrip.displaySegments))liveTrip.displaySegments=(lastRouteResult?.segments||[]);
   fixedPlatformStart=saved.platformStart||null;
   fixedSearchSegments=JSON.parse(JSON.stringify(saved.segments||[]));
-  loadRoute(saved.segments);$('day').value=saved.day||'AUTO';$('baseline').value=saved.baseline||'';
+  loadRoute(saved.segments);
+  $('day').value=saved.day||'AUTO';
+  $('baseline').value=saved.baseline||'';
   if(fixedPlatformStart)updateRouteStamps(localDateTimeString(new Date()),fixedPlatformStart);
-  $('refreshRoute').disabled=false;
+  updateRefreshAvailability();
   $('livePanel').classList.add('show');
-  $('liveTrain').textContent=`${saved.segments[saved.activeIndex].line} ${saved.boardedTrainNo}`;
-  $('liveTitle').textContent=`${saved.boardedTrainNo}열차 추적 복원`;
-  pollLiveTrip(true);
- }catch(e){sessionStorage.removeItem(TRIP_KEY)}
+  renderLiveJourney([],0,[]);
+  if(liveTrip.phase==='ride'){
+   $('liveTrain').textContent=`${saved.segments[saved.activeIndex].line} ${saved.boardedTrainNo}`;
+   $('liveTitle').textContent=`${saved.boardedTrainNo}열차 추적 복원`;
+   $('stopTrack').style.display='';
+   $('stopTrack').textContent='이제 내렸어요';
+  }else if(liveTrip.phase==='transfer'){
+   $('liveTitle').textContent=`${saved.segments[saved.activeIndex].to} 환승 중`;
+   $('stopTrack').style.display='';
+   $('stopTrack').textContent='환승을 마쳤어요';
+  }else{
+   $('liveTitle').textContent='다음 열차 탑승 대기';
+   $('stopTrack').style.display='none';
+  }
+  pollJourney(true);
+ }catch(e){
+  sessionStorage.removeItem(TRIP_KEY);
+  liveTrip=null;
+  updateRefreshAvailability();
+ }
 }
+
+$('searchNowBtn').onclick=resetSearchTimeNow;
+document.querySelectorAll('[data-time-step]').forEach(btn=>btn.onclick=()=>adjustSearchTime(Number(btn.dataset.timeStep)));
+$('searchTimeDisplay').onclick=()=>{$('settingsBtn').click();$('startTime').focus()};
 
 $('settingsBtn').onclick=()=>{
  const panel=$('settingsPanel'),open=!panel.classList.contains('open');
@@ -1351,7 +1698,14 @@ $('swapStations').onclick=()=>{const a=$('autoFrom').value;$('autoFrom').value=$
 $('showExpTools').addEventListener('change',()=>document.body.classList.toggle('showExperiment',$('showExpTools').checked));
 $('autoTo').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)setTimeout(()=>{if($('autoTo').value.trim())findAutoRoute()},0);});
 document.querySelectorAll('.timeChip').forEach(b=>b.onclick=()=>setRelativeTime(b.dataset.min));
-$('startTime').addEventListener('input',clearQuickSelection);
+$('startTime').addEventListener('input',()=>{
+ clearQuickSelection();
+ const [h,m]=($('startTime').value||'').split(':').map(Number);
+ if(Number.isFinite(h)&&Number.isFinite(m)){
+  const d=new Date();d.setHours(h,m,0,0);
+  searchTimeCursor=d;searchTimeMode='manual';syncSearchTimeUI();
+ }
+});
 $('day').addEventListener('change',()=>{if($('day').value!=='AUTO')updateAutoDayInfo($('day').value,'수동 선택',false);else init();});
 $('addBtn').onclick=()=>{
  const prev=[...document.querySelectorAll('.segment')].at(-1);
@@ -1362,7 +1716,11 @@ $('autoRouteBtn').onclick=findAutoRoute;
 $('refreshRoute').onclick=refreshDisplayedRoute;
 setupGlobalStationAutocomplete($('autoFrom'));
 setupGlobalStationAutocomplete($('autoTo'));
-$('stopTrack').onclick=()=>stopTracking(true);
+$('stopTrack').onclick=()=>{
+ if(!liveTrip)return;
+ if(liveTrip.phase==='ride')beginTransfer(true);
+ else if(liveTrip.phase==='transfer')completeTransfer(true);
+};
 $('expArrive').onclick=completeExperimentNow;
 $('expCsv').onclick=exportExperimentCsv;
 $('expJson').onclick=exportExperimentJson;
@@ -1379,7 +1737,7 @@ $('expNote').onclick=()=>{
 };
 $('expEnabled').addEventListener('change',renderExperimentPanel);
 
-setRelativeTime(0);
+setRelativeTime(0);syncSearchTimeUI();updateRefreshAvailability();
 loadRoute([]);
 refreshFavorites();
 renderExperimentPanel();

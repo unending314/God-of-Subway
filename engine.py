@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.5 — 1~9호선 다중 환승 ETA
+지금타 V12.6 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -183,6 +183,20 @@ def schedule_dt_after(sched_sec, ready_dt, delay=0):
         if dt >= ready_dt - timedelta(seconds=5):
             vals.append(dt)
     return min(vals) if vals else None
+
+def schedule_dt_before(sched_sec, ready_dt, delay=0, window_seconds=600):
+    """
+    사용자가 예상보다 일찍 플랫폼/환승역에 도착했을 때 탈 수 있었을
+    직전 열차 한 대를 찾는다. 기본 탐색범위는 ready_dt 이전 10분.
+    """
+    midnight = ready_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    vals = []
+    for d in (-2, -1, 0, 1):
+        dt = midnight + timedelta(days=d, seconds=sched_sec + delay)
+        gap = (ready_dt - dt).total_seconds()
+        if 5 < gap <= window_seconds:
+            vals.append(dt)
+    return max(vals) if vals else None
 
 def holiday_info(d):
     """번들된 대한민국 공휴일/대체공휴일 정보."""
@@ -970,7 +984,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.5/1.0",
+        "User-Agent": "JigeumTa-V12.6/1.0",
         "Accept": "application/json",
     })
     try:
@@ -985,6 +999,37 @@ def fetch_position(line):
 
 def position_rows(data):
     return data.get("realtimePositionList", []) if isinstance(data, dict) else []
+
+def cached_position_rows(line, position_cache):
+    """
+    realtimePosition 장애가 전체 경로 계산 실패로 이어지지 않도록 한다.
+    실패 시 빈 관측값을 반환하여 공식 시간표 기반 계산으로 자동 강등한다.
+    """
+    if line not in position_cache:
+        ok, err, data = fetch_position(line)
+        if ok:
+            position_cache[line] = {
+                "rows": position_rows(data),
+                "error": "",
+                "available": True,
+            }
+        else:
+            message = (err or {}).get("message", err) if isinstance(err, dict) else err
+            position_cache[line] = {
+                "rows": [],
+                "error": str(message or "실시간 위치 조회 실패"),
+                "available": False,
+            }
+
+    cached = position_cache[line]
+    # 이전 코드/테스트에서 list를 직접 넣는 경우도 허용.
+    if isinstance(cached, list):
+        return cached, "", True
+    return (
+        cached.get("rows", []),
+        cached.get("error", ""),
+        bool(cached.get("available")),
+    )
 
 # ---------- Schedule path helpers ----------
 def indices(stops, station):
@@ -1250,6 +1295,63 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
     out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
     return out[:30]
 
+def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
+    """
+    기본 추천보다 바로 앞선 시간표 열차 1대를 반환한다.
+    '앞 열차를 탄 것 같아요' 기능용이며 기본 추천 선정에는 참여하지 않는다.
+    """
+    best = None
+    for tr in route_trains(line, mode, start, end):
+        pair = route_pair(tr["stops"], start, end)
+        if not pair:
+            continue
+        si, ei = pair
+        bsec = stop_board_sec(tr["stops"][si])
+        asec = stop_alight_sec(tr["stops"][ei])
+        if bsec is None or asec is None:
+            continue
+        while asec < bsec:
+            asec += 86400
+
+        delay = median_delay(observations, tr["direction"], tr["service"])
+        board_dt = schedule_dt_before(bsec, ready_dt, delay, 600)
+        if not board_dt:
+            continue
+        alight_dt = board_dt + timedelta(seconds=asec - bsec)
+        # 이미 목적지에 도착한 지 오래된 열차는 제외.
+        if alight_dt < now_kst() - timedelta(minutes=2):
+            continue
+
+        expected_location = estimated_train_location(tr, now_kst(), delay)
+        c = {
+            "line": line,
+            "from": canon_station(start),
+            "to": canon_station(end),
+            "train_no": tr["train_no"],
+            "continuation_train_no": tr.get("continuation_train_no", ""),
+            "physical_continuation": bool(tr.get("physical_continuation")),
+            "service": tr["service"],
+            "direction": tr["direction"],
+            "origin": tr["start"],
+            "destination": tr["dest"],
+            "board_dt": board_dt,
+            "alight_dt": alight_dt,
+            "wait_seconds": round((board_dt - ready_dt).total_seconds()),
+            "ride_seconds": round((alight_dt - board_dt).total_seconds()),
+            "delay_seconds": round(delay),
+            "current_station": expected_location.get("station", ""),
+            "status": expected_location.get("status", ""),
+            "location_kind": "expected",
+            "location_label": expected_location.get("label", "예상 소재 계산 중"),
+            "confidence": "중간" if observations else "낮음",
+            "method": "직전 열차 추정 · 공식 시간표 + 현재 지연" if observations else "직전 열차 추정 · 공식 시간표",
+            "projected": True,
+        }
+        if best is None or c["board_dt"] > best["board_dt"]:
+            best = c
+    return best
+
+
 def public_candidate(c, selected=False):
     return {
         "train_no": c.get("train_no", ""),
@@ -1290,14 +1392,11 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
     if canon_station(end) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
         return {"ok": False, "error": f"{line} 시간표에서 하차역 '{end}'을 찾지 못했습니다."}
 
-    if line not in position_cache:
-        ok, err, data = fetch_position(line)
-        if not ok:
-            return {"ok": False, "error": f"{line} 실시간 위치 조회 실패: {(err or {}).get('message', err)}"}
-        position_cache[line] = position_rows(data)
-
-    positions = position_cache[line]
+    positions, realtime_error, realtime_available = cached_position_rows(line, position_cache)
     observations, diag = observe_delays(line, mode, positions)
+    diag["realtime_available"] = realtime_available
+    if realtime_error:
+        diag["realtime_error"] = realtime_error
 
     # 현재 API에 실제로 잡힌 열차.
     direct = direct_live_candidates(line, mode, start, end, ready_dt, observations)
@@ -1332,6 +1431,7 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
         }
 
     chosen = near[0]
+    previous = previous_schedule_candidate(line, mode, start, end, ready_dt, observations)
     public = [
         public_candidate(
             c,
@@ -1344,6 +1444,7 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
         "chosen": chosen,
         "candidates": near[:10],
         "public_candidates": public,
+        "previous_candidate": public_candidate(previous) if previous else None,
         "diagnostics": diag,
     }
 
@@ -1378,14 +1479,11 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     if target_sec is None:
         return {"ok": False, "error": f"{end} 도착시각이 시간표에 없습니다."}
 
-    if line not in position_cache:
-        ok, err, data = fetch_position(line)
-        if not ok:
-            return {"ok": False, "error": f"{line} 실시간 위치 조회 실패: {(err or {}).get('message', err)}"}
-        position_cache[line] = position_rows(data)
-
-    positions = position_cache[line]
+    positions, realtime_error, realtime_available = cached_position_rows(line, position_cache)
     observations, diag = observe_delays(line, mode, positions)
+    diag["realtime_available"] = realtime_available
+    if realtime_error:
+        diag["realtime_error"] = realtime_error
     wanted_numbers = {norm_train(tr.get("train_no"))}
     if tr.get("continuation_train_no"):
         wanted_numbers.add(norm_train(tr.get("continuation_train_no")))
@@ -1407,8 +1505,16 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
         if ci is None:
             ci = first_current_index(stops, live["current_station"])
 
-        # 이미 목적지보다 뒤로 간 것으로 잡히면 구간 완료 처리.
-        if ci is not None and ci > ei:
+        # 목적지 도착/출발이 실시간 API에서 확인되는 순간 구간 완료 처리.
+        # 이전에는 목적지를 지나친 뒤(ci > ei)에만 완료되어 환승 전환이 늦었다.
+        live_status_text = str(live.get("status") or "").strip()
+        arrived_at_target = (
+            ci is not None and (
+                ci > ei or
+                (ci == ei and live_status_text in ("도착", "출발"))
+            )
+        )
+        if arrived_at_target:
             return {
                 "ok": True,
                 "arrived": True,
@@ -1510,8 +1616,12 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             "current_station": expected_location.get("station", ""),
             "location_kind": "expected",
             "location_label": expected_location.get("label", "예상 소재 계산 중"),
-            "confidence": "중간",
-            "method": "연속운행 열차 잠금 · 실시간 위치 재포착 대기" if tr.get("physical_continuation") else "탑승 열차 잠금 · 실시간 위치 재포착 대기",
+            "confidence": "중간" if observations else "낮음",
+            "method": (
+                ("연속운행 열차 잠금 · 실시간 위치 재포착 대기" if tr.get("physical_continuation") else "탑승 열차 잠금 · 실시간 위치 재포착 대기")
+                if realtime_available
+                else "공식 시간표 기반 임시 추적 · 실시간 위치 조회 실패"
+            ),
             "projected": True, "tracking": True, "arrived": False,
             "status": expected_location.get("status", "위치 재포착 대기"),
         },
@@ -1600,6 +1710,7 @@ def calculate_live_trip(payload):
         chosen["ready_dt"] = ready_dt
         chosen["diagnostics"] = r.get("diagnostics", {})
         chosen["nearby_candidates"] = r.get("public_candidates", [])
+        chosen["previous_candidate"] = r.get("previous_candidate")
         chosen["transfer_info"] = s.get("transfer_info")
         chosen["transfer_seconds"] = int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60))
         results.append(chosen)
@@ -1688,6 +1799,7 @@ def calculate_route(payload):
         chosen["ready_dt"] = ready_dt
         chosen["diagnostics"] = r.get("diagnostics", {})
         chosen["nearby_candidates"] = r.get("public_candidates", [])
+        chosen["previous_candidate"] = r.get("previous_candidate")
         chosen["transfer_info"] = s.get("transfer_info")
         chosen["transfer_seconds"] = int(s.get("transfer_seconds") or round(float(s.get("transfer_walk") or 0) * 60))
         results.append(chosen)

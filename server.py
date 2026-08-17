@@ -30,7 +30,7 @@ def health():
     today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V12.5-vercel",
+        "version": "V12.6-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
