@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.3.0 — 1~9호선 다중 환승 ETA
+지금타 V13.3.1 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -1347,7 +1347,7 @@ def fetch_position(line, timeout=5):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.3.0/1.0",
+        "User-Agent": "JigeumTa-V13.3.1/1.0",
         "Accept": "application/json",
     })
     try:
