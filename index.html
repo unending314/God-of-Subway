@@ -91,6 +91,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .segment[data-line="9호선"] .lineMark{background:#BDB092}
 .segment[data-line="경의중앙선"] .lineMark{background:#56A98A}
 .segment[data-line="수인분당선"] .lineMark{background:#E8A000}
+.segment[data-line="경춘선"] .lineMark{background:#178C72}
+.segment[data-line="경강선"] .lineMark{background:#0054A6}
+.segment[data-line="서해선"] .lineMark{background:#8FC31F}
+.segment[data-line="공항철도"] .lineMark{background:#0090D2}
 .addBtn{width:100%;border:1px dashed #bcc6d0;background:#fff;border-radius:11px;padding:10px;font-size:10px;font-weight:850;color:#52606d;cursor:pointer}
 .primary{width:100%;border:0;border-radius:12px;padding:13px 14px;background:var(--navy);color:white;font-weight:900;cursor:pointer;margin-top:9px}
 .primary:hover{filter:brightness(1.08)}
@@ -116,6 +120,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .lineBadge[data-line="7호선"]{background:#747F00}.lineBadge[data-line="8호선"]{background:#E6186C}.lineBadge[data-line="9호선"]{background:#BDB092}
 .lineBadge[data-line="경의중앙선"]{background:#56A98A}
 .lineBadge[data-line="수인분당선"]{background:#E8A000}
+.lineBadge[data-line="경춘선"]{background:#178C72}
+.lineBadge[data-line="경강선"]{background:#0054A6}
+.lineBadge[data-line="서해선"]{background:#8FC31F}
+.lineBadge[data-line="공항철도"]{background:#0090D2}
 .leg h4{font-size:12px;margin:0}.leg .meta{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.45}.clock{text-align:right;font-size:11px;font-weight:900}
 .details{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}.detail{background:#f6f8fa;border-radius:10px;padding:8px}.detail span{display:block;font-size:7px;color:var(--muted)}.detail b{display:block;font-size:10px;margin-top:3px}
 .transfer{text-align:center;color:#6a7580;font-size:9px;padding:1px 0}
@@ -495,7 +503,11 @@ header{margin-bottom:30px}
 <script>
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const lines=[...Array.from({length:9},(_,i)=>`${i+1}호선`),'경의중앙선','수인분당선'];
+let lines=[
+ ...Array.from({length:9},(_,i)=>`${i+1}호선`),
+ '경의중앙선','수인분당선',
+ '경춘선','경강선','서해선','공항철도'
+];
 const FAV_KEY='jigeumta_favorites_v1';
 let stations={},segId=0;
 let lastRouteResult=null;
@@ -520,7 +532,13 @@ function fmtDur(sec){sec=Math.max(0,Number(sec)||0);let m=Math.round(sec/60);ret
 function fmtClock(s){if(!s)return'-';let m=String(s).match(/(\d{2}):(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:s}
 function fmtDelay(s){s=Number(s)||0;if(Math.abs(s)<30)return'정시권';return`${s>=0?'+':'−'}${Math.round(Math.abs(s)/60)}분`}
 function confClass(c){return c==='높음'?'high':c==='중간'?'medium':'low'}
-function lineOpts(selected){return lines.map(x=>`<option ${x===selected?'selected':''}>${x}</option>`).join('')}
+function lineOpts(selected){
+ const normalized=String(selected||'').trim();
+ const opts=[...lines];
+ // 선택 노선이 로컬 목록에 빠졌더라도 1호선으로 조용히 fallback하지 않는다.
+ if(normalized && !opts.includes(normalized))opts.push(normalized);
+ return opts.map(x=>`<option ${x===normalized?'selected':''}>${x}</option>`).join('');
+}
 
 function timePlus(mins){
  const d=new Date(Date.now()+mins*60000);
@@ -719,7 +737,14 @@ function setupStationAutocomplete(input,seg){
 function refreshDatalist(seg){
  const line=seg.querySelector('.line').value;
  seg.dataset.line=line;
- const shortLabel = line==='경의중앙선' ? '경중' : line==='수인분당선' ? '수분' : line.replace('호선','');
+ const shortLabel =
+  line==='경의중앙선' ? '경중' :
+  line==='수인분당선' ? '수분' :
+  line==='경춘선' ? '경춘' :
+  line==='경강선' ? '경강' :
+  line==='서해선' ? '서해' :
+  line==='공항철도' ? '공철' :
+  line.replace('호선','');
  seg.querySelector('.lineMark').textContent=shortLabel;
  // 노선을 바꿔도 입력 전에는 역 목록을 표시하지 않는다.
  seg.querySelectorAll('.stationInput').forEach(hideStationSuggest);
@@ -1099,8 +1124,20 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 }
 async function init(){
  try{
-  const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.8`;
+  const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);
+  stations=s.stations;
+
+  // 실제 지원노선 목록은 backend STATIONS_BY_LINE을 source of truth로 사용.
+  const serverLines=Object.keys(stations||{});
+  const preferred=[
+   ...Array.from({length:9},(_,i)=>`${i+1}호선`),
+   '경의중앙선','수인분당선','경춘선','경강선','서해선','공항철도'
+  ];
+  lines=[
+   ...preferred.filter(x=>serverLines.includes(x)),
+   ...serverLines.filter(x=>!preferred.includes(x))
+  ];
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.8.1`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
