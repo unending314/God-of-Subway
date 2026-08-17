@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.6 — 1~9호선 다중 환승 ETA
+지금타 V12.7 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -125,16 +125,17 @@ def align_clock(actual_dt, sched_sec):
 
 def status_name(v):
     raw = str(v or "").strip()
-    known = {"0": "진입", "1": "도착", "2": "출발"}
+    # 서울시 공식 realtimePosition 명세:
+    # 0 진입 / 1 도착 / 2 출발 / 3 전역출발
+    known = {"0": "진입", "1": "도착", "2": "출발", "3": "전역출발"}
     if raw in known:
         return known[raw]
-    # 서울시 API가 3 등 문서화되지 않은/원시 숫자 코드를 반환하더라도
-    # 사용자 화면에는 숫자 상태값을 노출하지 않는다.
     if re.fullmatch(r"[-+]?\d+(?:\.\d+)?", raw):
         return ""
     return raw or ""
 
 def scheduled_reference(stop, status):
+    """단일 역 상태의 기본 기준시각. 상태 3은 scheduled_reference_at에서 처리."""
     arr, dep = stop["arr"], stop["dep"]
     s = str(status or "")
     if s == "2" and dep is not None:
@@ -144,6 +145,36 @@ def scheduled_reference(stop, status):
     if s == "0" and arr is not None:
         return arr - 30
     return dep if dep is not None else arr
+
+def scheduled_reference_at(stops, index, status):
+    """
+    trainSttus=3(전역출발)은 statnNm 기준 현재 역의 출발시각이 아니라
+    바로 이전 역의 출발시각을 관측 기준으로 사용한다.
+
+    목적역에서 3을 현재역 dep로 해석하면
+    target arr < current dep가 되어 24시간 wrap이 발생할 수 있다.
+    """
+    if index is None or not (0 <= index < len(stops)):
+        return None
+    s = str(status or "").strip()
+    if s == "3":
+        for j in range(index - 1, -1, -1):
+            prev = stops[j]
+            ref = prev.get("dep") if prev.get("dep") is not None else prev.get("arr")
+            if ref is not None:
+                return ref
+        arr = stops[index].get("arr")
+        return (arr - 60) if arr is not None else scheduled_reference(stops[index], status)
+    return scheduled_reference(stops[index], status)
+
+def nearest_schedule_dt(sched_sec, ref_dt, delay=0):
+    """24/25시 시간표까지 포함해 ref_dt와 가장 가까운 운행 occurrence를 찾는다."""
+    base = ref_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    vals = [
+        base + timedelta(days=d, seconds=sched_sec + delay)
+        for d in (-2, -1, 0, 1, 2)
+    ]
+    return min(vals, key=lambda x: abs((x - ref_dt).total_seconds()))
 
 def clock_to_sec(v):
     p = str(v or "").split(":")
@@ -984,7 +1015,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.6/1.0",
+        "User-Agent": "JigeumTa-V12.7/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1138,7 +1169,7 @@ def observe_delays(line, mode, positions):
             if cur and len(unmatched_station) < 10:
                 unmatched_station.append(cur)
             continue
-        ref = scheduled_reference(tr["stops"][ci], p.get("trainSttus"))
+        ref = scheduled_reference_at(tr["stops"], ci, p.get("trainSttus"))
         if ref is None:
             continue
         observed = parse_dt(p.get("recptnDt") or p.get("lastRecptnDt"))
@@ -1200,7 +1231,7 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
         if ci > si:
             continue
 
-        ref = scheduled_reference(stops[ci], o["raw"].get("trainSttus"))
+        ref = scheduled_reference_at(stops, ci, o["raw"].get("trainSttus"))
         bsec = stop_board_sec(stops[si])
         asec = stop_alight_sec(stops[ei])
         if None in (ref, bsec, asec):
@@ -1541,16 +1572,24 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             }
 
         if ci is not None:
-            ref = scheduled_reference(stops[ci], live["raw"].get("trainSttus"))
+            ref = scheduled_reference_at(stops, ci, live["raw"].get("trainSttus"))
             asec = target_sec
             if ref is not None:
                 while asec < ref:
                     asec += 86400
                 age = max(0, (now - live["observed"]).total_seconds())
-                alight_dt = now + timedelta(seconds=max(0, asec - ref - age))
+                remaining = asec - ref - age
 
-                # 최초 탑승시각이 없으면, 현재 구간에서는 지금 이전으로만 표시.
+                # 24시간 wrap/비정상 상태에 대한 마지막 안전장치.
+                if remaining > 6 * 3600:
+                    fallback_target = nearest_schedule_dt(target_sec, now, live["delay"])
+                    alight_dt = max(now, fallback_target)
+                else:
+                    alight_dt = now + timedelta(seconds=max(0, remaining))
+
                 shown_board = board_dt or now
+                if shown_board > alight_dt:
+                    shown_board = alight_dt
                 return {
                     "ok": True,
                     "arrived": False,
@@ -1587,16 +1626,11 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
         fallback_direction = tr.get("continuation_direction") or fallback_direction
     delay = median_delay(observations, fallback_direction, tr["service"])
     expected_location = estimated_train_location(tr, now, delay)
-    target_dt = schedule_dt_after(target_sec, now, delay)
-    if not target_dt:
-        # 심야 24/25시 운행축을 고려한 마지막 fallback
-        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        possibilities = [
-            midnight + timedelta(days=d, seconds=target_sec + delay)
-            for d in (-1, 0, 1, 2)
-        ]
-        future = [x for x in possibilities if x >= now - timedelta(minutes=5)]
-        target_dt = min(future) if future else now
+    target_dt = nearest_schedule_dt(target_sec, now, delay)
+    if target_dt < now - timedelta(minutes=5):
+        target_dt = now
+    if target_dt > now + timedelta(hours=6):
+        target_dt = now
 
     return {
         "ok": True,

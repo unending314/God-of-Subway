@@ -443,7 +443,7 @@ header{margin-bottom:30px}
    <button id="autoRouteBtn" class="searchBtn" type="button">조회</button>
   </div>
   <div class="searchQuickTime" aria-label="플랫폼 도착시간 빠른 조절">
-   <button id="searchNowBtn" class="searchNowBtn active" type="button">지금</button>
+   <button id="searchNowBtn" class="searchNowBtn" type="button">지금</button>
    <button class="searchTimeStep" data-time-step="-5" type="button">-5분</button>
    <button class="searchTimeStep" data-time-step="-1" type="button">-1분</button>
    <button id="searchTimeDisplay" class="searchTimeDisplay" type="button" aria-label="선택된 플랫폼 도착시간"></button>
@@ -539,7 +539,9 @@ function localDateTimeString(d){
 }
 const initialSearchTime=new Date();
 let searchTimeCursor=new Date(initialSearchTime);
-let searchTimeMode='now';
+// 첫 조회는 현재시각을 자동 사용하지만 NOW 버튼은 강조하지 않는다.
+// 사용자가 NOW를 누른 경우에만 다음 조회 전까지 잠시 강조한다.
+let searchTimeMode='initial-now';
 
 function hhmmFromDate(d){
  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -550,26 +552,30 @@ function koShortTime(d){
 function syncSearchTimeUI(){
  $('searchTimeDisplay').textContent=koShortTime(searchTimeCursor);
  $('startTime').value=hhmmFromDate(searchTimeCursor);
- $('searchNowBtn').classList.toggle('active',searchTimeMode==='now');
+ $('searchNowBtn').classList.toggle('active',searchTimeMode==='armed-now');
 }
 function resetSearchTimeNow(){
- searchTimeMode='now';
+ searchTimeMode='armed-now';
  searchTimeCursor=new Date();
  syncSearchTimeUI();
  document.querySelectorAll('.timeChip').forEach(x=>x.classList.toggle('active',Number(x.dataset.min)===0));
 }
 function adjustSearchTime(minutes){
- if(searchTimeMode==='now')searchTimeCursor=new Date(initialSearchTime);
  searchTimeCursor=new Date(searchTimeCursor.getTime()+Number(minutes)*60000);
  searchTimeMode='manual';
  syncSearchTimeUI();
  clearQuickSelection();
 }
 function resolvedSearchTime(){
- if(searchTimeMode==='now'){
+ if(searchTimeMode==='initial-now'||searchTimeMode==='armed-now'){
   const now=new Date();
-  $('startTime').value=hhmmFromDate(now);
-  return $('startTime').value;
+  searchTimeCursor=new Date(now);
+  const value=hhmmFromDate(now);
+  // 조회 후에는 방금 사용한 시각을 고정. NOW 강조도 해제한다.
+  searchTimeMode='manual';
+  syncSearchTimeUI();
+  clearQuickSelection();
+  return value;
  }
  return $('startTime').value||hhmmFromDate(searchTimeCursor);
 }
@@ -1094,7 +1100,7 @@ function updateAutoDayInfo(mode,reason,isHoliday=false){
 async function init(){
  try{
   const [h,s]=await Promise.all([getJson('/api/health'),getJson('/api/stations')]);stations=s.stations;
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.6`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V12.7`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1109,9 +1115,9 @@ function boardButton(s,routeIndex){
  const previous=s?.previous_candidate;
  const previousAllowed=previous&&canBoard(previous)&&(!liveTrip||routeIndex>=liveTrip.activeIndex);
  const prevBtn=previousAllowed
-   ?`<button class="previousBoardBtn" data-board="${routeIndex}" data-train="${esc(previous.train_no)}">앞 열차를 탄 것 같아요</button>`
+   ?`<button class="previousBoardBtn" data-board="${routeIndex}" data-train="${esc(previous.train_no)}" data-board-dt="${esc(previous.board_dt||'')}">앞 열차를 탄 것 같아요</button>`
    :'';
- return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${prevBtn}</div>`;
+ return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" data-board-dt="${esc(s.board_dt||'')}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${prevBtn}</div>`;
 }
 function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
 function cleanStatusText(value){
@@ -1154,7 +1160,7 @@ function candidateRows(s,routeIndex){
     : `<span class="sourceBadge sched"><span class="sourceFull">시간표 후보 · 미포착</span><span class="sourceCompact">미포착</span></span>`;
   const active=liveTrip && liveTrip.phase==='ride' && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(c.train_no);
   const btn=canBoard(c)
-    ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`
+    ? `<button class="candidateBoard ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(c.train_no)}" data-board-dt="${esc(c.board_dt||'')}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>`
     : '';
   const serviceFull=trainServiceText(c);
   const serviceCompact=c.service==='express'?'급행':'일반';
@@ -1212,8 +1218,8 @@ function legHtml(s,walk,routeIndex,transferInfo,state=''){
 }
 function bindBoardButtons(){
  document.querySelectorAll('[data-board]').forEach(btn=>btn.onclick=()=>{
-  const idx=Number(btn.dataset.board),train=btn.dataset.train;
-  startTracking(idx,train);
+  const idx=Number(btn.dataset.board),train=btn.dataset.train,boardDt=btn.dataset.boardDt||'';
+  startTracking(idx,train,boardDt);
  });
 }
 function journeyLegState(index){
@@ -1411,10 +1417,16 @@ function saveTrip(){
  if(liveTrip)sessionStorage.setItem(TRIP_KEY,JSON.stringify(liveTrip));
  else sessionStorage.removeItem(TRIP_KEY);
 }
-function startTracking(activeIndex,trainNo){
+function startTracking(activeIndex,trainNo,selectedBoardDt=''){
  const segments=collect();
  if(!segments[activeIndex])return;
  recordBoardEvent(activeIndex,trainNo);
+
+ const clickNow=localDateTimeString(new Date());
+ let effectiveBoardAt=selectedBoardDt||clickNow;
+ const parsedBoard=parseLocalDT(effectiveBoardAt);
+ // 아직 오지 않은 열차를 잘못 탑승 처리한 경우는 클릭시각으로 보수 처리.
+ if(!parsedBoard||parsedBoard-new Date()>120000)effectiveBoardAt=clickNow;
 
  const previous=liveTrip;
  const existingDisplay=previous?.displaySegments?.length
@@ -1425,7 +1437,8 @@ function startTracking(activeIndex,trainNo){
   activeIndex,
   phase:'ride',
   boardedTrainNo:String(trainNo),
-  boardedAt:localDateTimeString(new Date()),
+  boardedAt:effectiveBoardAt,
+  trackingStartedAt:clickNow,
   platformStart:previous?.platformStart||fixedPlatformStart||lastRouteResult?.start_time||null,
   segments:previous?.segments?.length?previous.segments:segments,
   day:previous?.day||$('day').value,
@@ -1737,7 +1750,7 @@ $('expNote').onclick=()=>{
 };
 $('expEnabled').addEventListener('change',renderExperimentPanel);
 
-setRelativeTime(0);syncSearchTimeUI();updateRefreshAvailability();
+syncSearchTimeUI();updateRefreshAvailability();
 loadRoute([]);
 refreshFavorites();
 renderExperimentPanel();
