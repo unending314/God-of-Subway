@@ -30,7 +30,7 @@ def health():
     today_holiday = engine.holiday_info(today_now)
     return {
         "ok": True,
-        "version": "V12.7-vercel",
+        "version": "V12.8-vercel",
         "today_service_mode": today_mode,
         "today_service_reason": today_reason,
         "today_is_holiday": bool(today_holiday),
@@ -41,6 +41,13 @@ def health():
         "gyeongui_holiday_trains": len(engine.EXTRA["경의중앙선"]["trains"]["holiday"]),
         "suin_weekday_trains": len(engine.EXTRA["수인분당선"]["trains"]["weekday"]),
         "suin_holiday_trains": len(engine.EXTRA["수인분당선"]["trains"]["holiday"]),
+        "extra_lines": {
+            line: {
+                "weekday_trains": len(engine.EXTRA[line]["trains"]["weekday"]),
+                "holiday_trains": len(engine.EXTRA[line]["trains"]["holiday"]),
+            }
+            for line in engine.EXTRA_LINES
+        },
         "api_key_configured": bool(engine.API_KEY),
     }
 

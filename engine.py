@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V12.7 — 1~9호선 다중 환승 ETA
+지금타 V12.8 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -41,12 +41,12 @@ EXTRA = load_json("korail_extra_lines_schedule.json")
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
 ROUTE_GRAPH = load_json("route_graph.json")
 TRANSFER_DATA = load_json("transfer_data.json")
-EXTRA_LINES = ("경의중앙선", "수인분당선")
+EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도")
 
 LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
 LINE_NUM = {f"{i}호선": str(i) for i in range(1, 10)}
 LINE_IDS = {f"{i}호선": f"100{i}" for i in range(1, 10)}
-LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075"})
+LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075", "경춘선": "1067", "경강선": "1081", "서해선": "1093", "공항철도": "1065"})
 
 STATION_ALIASES = {
     "서울": "서울역", "지하서울": "서울역",
@@ -83,6 +83,21 @@ STATION_ALIASES = {
     "인천논": "인천논현",
     "신인천": "인천",
     "신수원": "수원",
+    "세종릉": "세종대왕릉",
+    "도예촌": "신둔도예촌",
+    "경광주": "경기광주",
+    "신이매": "이매",
+    "신판교": "판교",
+    "신초지": "초지",
+    "시흥능": "시흥능곡",
+    "시흥청": "시흥시청",
+    "신신현": "신현",
+    "신신천": "신천",
+    "시흥대": "시흥대야",
+    "신소사": "소사",
+    "부천종": "부천종합운동장",
+    "신김포": "김포공항",
+    "평내호": "평내호평",
 }
 
 def canon_station(v):
@@ -1015,7 +1030,7 @@ def fetch_position(line):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V12.7/1.0",
+        "User-Agent": "JigeumTa-V12.8/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1068,8 +1083,16 @@ def indices(stops, station):
     return [i for i, s in enumerate(stops) if canon_station(s["station"]) == c]
 
 def route_pair(stops, start, end, min_start_idx=0):
-    starts = [i for i in indices(stops, start) if i >= min_start_idx]
-    ends = indices(stops, end)
+    # 급행/직통의 통과시각은 위치·지연 계산에는 쓰되,
+    # call=false 역에서는 승하차할 수 없다.
+    starts = [
+        i for i in indices(stops, start)
+        if i >= min_start_idx and bool(stops[i].get("call", True))
+    ]
+    ends = [
+        i for i in indices(stops, end)
+        if bool(stops[i].get("call", True))
+    ]
     pairs = [(i, j) for i in starts for j in ends if j > i]
     return min(pairs, key=lambda p: p[1] - p[0]) if pairs else None
 
