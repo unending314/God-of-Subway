@@ -1872,6 +1872,64 @@ refreshFavorites();
 renderExperimentPanel();
 init().then?.(()=>restoreTrip());
 setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
+
+// GA4 KPI 계측.
+// 기존 코드를 수정하지 않고 스크립트 끝에서 래핑만 한다. 서비스 로직과 동시 작업시 충돌을 피하기 위함.
+(function(){
+ const isProd=location.hostname==='god-of-subway.vercel.app';
+ // Preview/localhost 트래픽이 실사용자 KPI에 섞이면 도달률이 왜곡된다.
+ // GA4 관리 > 데이터 필터에서 Internal Traffic 필터를 '활성'으로 두면 보고서에서 제외된다.
+ if(!isProd&&typeof gtag==='function')gtag('set',{traffic_type:'internal',debug_mode:true});
+
+ // 같은 단계를 한 세션에서 여러 번 세면 도달률 분모가 부풀려진다.
+ function once(key){
+  try{
+   if(sessionStorage.getItem(key))return false;
+   sessionStorage.setItem(key,'1');return true;
+  }catch(e){return true} // 시크릿 모드 등 storage 실패시엔 그냥 집계한다.
+ }
+
+ // 1단계: 출발역과 도착역이 모두 채워진 시점.
+ function markStationSet(){
+  if(!$('autoFrom').value.trim()||!$('autoTo').value.trim())return;
+  if(once('ga_station_set'))trackGaEvent('station_set');
+ }
+ ['input','change'].forEach(ev=>{
+  $('autoFrom').addEventListener(ev,markStationSet);
+  $('autoTo').addEventListener(ev,markStationSet);
+ });
+
+ // 보조지표: 플랫폼 도착시각 기본값('지금')을 직접 바꾼 비율.
+ // 기본값으로도 조회가 되므로 필수 단계가 아니다. 퍼널 게이트로 쓰지 않는다.
+ function markTimeAdjust(){if(once('ga_time_adjust'))trackGaEvent('search_time_adjust')}
+ $('startTime').addEventListener('change',markTimeAdjust);
+ $('searchNowBtn').addEventListener('click',markTimeAdjust);
+ $('quickTime').addEventListener('click',e=>{if(e.target.closest('.timeChip'))markTimeAdjust()});
+
+ // 2단계: 조회. 성공과 실패를 나눠야 서버 장애를 사용자 이탈로 오독하지 않는다.
+ const origPostJson=postJson;
+ postJson=function(url,body,timeoutMs){
+  if(url!=='/api/auto_route')return origPostJson(url,body,timeoutMs);
+  return origPostJson(url,body,timeoutMs).then(r=>{
+   trackGaEvent('route_search_success',{transfer_count:Number(r?.transfer_count??-1)});
+   return r;
+  },e=>{
+   trackGaEvent('route_search_error',{reason:String(e?.message||'').slice(0,100)});
+   throw e;
+  });
+ };
+
+ // 조회 '시도'는 성공/실패와 별개로 센다. 역 미입력 반려도 이탈 지점이라 따로 남긴다.
+ const origFindAutoRoute=findAutoRoute;
+ findAutoRoute=function(){
+  const filled=$('autoFrom').value.trim()&&$('autoTo').value.trim();
+  trackGaEvent(filled?'route_search':'route_search_invalid');
+  return origFindAutoRoute.apply(this,arguments);
+ };
+ // autoRouteBtn은 원본 참조를 이미 바인딩했으므로 다시 연결한다.
+ // Enter 경로는 호출 시점에 전역을 참조하므로 재바인딩이 필요 없다.
+ $('autoRouteBtn').onclick=findAutoRoute;
+})();
 </script>
 </body>
 </html>
