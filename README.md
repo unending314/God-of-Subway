@@ -141,7 +141,7 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - Python의 falsy `0` 때문에 240초 fallback으로 바뀌던 transfer 로직 수정
 - 팀원 GA 퍼널 이벤트 유지
 
-## V13.4.7
+## V13.4.8
 
 - 신분당선을 서울시 `realtimePosition` 실시간 위치 조회 대상에 추가했습니다.
 - 서울시 공식 노선 ID `1077`을 `신분당선`에 매핑하고, 응답의 `subwayId=1077`을 검증합니다.
@@ -156,7 +156,7 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - 평일 326편(상행 163 / 하행 163), 주말 272편(상행 136 / 하행 136)을 수록합니다.
 - 토요일과 일요일은 업로드 파일의 동일 `주말` 시각표를 각각 SAT/END에 적용합니다.
 - `광교기지`, `분당연결선분기`, `판교주박기지`는 운전상 지점으로 유지하되 UI 역 선택지에서는 제외합니다.
-- V13.4.6 당시에는 신분당선을 schedule-only로 추가했으며, V13.4.7부터 서울시 realtimePosition(1077) 연동으로 전환했습니다.
+- V13.4.6 당시에는 신분당선을 schedule-only로 추가했으며, V13.4.8부터 서울시 realtimePosition(1077) 연동으로 전환했습니다.
 - 신분당선 route_graph를 생성해 강남·양재·정자·미금·신사 등 기존 지원 노선과 자동 환승 경로를 탐색할 수 있습니다.
 - 상세 변환/검증 내용은 `SINBUNDANG_TIMETABLE_IMPORT_V13_4_6.md`를 참고하십시오.
 

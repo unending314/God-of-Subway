@@ -1,9 +1,18 @@
-# V13.4.7 — 신분당선 realtimePosition 연동
+# V13.4.8 — 신분당선 실시간 매칭 보강
+
+- realtimePosition 신분당선 요청값을 사용자 확인값 `1077:신분당선` 우선으로 변경
+- `1077:신분당선`이 0건/오류일 경우 `신분당선` 단독 요청으로 자동 fallback
+- API 열차번호가 Rail.Blue `DX####` 운행열번과 다른 체계여도 현재역·방향·종착역·관측시각으로 DIA 보조 매칭
+- 열차번호 exact 매칭은 `높음`, 문맥 기반 보조 매칭 및 live median은 `중간`, 실시간 근거가 없을 때만 `낮음`
+- 신분당선 운영사 병기 역명(광교(경기대), 광교중앙(아주대) 등) 정규화 추가
+- 실시간 행 수신 후 시간표 매칭 0건이면 `realtime_train_match_failure` 구조화 로그 자동 기록
+- `/api/health`에 `realtime_query_aliases` 노출
+
+# V13.4.7 — 신분당선 realtimePosition 최초 연동
 
 - 신분당선 서울시 실시간 열차 위치 API 지원 (`subwayId=1077`)
-- `subwayNm=신분당선` 요청 + 응답 `subwayId=1077` 검증
-- Rail.Blue `DX####` 열번과 API 숫자 열번 digit fallback 매칭
-- 신분당선 exact/live median/schedule-only 신뢰도 승강 및 최근 지연 캐시 지원
+- 최초 구현은 `subwayNm=신분당선` 요청과 DX 열번 숫자부 fallback에 의존
+- exact/live median/schedule-only 신뢰도 승강 및 최근 지연 캐시 지원
 
 # V13.4.6 — 신분당선 시간표 추가
 

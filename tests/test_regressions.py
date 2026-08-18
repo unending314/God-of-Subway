@@ -233,6 +233,129 @@ class ShinbundangTimetableRegressionTest(unittest.TestCase):
         finally:
             engine.fetch_position = original
 
+
+    def test_sinbundang_realtime_query_uses_composite_identifier_first(self):
+        self.assertEqual(
+            engine.realtime_query_candidates("신분당선"),
+            ("1077:신분당선", "신분당선"),
+        )
+
+        sample = {
+            "realtimePositionList": [{
+                "subwayId": "1077", "subwayNm": "신분당선",
+                "statnNm": "강남", "trainNo": "16",
+            }]
+        }
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                import json
+                return json.dumps(sample, ensure_ascii=False).encode("utf-8")
+
+        original_urlopen = engine.urllib.request.urlopen
+        original_key = engine.API_KEY
+        seen = []
+        def fake_urlopen(req, timeout=5):
+            seen.append(req.full_url)
+            return FakeResponse()
+        engine.urllib.request.urlopen = fake_urlopen
+        engine.API_KEY = "test-key"
+        try:
+            ok, err, data = engine.fetch_position("신분당선", timeout=1)
+            self.assertTrue(ok, err)
+            self.assertEqual(data.get("_jigeumta_query"), "1077:신분당선")
+            self.assertEqual(len(seen), 1)
+            self.assertIn("1077%3A%EC%8B%A0%EB%B6%84%EB%8B%B9%EC%84%A0", seen[0])
+        finally:
+            engine.urllib.request.urlopen = original_urlopen
+            engine.API_KEY = original_key
+
+    def test_sinbundang_realtime_query_falls_back_to_plain_name_on_empty_result(self):
+        import json
+        row = {"subwayId": "1077", "subwayNm": "신분당선", "statnNm": "강남", "trainNo": "16"}
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                return json.dumps(self.payload, ensure_ascii=False).encode("utf-8")
+
+        original_urlopen = engine.urllib.request.urlopen
+        original_key = engine.API_KEY
+        seen = []
+        def fake_urlopen(req, timeout=5):
+            seen.append(req.full_url)
+            if "1077%3A" in req.full_url:
+                return FakeResponse({"realtimePositionList": []})
+            return FakeResponse({"realtimePositionList": [row]})
+        engine.urllib.request.urlopen = fake_urlopen
+        engine.API_KEY = "test-key"
+        try:
+            ok, err, data = engine.fetch_position("신분당선", timeout=1)
+            self.assertTrue(ok, err)
+            self.assertEqual(len(seen), 2)
+            self.assertEqual(data.get("_jigeumta_query"), "신분당선")
+            self.assertEqual(data["realtimePositionList"], [row])
+        finally:
+            engine.urllib.request.urlopen = original_urlopen
+            engine.API_KEY = original_key
+
+    def test_sinbundang_context_matching_when_api_train_number_differs(self):
+        row = {
+            "subwayId": "1077",
+            "subwayNm": "신분당선",
+            "statnNm": "강남",
+            # 서울시 API 열차번호가 Rail.Blue DX 운행열번과 전혀 다른 체계여도 동작해야 한다.
+            "trainNo": "16",
+            "recptnDt": "2026-08-19 05:34:26",
+            "trainSttus": "1",
+            "updnLine": "1",
+            "statnTnm": "광교(경기대)",
+        }
+        observations, diag = engine.observe_delays("신분당선", "DAY", [row], [])
+        self.assertEqual(diag["matched"], 0, diag)
+        self.assertEqual(diag["matched_context"], 1, diag)
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["train_no"], "DX9003")
+        self.assertEqual(observations[0]["raw_train_no"], "16")
+        self.assertEqual(observations[0]["source_kind"], "live_context")
+        self.assertEqual(round(observations[0]["delay"]), 0)
+
+    def test_sinbundang_context_live_data_promotes_confidence_medium(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 34, 30)
+        try:
+            row = {
+                "subwayId": "1077", "subwayNm": "신분당선",
+                "statnNm": "강남", "trainNo": "16",
+                "recptnDt": "2026-08-19 05:34:26", "trainSttus": "1",
+                "updnLine": "1", "statnTnm": "광교(경기대)",
+            }
+            cache = {
+                "신분당선": {
+                    "rows": [row], "error": "", "available": True,
+                    "query": "1077:신분당선",
+                }
+            }
+            result = engine.calculate_segment(
+                "신분당선", "DAY", "신사", "강남",
+                datetime(2026, 8, 19, 5, 29, 0), cache
+            )
+            self.assertTrue(result.get("ok"), result)
+            self.assertEqual(result["chosen"]["train_no"], "DX9003")
+            self.assertEqual(result["chosen"]["delay_source"], "live_context")
+            self.assertEqual(result["chosen"]["confidence"], "중간")
+            self.assertEqual(result["diagnostics"]["matched_context"], 1)
+            self.assertEqual(result["diagnostics"]["realtime_query"], "1077:신분당선")
+        finally:
+            engine.now_kst = original_now
+
     def test_sinbundang_wrong_subway_id_is_filtered(self):
         data = {"realtimePositionList": [
             {"subwayId": "1077", "trainNo": "9003"},
