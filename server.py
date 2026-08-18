@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import uuid
+import hmac
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -11,7 +12,7 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.8.0-vercel"
+VERSION = "V13.4.9.0-vercel"
 
 app = FastAPI(
     title="지금타",
@@ -58,6 +59,28 @@ def _record_realtime_match_issues(*, endpoint: str, request_id: str, payload, re
         diag = segment.get("diagnostics")
         if not isinstance(diag, dict):
             continue
+        line = segment.get("line", "")
+        if line == "신분당선":
+            arrival_rows = int(diag.get("station_arrival_rows") or 0)
+            arrival_matched = int(diag.get("station_arrival_matched") or 0)
+            if arrival_rows > 0 and arrival_matched == 0:
+                observability.record_event(
+                    event_type="sinbundang_station_arrival_match_failure",
+                    level="warning",
+                    endpoint=endpoint, request_id=request_id, status_code=200,
+                    message=f"신분당선 {arrival_rows}건 도착정보 수신 후 DX 시간표 매칭 0건",
+                    payload=payload,
+                    diagnostics={
+                        "segment_index": index, "from": segment.get("from", ""), "to": segment.get("to", ""),
+                        "station_arrival_rows": arrival_rows,
+                        "station_arrival_train_numbers": diag.get("station_arrival_train_numbers", [])[:20],
+                        "station_arrival_error": diag.get("station_arrival_error", ""),
+                    },
+                    context=context,
+                )
+            # realtimePosition은 신분당선 생산 ETA에서 진단용이므로 번호 매칭 실패를 오류로 보지 않는다.
+            continue
+
         positions = int(diag.get("positions") or 0)
         matched = int(diag.get("matched") or 0)
         matched_context = int(diag.get("matched_context") or 0)
@@ -69,11 +92,11 @@ def _record_realtime_match_issues(*, endpoint: str, request_id: str, payload, re
             endpoint=endpoint,
             request_id=request_id,
             status_code=200,
-            message=f"{segment.get('line', '')} 실시간 {positions}건 수신 후 시간표 매칭 0건",
+            message=f"{line} 실시간 {positions}건 수신 후 시간표 매칭 0건",
             payload=payload,
             diagnostics={
                 "segment_index": index,
-                "line": segment.get("line", ""),
+                "line": line,
                 "from": segment.get("from", ""),
                 "to": segment.get("to", ""),
                 "realtime_query": diag.get("realtime_query", ""),
@@ -191,6 +214,8 @@ def health():
         "schedule_only_lines": sorted(engine.SCHEDULE_ONLY_LINES),
         "realtime_line_ids": dict(engine.LINE_IDS),
         "realtime_query_aliases": {k: list(v) for k, v in engine.REALTIME_QUERY_ALIASES.items()},
+        "sinbundang_realtime_strategy": "realtimeStationArrival + Rail.Blue DIA 구간소요시간",
+        "sinbundang_position_role": "diagnostic_only",
         "extra_lines": {
             line: {
                 "weekday_trains": len(engine.EXTRA[line]["trains"]["weekday"]),
@@ -224,6 +249,63 @@ async def route(request: Request):
 async def trip_update(request: Request):
     return await _run_engine_endpoint(request, "/api/trip_update", engine.calculate_live_trip)
 
+
+
+def _debug_authorized(request: Request) -> bool:
+    configured = os.environ.get("JIGEUMTA_DEBUG_TOKEN", "").strip()
+    if not configured:
+        return False
+    provided = (request.headers.get("x-debug-token") or request.query_params.get("token") or "").strip()
+    return bool(provided) and hmac.compare_digest(configured, provided)
+
+
+@app.get("/api/debug/sinbundang_probe")
+async def sinbundang_probe(request: Request):
+    """
+    신분당선 realtimePosition + realtimeStationArrival 단일 스냅샷.
+    API quota 남용 방지를 위해 JIGEUMTA_DEBUG_TOKEN 설정 시에만 사용한다.
+    """
+    request_id = _request_id(request)
+    if not os.environ.get("JIGEUMTA_DEBUG_TOKEN", "").strip():
+        return _response({
+            "ok": False,
+            "error": "JIGEUMTA_DEBUG_TOKEN 환경변수를 먼저 설정하세요.",
+            "request_id": request_id,
+        }, 503, request_id)
+    if not _debug_authorized(request):
+        return _response({"ok": False, "error": "unauthorized", "request_id": request_id}, 401, request_id)
+    raw = str(request.query_params.get("stations") or "강남,판교,정자")
+    stations = [x.strip() for x in raw.split(",") if x.strip()][:8]
+    try:
+        snapshot = await run_in_threadpool(engine.sinbundang_probe_snapshot, stations, 5)
+        await run_in_threadpool(
+            observability.record_event,
+            event_type="sinbundang_realtime_probe",
+            level="info",
+            endpoint="/api/debug/sinbundang_probe",
+            request_id=request_id,
+            status_code=200,
+            message=f"신분당선 실시간 진단 snapshot: position {len(snapshot.get('position', {}).get('rows', []))}건",
+            diagnostics=snapshot,
+            context=_request_context(request),
+        )
+        snapshot = dict(snapshot)
+        snapshot["request_id"] = request_id
+        return _response(snapshot, 200, request_id)
+    except Exception as e:
+        error_id = await run_in_threadpool(
+            observability.record_exception,
+            endpoint="/api/debug/sinbundang_probe",
+            request_id=request_id,
+            payload={"stations": stations},
+            exc=e,
+            status_code=500,
+            context=_request_context(request),
+        )
+        return _response({
+            "ok": False, "error": f"{type(e).__name__}: {e}",
+            "error_id": error_id, "request_id": request_id,
+        }, 500, request_id)
 
 @app.post("/api/client_log")
 async def client_log(request: Request):

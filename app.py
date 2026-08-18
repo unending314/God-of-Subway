@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""지금타 V13.4.8 로컬 실행 서버.
+"""지금타 V13.4.9 로컬 실행 서버.
 
 비즈니스 로직은 engine.py 하나만 사용한다. 배포(server.py)와 로컬(app.py)이
 서로 다른 ETA/급행 판정 코드를 갖지 않게 하여 회귀를 방지한다.
@@ -19,14 +19,14 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.8.0-local"
+VERSION = "V13.4.9.0-local"
 
 
 def ensure_api_key():
     if engine.API_KEY:
         return
     print("=" * 70)
-    print("지금타 V13.4.8 — 로컬 실행")
+    print("지금타 V13.4.9 — 로컬 실행")
     print("서울 열린데이터광장 인증키를 입력하세요.")
     print("키는 파일에 저장되지 않고 현재 프로세스 메모리에만 유지됩니다.")
     print("=" * 70)

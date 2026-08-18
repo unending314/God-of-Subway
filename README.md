@@ -141,6 +141,14 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - Python의 falsy `0` 때문에 240초 fallback으로 바뀌던 transfer 로직 수정
 - 팀원 GA 퍼널 이벤트 유지
 
+## V13.4.9
+
+- 신분당선은 `realtimePosition.trainNo`를 Rail.Blue DX 열번과 동일시하지 않습니다.
+- 승차역 `realtimeStationArrival`의 `barvlDt`로 실제 탑승예정시각을 계산하고, 가장 가까운 공식 DX DIA의 구간소요시간을 더해 ETA를 산출합니다.
+- 신분당선 `realtimePosition`은 번호/위치 체계 검증을 위한 진단 데이터로만 사용합니다.
+- 실제 API 연속 관측용 `tools/probe_sinbundang_api.py`와 보호된 `/api/debug/sinbundang_probe`를 추가했습니다.
+- 상세 내용은 `SINBUNDANG_REALTIME_STRATEGY_V13_4_9.md`를 참고하십시오.
+
 ## V13.4.8
 
 - 신분당선을 서울시 `realtimePosition` 실시간 위치 조회 대상에 추가했습니다.

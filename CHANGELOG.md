@@ -1,3 +1,8 @@
+# V13.4.9.0
+- 신분당선 생산 ETA를 realtimePosition 열번 매칭에서 realtimeStationArrival + Rail.Blue DIA 구간소요시간 방식으로 변경.
+- 신분당선 realtimePosition.trainNo는 진단용으로만 사용하며 신뢰도 승격 근거에서 제외.
+- `/api/debug/sinbundang_probe` 및 `tools/probe_sinbundang_api.py` 추가.
+
 # V13.4.8 — 신분당선 실시간 매칭 보강
 
 - realtimePosition 신분당선 요청값을 사용자 확인값 `1077:신분당선` 우선으로 변경
