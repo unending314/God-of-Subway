@@ -1248,7 +1248,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.4.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.5.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}

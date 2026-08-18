@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.4.0 — 1~9호선 다중 환승 ETA
+지금타 V13.4.5.0 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -285,18 +285,25 @@ def schedule_dt_after(sched_sec, ready_dt, delay=0):
             vals.append(dt)
     return min(vals) if vals else None
 
-def schedule_dt_before(sched_sec, ready_dt, delay=0, window_seconds=600):
+def schedule_dt_before(sched_sec, ready_dt, delay=0, window_seconds=None):
     """
-    사용자가 예상보다 일찍 플랫폼/환승역에 도착했을 때 탈 수 있었을
-    직전 열차 한 대를 찾는다. 기본 탐색범위는 ready_dt 이전 10분.
+    ready_dt보다 먼저 출발한 해당 시간표 시각의 가장 최근 발생시각을 반환한다.
+
+    과거에는 기본 10분(window_seconds=600) 제한이 있어 경의중앙선처럼
+    배차간격이 긴 노선에서 실제 직전 열차가 누락됐다. '직전 열차'는
+    배차간격과 무관하게 바로 앞선 운행이어야 하므로 기본값은 제한 없음이다.
+    필요할 때만 호출자가 명시적으로 window_seconds를 줄 수 있다.
     """
     midnight = ready_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     vals = []
     for d in (-2, -1, 0, 1):
         dt = midnight + timedelta(days=d, seconds=sched_sec + delay)
         gap = (ready_dt - dt).total_seconds()
-        if 5 < gap <= window_seconds:
-            vals.append(dt)
+        if gap <= 5:
+            continue
+        if window_seconds is not None and gap > window_seconds:
+            continue
+        vals.append(dt)
     return max(vals) if vals else None
 
 def holiday_info(d):
@@ -2005,14 +2012,14 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
             asec += 86400
 
         delay, delay_source, exact_obs = delay_for_train(tr, observations)
-        board_dt = schedule_dt_before(bsec, ready_dt, delay, 600)
+        board_dt = schedule_dt_before(bsec, ready_dt, delay)
         if not board_dt:
             continue
         alight_dt = board_dt + timedelta(seconds=asec - bsec)
-        # 이미 목적지에 도착한 지 오래된 열차는 제외.
-        if alight_dt < now_kst() - timedelta(minutes=2):
-            continue
 
+        # 직전 열차는 '현재도 운행 중인가'가 아니라 ready_dt 직전에 실제로
+        # 출발했던 열차인가가 기준이다. 짧은 구간에서는 이미 목적지에 도착한
+        # 열차도 정상적인 직전 열차이므로 도착 후 2분 필터를 적용하지 않는다.
         expected_location = estimated_train_location(tr, now_kst(), delay)
         c = {
             "line": line,

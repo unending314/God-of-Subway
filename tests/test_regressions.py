@@ -176,5 +176,45 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
         self.assertNotIn("수색직결선", engine.STATIONS_BY_LINE["공항철도"])
 
 
+class PreviousTrainRegressionTest(unittest.TestCase):
+    def test_gyeongui_previous_train_survives_headway_over_10_minutes(self):
+        ready = datetime(2026, 8, 18, 20, 46, 0)
+        previous = engine.previous_schedule_candidate(
+            "경의중앙선", "DAY", "백마", "문산", ready, []
+        )
+        self.assertIsNotNone(previous)
+        self.assertEqual(previous.get("train_no"), "K5126")
+        self.assertEqual(previous.get("board_dt"), datetime(2026, 8, 18, 20, 35, 30))
+
+    def test_gyeongui_previous_train_not_hidden_after_already_reaching_short_destination(self):
+        ready = datetime(2026, 8, 18, 20, 46, 0)
+        previous = engine.previous_schedule_candidate(
+            "경의중앙선", "DAY", "디지털미디어시티", "홍대입구", ready, []
+        )
+        self.assertIsNotNone(previous)
+        self.assertEqual(previous.get("train_no"), "K5141")
+        self.assertEqual(previous.get("board_dt"), datetime(2026, 8, 18, 20, 38, 30))
+        self.assertLess(previous.get("alight_dt"), ready)
+
+    def test_calculate_segment_exposes_previous_candidate_and_badge(self):
+        ready = datetime(2026, 8, 18, 20, 46, 0)
+        cache = {
+            "경의중앙선": {"rows": [], "error": "test schedule only", "available": False}
+        }
+        result = engine.calculate_segment(
+            "경의중앙선", "DAY", "백마", "문산", ready, cache
+        )
+        self.assertTrue(result.get("ok"), result)
+        previous = result.get("previous_candidate")
+        self.assertIsNotNone(previous, result)
+        self.assertEqual(previous.get("train_no"), "K5126")
+        self.assertTrue(previous.get("is_previous"), previous)
+        public_previous = [
+            c for c in result.get("public_candidates", []) if c.get("is_previous")
+        ]
+        self.assertEqual(len(public_previous), 1, result.get("public_candidates"))
+        self.assertEqual(public_previous[0].get("train_no"), "K5126")
+
+
 if __name__ == "__main__":
     unittest.main()

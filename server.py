@@ -11,7 +11,7 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.4.0-vercel"
+VERSION = "V13.4.5.0-vercel"
 
 app = FastAPI(
     title="지금타",
