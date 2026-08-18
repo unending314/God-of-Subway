@@ -1,3 +1,16 @@
+# V13.4.3 — 급행 통과역 판정 수정 + 오류 관측 시스템
+
+- 1호선 K19xx 급행의 `arr=null` 통과역이 `call=true`로 남아 승하차 가능으로 오판되던 중대 오류 수정
+- 평일 726건 / 휴일 672건의 K19xx 통과역 `call=false` 데이터 교정
+- 엔진 정규화 단계에도 급행 통과역 자동 보정 방어 로직 추가
+- 잘못된 통과역 정차 플래그를 반영해 생성됐던 1호선 `route_graph.json` 가중치도 정상 정차역 기준으로 재생성
+- 당정 출발/도착 시 급행이 추천되지 않는 회귀 테스트 추가
+- 서버/엔진/브라우저 오류에 UUID `error_id`, `request_id` 부여
+- Vercel stdout 구조화 JSON 로그 + 로컬 JSONL 로그 추가
+- `DATABASE_URL` 설정 시 PostgreSQL `app_error_logs` 영구 저장 지원
+- 필요 시 `LOG_LOW_CONFIDENCE=1`로 `low_confidence_route` warning 로그 수집 가능
+- 로컬 `app.py`가 별도 구버전 ETA 엔진을 복제하지 않고 `engine.py`를 직접 사용하도록 통합
+
 # 변경 기록
 
 지금타의 버전별 변경 내역입니다.

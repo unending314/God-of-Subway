@@ -531,6 +531,36 @@ const EXP_KEY='jigeumta_experiments_v1';
 const ACTIVE_EXP_KEY='jigeumta_active_experiment_v1';
 const TRAIN_DELAY_CACHE_KEY='jigeumta_train_delay_cache_v1';
 const TRAIN_DELAY_CACHE_TTL_MS=35*60*1000;
+const CLIENT_LOG_SESSION_KEY='jigeumta_log_session_v1';
+function clientLogSessionId(){
+ try{
+  let id=sessionStorage.getItem(CLIENT_LOG_SESSION_KEY);
+  if(!id){id=(globalThis.crypto?.randomUUID?.()||`s-${Date.now()}-${Math.random().toString(16).slice(2)}`);sessionStorage.setItem(CLIENT_LOG_SESSION_KEY,id)}
+  return id;
+ }catch(e){return 'session-unavailable'}
+}
+function reportClientLog(eventType,message,details={},extra={}){
+ try{
+  const body={
+   event_type:String(eventType||'client_error'),level:String(extra.level||'error'),
+   error_type:String(extra.error_type||'ClientError'),message:String(message||'').slice(0,4000),
+   details:details&&typeof details==='object'?details:{},page:location.href,
+   session_id:clientLogSessionId(),related_error_id:String(extra.related_error_id||'')
+  };
+  fetch('/api/client_log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true,cache:'no-store'}).catch(()=>{});
+ }catch(e){}
+}
+function errorRef(e){
+ const id=e?.payload?.error_id||e?.error_id||'';
+ return id?` · 오류 ID ${id}`:'';
+}
+window.addEventListener('error',e=>reportClientLog('js_error',e.message||'JavaScript error',{
+ filename:e.filename||'',lineno:e.lineno||0,colno:e.colno||0,stack:e.error?.stack||''
+},{error_type:e.error?.name||'JavaScriptError'}));
+window.addEventListener('unhandledrejection',e=>{
+ const r=e.reason;
+ reportClientLog('unhandled_promise_rejection',r?.message||String(r||'Unhandled promise rejection'),{stack:r?.stack||''},{error_type:r?.name||'UnhandledRejection'});
+});
 let lastLiveResult=null;
 let fixedPlatformStart=null;
 let fixedSearchSegments=null;
@@ -1169,17 +1199,24 @@ function rememberTrainDelayResponse(result){
 async function postJson(u,o,timeoutMs=20000){
  const controller=new AbortController();
  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+ const requestId=(globalThis.crypto?.randomUUID?.()||`r-${Date.now()}-${Math.random().toString(16).slice(2)}`);
  try{
   const body=(o&&typeof o==='object')?{...o}:o;
   if(body&&['/api/auto_route','/api/route','/api/trip_update'].includes(u))body.train_delay_cache=trainDelayCachePayload();
-  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',signal:controller.signal}),t=await r.text();let j;
-  try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
-  if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;throw er}
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-Request-ID':requestId},body:JSON.stringify(body),cache:'no-store',signal:controller.signal}),t=await r.text();let j;
+  try{j=JSON.parse(t)}catch(e){const er=new Error(`서버 응답 오류 (${r.status})`);er.http_status=r.status;er.request_id=requestId;throw er}
+  if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;er.http_status=r.status;er.request_id=j.request_id||requestId;throw er}
   rememberTrainDelayResponse(j);
   return j;
  }catch(e){
-  if(e?.name==='AbortError')throw new Error('조회가 20초를 초과했습니다. 잠시 후 다시 시도해 주세요.');
-  throw e;
+  const timedOut=e?.name==='AbortError';
+  const err=timedOut?new Error('조회가 20초를 초과했습니다. 잠시 후 다시 시도해 주세요.'):e;
+  err.payload=e?.payload;err.http_status=e?.http_status;err.request_id=e?.request_id||requestId;
+  reportClientLog('api_request_failed',err.message||'API request failed',{
+   endpoint:u,request_id:err.request_id,http_status:err.http_status||0,timed_out:timedOut,
+   server_error_id:err.payload?.error_id||''
+  },{error_type:err.name||'ApiRequestError',related_error_id:err.payload?.error_id||''});
+  throw err;
  }finally{clearTimeout(timer)}
 }
 function serviceModeLabel(mode){
@@ -1211,10 +1248,10 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.2.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.3.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
- }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
+ }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}
 }
 
 function canBoard(s){
@@ -1437,7 +1474,7 @@ async function findAutoRoute(){
   toast(`현재 최적 경로 · 후보 ${j.candidate_count||1}개 비교 · ${j.transfer_count}회 환승`);
   await calculate({startValue:queryStartTime});
  }catch(e){
-  $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message)}</span>`;
+  $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message+errorRef(e))}</span>`;
   $('autoRouteResult').classList.add('show');
  }finally{
   btn.disabled=false;btn.textContent='조회';
@@ -1526,7 +1563,7 @@ async function calculate(options={}){
  }catch(e){
   document.body.classList.add('resultsReady');
   const p=e.payload||{},d=p.diagnostics||{};
-  $('flow').innerHTML=`<div class="error"><b>이 구간은 계산하지 못했습니다.</b><br>${esc(e.message)}${p.failed_segment?`<br>실패 구간: ${p.failed_segment}번`:''}${d.positions!=null?`<br><br>실시간 위치 ${d.positions}건 · 시간표 매칭 ${d.matched??0}건`:''}</div>`;
+  $('flow').innerHTML=`<div class="error"><b>이 구간은 계산하지 못했습니다.</b><br>${esc(e.message+errorRef(e))}${p.failed_segment?`<br>실패 구간: ${p.failed_segment}번`:''}${d.positions!=null?`<br><br>실시간 위치 ${d.positions}건 · 시간표 매칭 ${d.matched??0}건`:''}</div>`;
  }finally{
   if(refreshOnly){
    updateRefreshAvailability();

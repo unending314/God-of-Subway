@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.2.0 — 1~9호선 다중 환승 ETA
+지금타 V13.4.3.0 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -334,10 +334,28 @@ def choose_modes(mode):
 
 
 # ---------- Normalize timetable structures into one common model ----------
+def _normalized_stop_call(service, stop, index, total_stops):
+    """
+    승하차 가능 여부를 정규화한다.
+
+    1호선 K19xx처럼 원본 DIA가 통과역에도 call=true를 남긴 경우가 있다.
+    급행/직통의 중간역에서 arr=None, dep=통과시각이면 정차가 아니라 통과로 본다.
+    시발역은 arr=None이 정상일 수 있으므로 첫 역에는 이 보정을 적용하지 않는다.
+    """
+    raw_call = bool(stop.get("call", True))
+    if not raw_call:
+        return False
+    is_internal = 0 < index < total_stops - 1
+    is_pass_time = stop.get("arr") is None and stop.get("dep") is not None
+    if service == "express" and is_internal and is_pass_time:
+        return False
+    return True
+
 def normalize_s1_train(tn, tr):
     normalized_tn = norm_train(tn)
     # 사용자 제공 규칙: 1호선 K19xx 열번은 전부 급행.
     service = "express" if re.fullmatch(r"K19\d{2}", normalized_tn) else tr.get("service", "local")
+    raw_stops = tr.get("stops", [])
     return {
         "train_no": tn,
         "direction": tr.get("direction", ""),
@@ -345,11 +363,11 @@ def normalize_s1_train(tn, tr):
         "start": canon_station(tr.get("start", "")),
         "dest": canon_station(tr.get("dest", "")),
         "stops": [{
-            "station": canon_station(s.get("station")),
-            "arr": s.get("arr"),
-            "dep": s.get("dep"),
-            "call": bool(s.get("call", True)),
-        } for s in tr.get("stops", [])],
+            "station": canon_station(stop.get("station")),
+            "arr": stop.get("arr"),
+            "dep": stop.get("dep"),
+            "call": _normalized_stop_call(service, stop, index, len(raw_stops)),
+        } for index, stop in enumerate(raw_stops)],
     }
 
 def normalize_extra_train(tn, tr):

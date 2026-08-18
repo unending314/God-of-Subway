@@ -114,10 +114,21 @@ Vercel에 배포되어 있습니다. `server.py`의 FastAPI 앱이 Python Functi
 환승 중에는 환승 정보도 알 수 있음
 <br/>
 
+## 오류 로그
+
+V13.4.3부터 서버/브라우저 오류에 `error_id`를 부여하고 구조화 로그를 남깁니다.
+Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`을 설정하면 PostgreSQL에도 영구 저장됩니다.
+상세 판정 기준과 DB 스키마는 `CONFIDENCE_AND_LOGGING.md`, `LOGGING_DB_SCHEMA.sql`을 참고하세요.
+
 ## 변경 기록
 
 [CHANGELOG.md](CHANGELOG.md) — V13.3.0부터는 [Releases](https://github.com/unending314/God-of-Subway/releases)에서 관리합니다.
 
+
+## V13.4.3
+- 1호선 급행 통과역 승하차 오판 수정
+- 구조화 오류 로그 및 선택형 PostgreSQL 영구 저장 추가
+- 로컬/배포 ETA 엔진 단일화
 
 ## V13.4.2
 - 빠른 환승 위치 재조사 및 누락 directional pair 보완
