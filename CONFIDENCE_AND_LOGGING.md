@@ -1,4 +1,4 @@
-# 예측 신뢰도와 오류 로그 — V13.4.3
+# 예측 신뢰도와 오류 로그 — V13.4.4
 
 ## 1. 신뢰도 판정 기준
 
@@ -120,3 +120,8 @@ WHERE event_type = 'low_confidence_route'
 GROUP BY 1
 ORDER BY 1 DESC;
 ```
+
+
+## 시간표 무결성 로그
+
+V13.4.4부터 서버 시작 시 원본 시간표의 `call/service` 값이 구조 기반 통과역 규칙과 일치하는지 검사합니다. 불일치가 있으면 `timetable_integrity_error` 이벤트로 구조화 로그를 기록하며 `/api/health`의 `timetable_integrity`에서도 확인할 수 있습니다.

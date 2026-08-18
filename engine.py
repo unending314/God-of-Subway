@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.3.0 — 1~9호선 다중 환승 ETA
+지금타 V13.4.4.0 — 1~9호선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -138,6 +138,34 @@ def norm_train(v):
 
 def train_digits(v):
     return re.sub(r"\D", "", norm_train(v)).lstrip("0") or "0"
+
+
+def _derive_s1_passenger_stations():
+    """
+    1호선 원본 역목록에는 여객역이 아닌 운전상 지점(현재 데이터의 '마전')도 섞여 있다.
+    전체 평/휴일 DIA에서 한 번도 도착시각이 없고 시종착역으로도 쓰이지 않는 지점은
+    승하차 대상에서 제외한다. 나머지 역만 통과/정차 판정에 사용한다.
+    """
+    arrived = set()
+    terminal = set()
+    seen = set()
+    for trains in S1.values():
+        for tr in trains.values():
+            stops = tr.get("stops", [])
+            for index, stop in enumerate(stops):
+                station = canon_station(stop.get("station"))
+                if not station:
+                    continue
+                seen.add(station)
+                if stop.get("arr") is not None:
+                    arrived.add(station)
+                if index in (0, len(stops) - 1):
+                    terminal.add(station)
+    operational_only = seen - arrived - terminal
+    return {canon_station(station) for station in S1_STATIONS} - operational_only
+
+
+S1_PASSENGER_STATIONS = _derive_s1_passenger_stations()
 
 def parse_dt(v):
     if not v:
@@ -334,28 +362,61 @@ def choose_modes(mode):
 
 
 # ---------- Normalize timetable structures into one common model ----------
-def _normalized_stop_call(service, stop, index, total_stops):
-    """
-    승하차 가능 여부를 정규화한다.
+def _is_internal_pass_time(stop, index, total_stops):
+    """중간역에서 도착시각 없이 통과시각만 기록된 DIA 행인지 판정한다."""
+    return (
+        0 < index < total_stops - 1
+        and stop.get("arr") is None
+        and stop.get("dep") is not None
+    )
 
-    1호선 K19xx처럼 원본 DIA가 통과역에도 call=true를 남긴 경우가 있다.
-    급행/직통의 중간역에서 arr=None, dep=통과시각이면 정차가 아니라 통과로 본다.
-    시발역은 arr=None이 정상일 수 있으므로 첫 역에는 이 보정을 적용하지 않는다.
+
+def _normalized_stop_call(stop, index, total_stops, passenger_stations=None):
     """
-    raw_call = bool(stop.get("call", True))
-    if not raw_call:
+    승하차 가능 여부를 시간표 구조 자체로 정규화한다.
+
+    - 원본 call=false는 항상 유지한다.
+    - passenger_stations가 주어진 노선에서 여객역 목록에 없는 운전상 지점은 승하차 불가다.
+    - 중간 여객역의 arr=None + dep=통과시각은 service/열차번호와 무관하게 통과로 본다.
+      시발역은 arr=None이 정상일 수 있으므로 첫 역에는 이 보정을 적용하지 않는다.
+
+    이 규칙으로 특정 열차번호(K19xx/K57xx/K64xx...) 하드코딩에 의존하지 않는다.
+    """
+    if not bool(stop.get("call", True)):
         return False
-    is_internal = 0 < index < total_stops - 1
-    is_pass_time = stop.get("arr") is None and stop.get("dep") is not None
-    if service == "express" and is_internal and is_pass_time:
+    station = canon_station(stop.get("station"))
+    if passenger_stations is not None and station not in passenger_stations:
+        return False
+    if _is_internal_pass_time(stop, index, total_stops):
         return False
     return True
 
+
+def _normalized_service(raw_service, stops, passenger_stations=None, force_express=False):
+    """여객역 스킵이 존재하면 원본 표기가 local이어도 급행으로 분류한다."""
+    if force_express or str(raw_service or "local").lower() == "express":
+        return "express"
+    total = len(stops)
+    for index, stop in enumerate(stops):
+        station = canon_station(stop.get("station"))
+        if passenger_stations is not None and station not in passenger_stations:
+            continue
+        if _is_internal_pass_time(stop, index, total):
+            return "express"
+    return "local"
+
+
 def normalize_s1_train(tn, tr):
     normalized_tn = norm_train(tn)
-    # 사용자 제공 규칙: 1호선 K19xx 열번은 전부 급행.
-    service = "express" if re.fullmatch(r"K19\d{2}", normalized_tn) else tr.get("service", "local")
     raw_stops = tr.get("stops", [])
+    # K19xx는 기존 사용자 제공 규칙을 fallback으로 보존하되,
+    # 실제 승하차 판정은 아래의 구조 기반 규칙으로 수행한다.
+    service = _normalized_service(
+        tr.get("service", "local"),
+        raw_stops,
+        passenger_stations=S1_PASSENGER_STATIONS,
+        force_express=bool(re.fullmatch(r"K19\d{2}", normalized_tn)),
+    )
     return {
         "train_no": tn,
         "direction": tr.get("direction", ""),
@@ -366,24 +427,45 @@ def normalize_s1_train(tn, tr):
             "station": canon_station(stop.get("station")),
             "arr": stop.get("arr"),
             "dep": stop.get("dep"),
-            "call": _normalized_stop_call(service, stop, index, len(raw_stops)),
+            "call": _normalized_stop_call(
+                stop,
+                index,
+                len(raw_stops),
+                passenger_stations=S1_PASSENGER_STATIONS,
+            ),
         } for index, stop in enumerate(raw_stops)],
     }
 
-def normalize_extra_train(tn, tr):
+
+def normalize_extra_train(line, tn, tr):
+    raw_stops = tr.get("stops", [])
+    passenger_stations = {
+        canon_station(station)
+        for station in EXTRA.get(line, {}).get("stations", [])
+    }
+    service = _normalized_service(
+        tr.get("service", "local"),
+        raw_stops,
+        passenger_stations=passenger_stations,
+    )
     return {
         "train_no": tn,
         "direction": tr.get("direction", ""),
-        "service": tr.get("service", "local"),
+        "service": service,
         "start": canon_station(tr.get("start", "")),
         "dest": canon_station(tr.get("dest", "")),
         "linked_train_no": norm_train(tr.get("linked_train_no", "")),
         "stops": [{
-            "station": canon_station(s.get("station")),
-            "arr": s.get("arr"),
-            "dep": s.get("dep"),
-            "call": bool(s.get("call", True)),
-        } for s in tr.get("stops", [])],
+            "station": canon_station(stop.get("station")),
+            "arr": stop.get("arr"),
+            "dep": stop.get("dep"),
+            "call": _normalized_stop_call(
+                stop,
+                index,
+                len(raw_stops),
+                passenger_stations=passenger_stations,
+            ),
+        } for index, stop in enumerate(raw_stops)],
     }
 
 
@@ -457,20 +539,20 @@ def get_train(line, mode, raw_train_no):
 
         # 1) actual train number in the timetable always wins.
         if n in trains:
-            return normalize_extra_train(n, trains[n])
+            return normalize_extra_train(line, n, trains[n])
 
         # 2) digit-only fallback for API formatting differences.
         c = EXTRA_NUM.get((line, korail_day), {}).get(digits, [])
         if len(c) == 1:
-            return normalize_extra_train(c[0], trains[c[0]])
+            return normalize_extra_train(line, c[0], trains[c[0]])
 
         # 3) DIA '연계열번' fallback. Only used if no actual train number matched.
         c = EXTRA_ALIAS.get((line, korail_day), {}).get(n, [])
         if len(c) == 1:
-            return normalize_extra_train(c[0], trains[c[0]])
+            return normalize_extra_train(line, c[0], trains[c[0]])
         c = EXTRA_ALIAS_NUM.get((line, korail_day), {}).get(digits, [])
         if len(c) == 1:
-            return normalize_extra_train(c[0], trains[c[0]])
+            return normalize_extra_train(line, c[0], trains[c[0]])
         return None
 
     num = LINE_NUM[line]
@@ -491,7 +573,7 @@ def all_trains(line, mode):
         return tuple(normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items())
     if line in EXTRA_LINES:
         return tuple(
-            normalize_extra_train(tn, tr)
+            normalize_extra_train(line, tn, tr)
             for tn, tr in EXTRA[line]["trains"][korail_day].items()
         )
     num = LINE_NUM[line]
@@ -736,7 +818,8 @@ def active_train_no_for_virtual(tr, ref_dt, delay=0):
     return tr.get("continuation_train_no") if ref_dt >= switch_dt else tr.get("train_no", "")
 
 def station_options():
-    s1 = sorted({canon_station(x) for x in S1_STATIONS})
+    # 운전상 지점은 UI 출발/도착역 후보에서도 제외한다.
+    s1 = sorted(S1_PASSENGER_STATIONS)
     out = {"1호선": s1}
     for i in range(2, 10):
         num = str(i)
@@ -747,6 +830,61 @@ def station_options():
 
 
 STATIONS_BY_LINE = station_options()
+
+
+def timetable_integrity_report():
+    """로드된 원본 시간표가 구조 기반 승하차 규칙과 일치하는지 요약한다."""
+    issues = []
+
+    def inspect(line, day, trains, passenger_stations, force_express_pattern=None):
+        for train_no, tr in trains.items():
+            raw_service = str(tr.get("service", "local")).lower()
+            stops = tr.get("stops", [])
+            skipped_passenger = []
+            for index, stop in enumerate(stops):
+                station = canon_station(stop.get("station"))
+                raw_call = bool(stop.get("call", True))
+                if station not in passenger_stations:
+                    if raw_call:
+                        issues.append({
+                            "line": line, "day": day, "train_no": train_no,
+                            "kind": "operational_point_callable", "station": station,
+                        })
+                    continue
+                if _is_internal_pass_time(stop, index, len(stops)):
+                    skipped_passenger.append(station)
+                    if raw_call:
+                        issues.append({
+                            "line": line, "day": day, "train_no": train_no,
+                            "kind": "passenger_pass_callable", "station": station,
+                        })
+            force_express = bool(force_express_pattern and re.fullmatch(force_express_pattern, norm_train(train_no)))
+            if (skipped_passenger or force_express) and raw_service != "express":
+                issues.append({
+                    "line": line, "day": day, "train_no": train_no,
+                    "kind": "express_mislabeled_local",
+                    "skipped_station_count": len(skipped_passenger),
+                })
+
+    for day, trains in S1.items():
+        inspect("1호선", day, trains, S1_PASSENGER_STATIONS, r"K19\d{2}")
+    for line in EXTRA_LINES:
+        passenger = {canon_station(x) for x in EXTRA[line].get("stations", [])}
+        for day, trains in EXTRA[line].get("trains", {}).items():
+            inspect(line, day, trains, passenger)
+
+    by_kind = defaultdict(int)
+    by_line = defaultdict(int)
+    for issue in issues:
+        by_kind[issue["kind"]] += 1
+        by_line[issue["line"]] += 1
+    return {
+        "ok": not issues,
+        "issue_count": len(issues),
+        "by_kind": dict(sorted(by_kind.items())),
+        "by_line": dict(sorted(by_line.items())),
+        "examples": issues[:20],
+    }
 
 
 # ---------- Transfer data ----------

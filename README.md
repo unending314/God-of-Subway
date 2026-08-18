@@ -125,6 +125,10 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 [CHANGELOG.md](CHANGELOG.md) — V13.3.0부터는 [Releases](https://github.com/unending314/God-of-Subway/releases)에서 관리합니다.
 
 
+## V13.4.4
+
+급행 판정은 특정 열차번호에만 의존하지 않습니다. 코레일계 노선에서 중간 여객역의 `arr=null + dep=통과시각`을 구조적으로 통과역으로 판정하고, 해당 열차를 급행으로 분류합니다. 경의중앙선·수인분당선·1호선의 누락 급행을 함께 보정했습니다. 상세 내용은 `EXPRESS_NORMALIZATION_V13_4_4.md`와 `TIMETABLE_NORMALIZATION_AUDIT.json`을 참조하십시오.
+
 ## V13.4.3
 - 1호선 급행 통과역 승하차 오판 수정
 - 구조화 오류 로그 및 선택형 PostgreSQL 영구 저장 추가

@@ -11,13 +11,24 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.3.0-vercel"
+VERSION = "V13.4.4.0-vercel"
 
 app = FastAPI(
     title="지금타",
     docs_url=None,
     redoc_url=None,
 )
+
+TIMETABLE_INTEGRITY = engine.timetable_integrity_report()
+if not TIMETABLE_INTEGRITY.get("ok"):
+    observability.record_event(
+        event_type="timetable_integrity_error",
+        level="error",
+        endpoint="startup",
+        error_type="TimetableIntegrityError",
+        message=f"시간표 무결성 오류 {TIMETABLE_INTEGRITY.get('issue_count', 0)}건",
+        diagnostics=TIMETABLE_INTEGRITY,
+    )
 
 
 def _request_id(request: Request) -> str:
@@ -137,6 +148,8 @@ def health():
         },
         "api_key_configured": bool(engine.API_KEY),
         "persistent_error_log_configured": bool(os.environ.get("DATABASE_URL", "").strip()),
+        "timetable_integrity": TIMETABLE_INTEGRITY,
+        "route_graph_version": engine.ROUTE_GRAPH.get("meta", {}).get("version"),
     }
 
 
