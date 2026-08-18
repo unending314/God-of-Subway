@@ -214,6 +214,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .candidateRow{display:grid;grid-template-columns:auto 1fr auto auto;gap:7px;align-items:center;padding:8px 9px;border-radius:10px;background:#f7f9fb;border:1px solid #edf0f3}
 .candidateRow.selected{border-color:#b7cae8;background:#f3f7fd}
 .candidateTrain{font-size:9px;font-weight:900}
+.previousBadge{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:999px;background:#eef1f4;color:#66727e;font-size:7px;font-weight:900;vertical-align:1px}
 .candidateMeta{font-size:8px;color:#6e7984;line-height:1.35;min-width:0}
 .candidateMetaLine{display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;min-width:0}
 .metaSep{color:#a0a9b2}
@@ -528,6 +529,8 @@ let nextRefreshAt=0;
 const TRIP_KEY='jigeumta_live_trip_v2';
 const EXP_KEY='jigeumta_experiments_v1';
 const ACTIVE_EXP_KEY='jigeumta_active_experiment_v1';
+const TRAIN_DELAY_CACHE_KEY='jigeumta_train_delay_cache_v1';
+const TRAIN_DELAY_CACHE_TTL_MS=35*60*1000;
 let lastLiveResult=null;
 let fixedPlatformStart=null;
 let fixedSearchSegments=null;
@@ -1120,13 +1123,59 @@ async function getJson(u){
  try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
  if(!r.ok||!j.ok)throw new Error(j.error||'요청 실패');return j;
 }
+function loadTrainDelayCache(){
+ try{return JSON.parse(localStorage.getItem(TRAIN_DELAY_CACHE_KEY)||'{}')||{}}catch(e){return{}}
+}
+function trainDelayCachePayload(){
+ const now=Date.now(), cache=loadTrainDelayCache(), rows=[];
+ Object.entries(cache).forEach(([key,v])=>{
+  const t=parseLocalDT(v?.observed_at);
+  if(!t||now-t.getTime()>TRAIN_DELAY_CACHE_TTL_MS||t.getTime()-now>120000){delete cache[key];return}
+  rows.push(v);
+ });
+ try{localStorage.setItem(TRAIN_DELAY_CACHE_KEY,JSON.stringify(cache))}catch(e){}
+ rows.sort((a,b)=>String(b.observed_at||'').localeCompare(String(a.observed_at||'')));
+ return rows.slice(0,160);
+}
+function rememberTrainDelayResponse(result){
+ if(!result||typeof result!=='object')return;
+ const cache=loadTrainDelayCache();
+ function remember(c,parentLine=''){
+  if(!c||c.delay_source!=='live_exact'||!c.observed_at)return;
+  const line=String(c.line||parentLine||'');
+  const train=String(c.train_no||'');
+  if(!line||!train)return;
+  const key=`${line}|${train}`;
+  const previous=cache[key];
+  if(previous?.observed_at && String(previous.observed_at)>=String(c.observed_at))return;
+  cache[key]={
+   line,train_no:train,
+   delay_seconds:Number(c.delay_seconds)||0,
+   observed_at:String(c.observed_at),
+   current_station:String(c.current_station||''),
+   status:String(c.status||'')
+  };
+ }
+ (result.segments||[]).forEach(s=>{
+  remember(s,s.line);
+  (s.nearby_candidates||[]).forEach(c=>remember(c,s.line));
+ });
+ try{
+  const entries=Object.entries(cache).sort((a,b)=>String(b[1]?.observed_at||'').localeCompare(String(a[1]?.observed_at||''))).slice(0,180);
+  localStorage.setItem(TRAIN_DELAY_CACHE_KEY,JSON.stringify(Object.fromEntries(entries)));
+ }catch(e){}
+}
+
 async function postJson(u,o,timeoutMs=20000){
  const controller=new AbortController();
  const timer=setTimeout(()=>controller.abort(),timeoutMs);
  try{
-  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store',signal:controller.signal}),t=await r.text();let j;
+  const body=(o&&typeof o==='object')?{...o}:o;
+  if(body&&['/api/auto_route','/api/route','/api/trip_update'].includes(u))body.train_delay_cache=trainDelayCachePayload();
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',signal:controller.signal}),t=await r.text();let j;
   try{j=JSON.parse(t)}catch(e){throw new Error(`서버 응답 오류 (${r.status})`)}
   if(!r.ok||!j.ok){const er=new Error(j.error||'요청 실패');er.payload=j;throw er}
+  rememberTrainDelayResponse(j);
   return j;
  }catch(e){
   if(e?.name==='AbortError')throw new Error('조회가 20초를 초과했습니다. 잠시 후 다시 시도해 주세요.');
@@ -1162,7 +1211,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.3.1`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.2.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패'}
@@ -1227,7 +1276,7 @@ function candidateRows(s,routeIndex){
   const serviceFull=trainServiceText(c);
   const serviceCompact=c.service==='express'?'급행':'일반';
   return `<div class="candidateRow ${c.selected?'selected':''}">
-   <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}</span></div>
+   <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}${c.is_previous?'<span class="previousBadge">직전</span>':''}</span></div>
    <div class="candidateMeta">
     <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${fmtDelay(c.delay_seconds)}</span><span class="metaSep">·</span>${source}</div>
     ${trainLocationHtml(c)}

@@ -117,3 +117,11 @@ Vercel에 배포되어 있습니다. `server.py`의 FastAPI 앱이 Python Functi
 ## 변경 기록
 
 [CHANGELOG.md](CHANGELOG.md) — V13.3.0부터는 [Releases](https://github.com/unending314/God-of-Subway/releases)에서 관리합니다.
+
+
+## V13.4.2
+- 빠른 환승 위치 재조사 및 누락 directional pair 보완
+- 사용자 제공 `환승시간 추가.xlsx` 시간값 반영
+- `제자리 환승`/공용승강장 0초 처리 지원
+- Python의 falsy `0` 때문에 240초 fallback으로 바뀌던 transfer 로직 수정
+- 팀원 GA 퍼널 이벤트 유지
