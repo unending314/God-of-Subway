@@ -1,0 +1,72 @@
+{
+  "source_file": "신분당선 시간표.xlsx",
+  "source_sha256": "759e2b3ead7441f7aae38436e473b8194d7a91e642c40ee35198c74ce30d8bc6",
+  "sheets": {
+    "평일 상행": {
+      "raw_train_columns": 174,
+      "unique_trains": 163,
+      "repeated_boundary_train_numbers": 11,
+      "duplicate_occurrences": 11,
+      "substantive_duplicate_mismatches": 0
+    },
+    "평일 하행": {
+      "raw_train_columns": 174,
+      "unique_trains": 163,
+      "repeated_boundary_train_numbers": 11,
+      "duplicate_occurrences": 11,
+      "substantive_duplicate_mismatches": 0
+    },
+    "주말 상행": {
+      "raw_train_columns": 145,
+      "unique_trains": 136,
+      "repeated_boundary_train_numbers": 9,
+      "duplicate_occurrences": 9,
+      "substantive_duplicate_mismatches": 0
+    },
+    "주말 하행": {
+      "raw_train_columns": 145,
+      "unique_trains": 136,
+      "repeated_boundary_train_numbers": 9,
+      "duplicate_occurrences": 9,
+      "substantive_duplicate_mismatches": 0
+    }
+  },
+  "passenger_stations": [
+    "신사",
+    "논현",
+    "신논현",
+    "강남",
+    "양재",
+    "양재시민의숲",
+    "청계산입구",
+    "판교",
+    "정자",
+    "미금",
+    "동천",
+    "수지구청",
+    "성복",
+    "상현",
+    "광교중앙",
+    "광교"
+  ],
+  "operational_points": [
+    "광교기지",
+    "분당연결선분기",
+    "판교주박기지"
+  ],
+  "normalization_issues": [],
+  "normalized_counts": {
+    "weekday": {
+      "UP": 163,
+      "DOWN": 163,
+      "total": 326
+    },
+    "weekend": {
+      "UP": 136,
+      "DOWN": 136,
+      "total": 272
+    }
+  },
+  "weekend_profile_shared_for_sat_and_sun": true,
+  "normalization_issue_count": 0
+}

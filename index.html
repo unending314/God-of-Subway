@@ -99,6 +99,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .segment[data-line="경강선"] .lineMark{background:#0054A6}
 .segment[data-line="서해선"] .lineMark{background:#8FC31F}
 .segment[data-line="공항철도"] .lineMark{background:#0090D2}
+.segment[data-line="신분당선"] .lineMark{background:#D4003B}
 .addBtn{width:100%;border:1px dashed #bcc6d0;background:#fff;border-radius:11px;padding:10px;font-size:10px;font-weight:850;color:#52606d;cursor:pointer}
 .primary{width:100%;border:0;border-radius:12px;padding:13px 14px;background:var(--navy);color:white;font-weight:900;cursor:pointer;margin-top:9px}
 .primary:hover{filter:brightness(1.08)}
@@ -128,6 +129,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .lineBadge[data-line="경강선"]{background:#0054A6}
 .lineBadge[data-line="서해선"]{background:#8FC31F}
 .lineBadge[data-line="공항철도"]{background:#0090D2}
+.lineBadge[data-line="신분당선"]{background:#D4003B}
 .leg h4{font-size:12px;margin:0}.leg .meta{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.45}.clock{text-align:right;font-size:11px;font-weight:900}
 .details{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}.detail{background:#f6f8fa;border-radius:10px;padding:8px}.detail span{display:block;font-size:7px;color:var(--muted)}.detail b{display:block;font-size:10px;margin-top:3px}
 .transfer{text-align:center;color:#6a7580;font-size:9px;padding:1px 0}
@@ -517,7 +519,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 let lines=[
  ...Array.from({length:9},(_,i)=>`${i+1}호선`),
  '경의중앙선','수인분당선',
- '경춘선','경강선','서해선','공항철도'
+ '경춘선','경강선','서해선','공항철도','신분당선'
 ];
 const FAV_KEY='jigeumta_favorites_v1';
 let stations={},segId=0;
@@ -794,6 +796,7 @@ function refreshDatalist(seg){
   line==='경강선' ? '경강' :
   line==='서해선' ? '서해' :
   line==='공항철도' ? '공철' :
+  line==='신분당선' ? '신분당' :
   line.replace('호선','');
  seg.querySelector('.lineMark').textContent=shortLabel;
  // 노선을 바꿔도 입력 전에는 역 목록을 표시하지 않는다.
@@ -1242,13 +1245,13 @@ async function init(){
   const serverLines=Object.keys(stations||{});
   const preferred=[
    ...Array.from({length:9},(_,i)=>`${i+1}호선`),
-   '경의중앙선','수인분당선','경춘선','경강선','서해선','공항철도'
+   '경의중앙선','수인분당선','경춘선','경강선','서해선','공항철도','신분당선'
   ];
   lines=[
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.5.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.7.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}

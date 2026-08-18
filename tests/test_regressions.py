@@ -176,6 +176,119 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
         self.assertNotIn("수색직결선", engine.STATIONS_BY_LINE["공항철도"])
 
 
+class ShinbundangTimetableRegressionTest(unittest.TestCase):
+    def test_imported_train_counts_and_station_options(self):
+        self.assertEqual(len(engine.SINBUNDANG["trains"]["weekday"]), 326)
+        self.assertEqual(len(engine.SINBUNDANG["trains"]["holiday"]), 272)
+        self.assertEqual(len(engine.STATIONS_BY_LINE["신분당선"]), 16)
+        for operational in ("광교기지", "분당연결선분기", "판교주박기지"):
+            self.assertNotIn(operational, engine.STATIONS_BY_LINE["신분당선"])
+
+    def test_weekday_first_down_train_matches_uploaded_timetable(self):
+        tr = engine.get_train("신분당선", "DAY", "DX9003")
+        self.assertIsNotNone(tr)
+        self.assertEqual(tr["start"], "신사")
+        self.assertEqual(tr["dest"], "광교")
+        by_station = {s["station"]: s for s in tr["stops"]}
+        self.assertEqual(by_station["신사"]["dep"], 5 * 3600 + 30 * 60)
+        self.assertEqual(by_station["강남"]["arr"], 20066)
+        self.assertTrue(by_station["정자"]["call"])
+
+    def test_weekend_sat_and_end_use_same_uploaded_profile(self):
+        sat = engine.get_train("신분당선", "SAT", "DX0601")
+        end = engine.get_train("신분당선", "END", "DX0601")
+        self.assertEqual(sat, end)
+        self.assertEqual(sat["stops"][0]["station"], "신사")
+
+    def test_sinbundang_realtime_line_id_and_prefetch(self):
+        self.assertEqual(engine.LINE_IDS.get("신분당선"), "1077")
+        self.assertNotIn("신분당선", engine.SCHEDULE_ONLY_LINES)
+
+        sample_row = {
+            "subwayId": "1077",
+            "subwayNm": "신분당선",
+            "statnNm": "강남",
+            # API가 DX 접두사 없이 숫자 열번을 주더라도 digit fallback으로 매칭되어야 한다.
+            "trainNo": "9003",
+            "recptnDt": "2026-08-19 05:34:26",
+            "trainSttus": "1",
+            "updnLine": "1",
+            "statnTnm": "광교",
+        }
+        original = engine.fetch_position
+        calls = []
+        def fake_fetch(line, timeout=5):
+            calls.append((line, timeout))
+            return True, None, {"realtimePositionList": [sample_row]}
+        engine.fetch_position = fake_fetch
+        try:
+            cache = engine.prefetch_position_cache(["신분당선"], timeout=1)
+            self.assertEqual(calls, [("신분당선", 1)])
+            self.assertTrue(cache["신분당선"]["available"])
+            self.assertEqual(cache["신분당선"]["rows"], [sample_row])
+            observations, diag = engine.observe_delays("신분당선", "DAY", cache["신분당선"]["rows"], [])
+            self.assertEqual(diag["matched"], 1, diag)
+            self.assertEqual(observations[0]["train_no"], "DX9003")
+            self.assertEqual(observations[0]["source_kind"], "live")
+        finally:
+            engine.fetch_position = original
+
+    def test_sinbundang_wrong_subway_id_is_filtered(self):
+        data = {"realtimePositionList": [
+            {"subwayId": "1077", "trainNo": "9003"},
+            {"subwayId": "1002", "trainNo": "2001"},
+            {"trainNo": "legacy-without-id"},
+        ]}
+        rows = engine.position_rows(data, "신분당선")
+        self.assertEqual([x.get("trainNo") for x in rows], ["9003", "legacy-without-id"])
+
+    def test_sinbundang_live_exact_promotes_confidence_high(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 34, 30)
+        try:
+            row = {
+                "subwayId": "1077", "subwayNm": "신분당선",
+                "statnNm": "강남", "trainNo": "9003",
+                "recptnDt": "2026-08-19 05:34:26", "trainSttus": "1",
+                "updnLine": "1", "statnTnm": "광교",
+            }
+            cache = {"신분당선": {"rows": [row], "error": "", "available": True}}
+            result = engine.calculate_segment(
+                "신분당선", "DAY", "신사", "강남",
+                datetime(2026, 8, 19, 5, 29, 0), cache
+            )
+            self.assertTrue(result.get("ok"), result)
+            self.assertEqual(result["chosen"]["train_no"], "DX9003")
+            self.assertEqual(result["chosen"]["delay_source"], "live_exact")
+            self.assertEqual(result["chosen"]["confidence"], "높음")
+            self.assertEqual(result["diagnostics"]["matched"], 1)
+        finally:
+            engine.now_kst = original_now
+
+
+    def test_after_midnight_auto_uses_previous_weekday_service_day(self):
+        result = engine.calculate_route({
+            "start_time": "2026-08-20 00:10:00",
+            "day": "AUTO",
+            "segments": [{"line": "신분당선", "from": "신사", "to": "강남", "transfer_walk": 0}],
+        }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(result.get("service_mode"), "DAY")
+        self.assertEqual(result["segments"][0]["train_no"], "DX9325")
+        self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
+
+    def test_route_graph_contains_shinbundang_and_auto_transfer(self):
+        edges = [row for row in engine.ROUTE_GRAPH["modes"]["DAY"] if row[0] == "신분당선"]
+        self.assertTrue(edges)
+        self.assertIn(("신분당선", "신사", "논현"), {(l, a, b) for l, a, b, _ in edges})
+        path = engine.auto_find_path("광교", "역삼", "DAY")
+        self.assertTrue(path)
+        lines_in_path = {edge[0][0] for edge in path["edges"]} | {edge[1][0] for edge in path["edges"]}
+        self.assertIn("신분당선", lines_in_path)
+        self.assertIn("2호선", lines_in_path)
+
+
+
 class PreviousTrainRegressionTest(unittest.TestCase):
     def test_gyeongui_previous_train_survives_headway_over_10_minutes(self):
         ready = datetime(2026, 8, 18, 20, 46, 0)

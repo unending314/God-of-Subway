@@ -11,7 +11,7 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.5.0-vercel"
+VERSION = "V13.4.7.0-vercel"
 
 app = FastAPI(
     title="지금타",
@@ -139,6 +139,11 @@ def health():
         "gyeongui_holiday_trains": len(engine.EXTRA["경의중앙선"]["trains"]["holiday"]),
         "suin_weekday_trains": len(engine.EXTRA["수인분당선"]["trains"]["weekday"]),
         "suin_holiday_trains": len(engine.EXTRA["수인분당선"]["trains"]["holiday"]),
+        "sinbundang_weekday_trains": len(engine.SINBUNDANG["trains"]["weekday"]),
+        "sinbundang_weekend_trains": len(engine.SINBUNDANG["trains"]["holiday"]),
+        "sinbundang_source_sha256": engine.SINBUNDANG.get("meta", {}).get("source_sha256", ""),
+        "schedule_only_lines": sorted(engine.SCHEDULE_ONLY_LINES),
+        "realtime_line_ids": dict(engine.LINE_IDS),
         "extra_lines": {
             line: {
                 "weekday_trains": len(engine.EXTRA[line]["trains"]["weekday"]),

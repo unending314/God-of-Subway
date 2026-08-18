@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""코레일계 시간표 정규화 결과를 route_graph.json에 반영한다.
+"""시간표 기반 외부노선(1호선·코레일계·신분당선) 정규화 결과를 route_graph.json에 반영한다.
 
-2~9호선 그래프는 이 작업의 범위가 아니므로 기존 값을 그대로 보존한다.
+2~9호선 그래프는 기존 값을 보존하고, engine.EXTRA_LINES에 포함된 노선을 재생성한다.
 """
 import json
 import sys
@@ -44,9 +44,9 @@ def main():
     old = json.loads(path.read_text(encoding="utf-8"))
     meta = dict(old.get("meta", {}))
     meta.update({
-        "version": "V13.4.4",
+        "version": "V13.4.7",
         "weight": "minimum scheduled running time between consecutive callable passenger stops",
-        "normalization": "Korail passenger-stop structural inference; internal arr=null+dep=time is non-callable",
+        "normalization": "Passenger-stop structural inference; operational points are non-callable; includes Shinbundang user-provided Rail.Blue timetable",
     })
     modes = {}
     for mode in ("DAY", "SAT", "END"):

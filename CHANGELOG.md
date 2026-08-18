@@ -1,3 +1,20 @@
+# V13.4.7 — 신분당선 realtimePosition 연동
+
+- 신분당선 서울시 실시간 열차 위치 API 지원 (`subwayId=1077`)
+- `subwayNm=신분당선` 요청 + 응답 `subwayId=1077` 검증
+- Rail.Blue `DX####` 열번과 API 숫자 열번 digit fallback 매칭
+- 신분당선 exact/live median/schedule-only 신뢰도 승강 및 최근 지연 캐시 지원
+
+# V13.4.6 — 신분당선 시간표 추가
+
+- 사용자 제공 `신분당선 시간표.xlsx`의 4개 시트(평일 상/하, 주말 상/하)를 `sinbundang_schedule.json`으로 정규화
+- Rail.Blue 좌우 화면 복사 과정의 중복 열차 열 제거: 평일 326편, 주말 272편
+- 운전상 지점 `광교기지`, `분당연결선분기`, `판교주박기지`를 non-callable로 유지
+- 주말 시각표를 토요일(SAT)·일요일/공휴일(END)에 동일 적용
+- 신분당선을 schedule-only 노선으로 추가하여 realtimePosition API를 호출하지 않고 공식 시간표 ETA 사용
+- 신분당선 역 16개를 UI 및 자동 경로 탐색에 추가하고 route_graph 재생성
+- 신분당선 단독/환승/주말/실시간 API 미호출 회귀 테스트 추가; 전체 21개 테스트 통과
+
 # V13.4.5 — 직전 열차 탐색 누락 수정
 
 - 직전 열차 탐색의 고정 10분 제한 제거: 경의중앙선 등 장배차 노선에서도 실제 바로 앞 열차를 반환

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.5.0 — 1~9호선 다중 환승 ETA
+지금타 V13.4.7.0 — 1~9호선 + 신분당선 다중 환승 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
-  모든 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
+  신분당선: 사용자 제공 Rail.Blue 시각표 + 서울시 realtimePosition(subwayId 1077)
+  모든 실시간 지원 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
 """
 import json, os, re, urllib.request, urllib.parse, time, statistics, heapq
 from functools import lru_cache
@@ -40,20 +41,24 @@ S1 = {
 S1_STATIONS = load_json("stations.json")
 OFF = load_json("official_2to9_schedule.json")
 EXTRA = load_json("korail_extra_lines_schedule.json")
+SINBUNDANG = load_json("sinbundang_schedule.json")
+# 엔진의 기존 EXTRA 정규화/탐색 파이프라인을 재사용한다.
+EXTRA["신분당선"] = {"stations": SINBUNDANG["stations"], "trains": SINBUNDANG["trains"]}
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
 ROUTE_GRAPH = load_json("route_graph.json")
 TRANSFER_DATA = load_json("transfer_data.json")
-EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도")
+EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도", "신분당선")
+SCHEDULE_ONLY_LINES = set()
 
 LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
 LINE_NUM = {f"{i}호선": str(i) for i in range(1, 10)}
 LINE_IDS = {f"{i}호선": f"100{i}" for i in range(1, 10)}
-LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075", "경춘선": "1067", "경강선": "1081", "서해선": "1093", "공항철도": "1065"})
+LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075", "경춘선": "1067", "경강선": "1081", "서해선": "1093", "공항철도": "1065", "신분당선": "1077"})
 
 # API 수신 간격이 긴 코레일 계열에서, 한 번 확인된 열차 지연이
 # 다음 조회에서 열차 미포착만으로 0분으로 리셋되는 것을 막는다.
 # 브라우저가 최근 exact-train 관측을 전달하면 최대 35분까지만 보조 신호로 사용한다.
-STALE_DELAY_CACHE_LINES = {"1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선"}
+STALE_DELAY_CACHE_LINES = {"1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "신분당선"}
 STALE_DELAY_HOLD_SECONDS = 20 * 60
 STALE_DELAY_MAX_SECONDS = 35 * 60
 
@@ -1559,7 +1564,7 @@ def fetch_position(line, timeout=5):
     q = urllib.parse.quote(line, safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.4.2.0/1.0",
+        "User-Agent": "JigeumTa-V13.4.7.0/1.0",
         "Accept": "application/json",
     })
     try:
@@ -1572,8 +1577,26 @@ def fetch_position(line, timeout=5):
     except Exception as e:
         return False, {"message": f"{type(e).__name__}: {e}"}, None
 
-def position_rows(data):
-    return data.get("realtimePositionList", []) if isinstance(data, dict) else []
+def position_rows(data, line=None):
+    """
+    realtimePosition 응답 행을 반환한다.
+
+    서울시 API 요청 인자는 subwayNm(호선명)이지만 응답에는 subwayId가 함께 온다.
+    신분당선은 subwayId=1077이며, LINE_IDS에 등록된 노선은 응답 ID가 명시된 경우
+    해당 ID와 일치하는 행만 사용해 잘못된 노선 응답이 ETA에 섞이지 않게 한다.
+    테스트/과거 캐시처럼 subwayId가 없는 행은 호환성을 위해 유지한다.
+    """
+    rows = data.get("realtimePositionList", []) if isinstance(data, dict) else []
+    if not line:
+        return rows
+    expected = LINE_IDS.get(line)
+    if not expected:
+        return rows
+    return [
+        row for row in rows
+        if not str(row.get("subwayId") or "").strip()
+        or str(row.get("subwayId") or "").strip() == expected
+    ]
 
 def prefetch_position_cache(lines, timeout=5):
     """여러 노선 realtimePosition을 병렬 조회. 한 노선 장애가 전체 요청을 직렬로 지연시키지 않는다."""
@@ -1583,10 +1606,16 @@ def prefetch_position_cache(lines, timeout=5):
     cache = {}
     workers = min(6, len(unique))
     def one(line):
+        if line in SCHEDULE_ONLY_LINES:
+            return line, {
+                "rows": [],
+                "error": "실시간 위치 API 미연동 · 공식 시간표만 사용",
+                "available": False,
+            }
         try:
             ok, err, data = fetch_position(line, timeout=timeout)
             if ok:
-                return line, {"rows": position_rows(data), "error": "", "available": True}
+                return line, {"rows": position_rows(data, line), "error": "", "available": True}
             message = (err or {}).get("message", err) if isinstance(err, dict) else err
             return line, {"rows": [], "error": str(message or "실시간 위치 조회 실패"), "available": False}
         except Exception as e:
@@ -1602,12 +1631,23 @@ def cached_position_rows(line, position_cache):
     """
     realtimePosition 장애가 전체 경로 계산 실패로 이어지지 않도록 한다.
     실패 시 빈 관측값을 반환하여 공식 시간표 기반 계산으로 자동 강등한다.
+    SCHEDULE_ONLY_LINES로 명시된 노선만 네트워크 호출 없이 schedule-only로 처리한다.
     """
+    if line in SCHEDULE_ONLY_LINES:
+        if line not in position_cache:
+            position_cache[line] = {
+                "rows": [],
+                "error": "실시간 위치 API 미연동 · 공식 시간표만 사용",
+                "available": False,
+            }
+        cached = position_cache[line]
+        return cached.get("rows", []), cached.get("error", ""), False
+
     if line not in position_cache:
         ok, err, data = fetch_position(line)
         if ok:
             position_cache[line] = {
-                "rows": position_rows(data),
+                "rows": position_rows(data, line),
                 "error": "",
                 "available": True,
             }
@@ -2346,7 +2386,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             "method": (
                 "최근 실시간 지연 캐시로 추적 유지" if delay_source == "cached_exact" else
                 (("연속운행 열차 잠금 · 실시간 위치 재포착 대기" if tr.get("physical_continuation") else "탑승 열차 잠금 · 실시간 위치 재포착 대기")
-                 if realtime_available else "공식 시간표 기반 임시 추적 · 실시간 위치 조회 실패")
+                 if realtime_available else ("공식 시간표 기반 추적 · 실시간 위치 API 미연동" if line in SCHEDULE_ONLY_LINES else "공식 시간표 기반 임시 추적 · 실시간 위치 조회 실패"))
             ),
             "projected": True, "tracking": True, "arrived": False,
             "status": expected_location.get("status", "위치 재포착 대기"),
