@@ -141,6 +141,14 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - Python의 falsy `0` 때문에 240초 fallback으로 바뀌던 transfer 로직 수정
 - 팀원 GA 퍼널 이벤트 유지
 
+## V13.4.10
+
+- 수도권 빠른 환승 위치를 방향 조합별 reusable master(`transfer_position_master.json/csv`)로 분리해 향후 노선 추가에 재사용할 수 있게 했다.
+- 신분당선 8개 환승역의 양방향 pair를 앱 DB에 추가했다. 확정되지 않은 방향 위치는 임의 추정하지 않고 `needs_verification`으로 둔다.
+- 신논현 신분당선 광교 방면→9호선은 사용자 원문 확인값 **6-3**을 사용한다.
+- `call=false` 운전상 지점은 환승 방향 판단에서 제외한다.
+- 상세 수집/충돌/우선순위는 `TRANSFER_POSITION_MASTER_V13_4_10.md` 참조.
+
 ## V13.4.9
 
 - 신분당선은 `realtimePosition.trainNo`를 Rail.Blue DX 열번과 동일시하지 않습니다.

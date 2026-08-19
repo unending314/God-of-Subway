@@ -1,0 +1,25 @@
+{
+  "generated_at_kst": "2026-08-19T11:06:14+09:00",
+  "conflicts": [
+    {
+      "station": "신논현",
+      "from_line": "신분당선",
+      "from_direction": "광교 방면 / key=강남",
+      "to_line": "9호선",
+      "user_value": "6-3",
+      "mirror_value": "6-4",
+      "adopted": "6-3",
+      "reason": "user_direct_verification takes precedence"
+    },
+    {
+      "station": "양재",
+      "from_line": "3호선",
+      "from_direction": "대화 방면 / key=남부터미널",
+      "to_line": "신분당선",
+      "newer_station_value": "5-4",
+      "line_page_value": "5-3",
+      "adopted": "5-4",
+      "reason": "newer individual station page takes precedence"
+    }
+  ]
+}

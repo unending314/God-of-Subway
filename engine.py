@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.9.0 — 신분당선 역 도착예정 기반 ETA + 실시간 API 진단
+지금타 V13.4.10.0 — 신분당선 역 도착예정 기반 ETA + 실시간 API 진단
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -962,6 +962,10 @@ def _direction_station(line, mode, start, end):
         _, ei = pair
         stops = tr.get("stops", [])
         for j in range(ei + 1, len(stops)):
+            # 운전상 지점/비여객 통과점(call=false)은 환승 방향 힌트가 아니다.
+            # 예: 신분당선 판교주박기지. 실제 다음 여객 정차역까지 진행한다.
+            if not bool(stops[j].get("call", True)):
+                continue
             st = canon_station(stops[j].get("station"))
             if st and st != end:
                 return st
@@ -977,6 +981,9 @@ def _outgoing_direction_station(line, mode, start, end):
         si, _ = pair
         stops = tr.get("stops", [])
         for j in range(si + 1, len(stops)):
+            # 운전상 지점/비여객 통과점은 승객이 인식하는 운행방향이 아니므로 건너뛴다.
+            if not bool(stops[j].get("call", True)):
+                continue
             st = canon_station(stops[j].get("station"))
             if st and st != start:
                 return st
@@ -1588,7 +1595,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V13.4.9.0/1.0",
+            "User-Agent": "JigeumTa-V13.4.10.0/1.0",
             "Accept": "application/json",
         })
         try:
@@ -1619,7 +1626,7 @@ def fetch_station_arrival(station, timeout=5):
     q = urllib.parse.quote(canon_station(station), safe="")
     url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimeStationArrival/0/100/{q}"
     req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.4.9.0/1.0",
+        "User-Agent": "JigeumTa-V13.4.10.0/1.0",
         "Accept": "application/json",
     })
     try:

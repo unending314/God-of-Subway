@@ -1,3 +1,12 @@
+# V13.4.10 — 수도권 빠른 환승 위치 마스터 + 신분당선 환승 위치
+
+- 신분당선 8개 환승역(신사·논현·신논현·강남·양재·정자·미금·판교)에 양방향/방면별 환승 pair 16개, directional record 64개를 추가했다.
+- 신논현 `신분당선 광교 방면 → 9호선`은 사용자 원문 확인값 **6-3**을 최우선으로 적용했다.
+- 기존 878개 방향 기록을 보존하면서 전체 앱 DB를 942개 방향 기록으로 확장했다.
+- 향후 미지원 수도권 노선까지 재사용할 `transfer_position_master.json/csv`를 추가했다. 현재 1,138개 방향 레코드 중 992개 위치 확인, 146개는 추정하지 않고 `needs_verification`으로 유지한다.
+- 소스 충돌을 `TRANSFER_POSITION_CONFLICTS.json`에 기록한다.
+- 신분당선 `판교주박기지` 등 `call=false` 운전상 지점이 환승 방향 키로 선택되지 않도록 엔진 방향 힌트 로직을 수정했다.
+
 # V13.4.9.0
 - 신분당선 생산 ETA를 realtimePosition 열번 매칭에서 realtimeStationArrival + Rail.Blue DIA 구간소요시간 방식으로 변경.
 - 신분당선 realtimePosition.trainNo는 진단용으로만 사용하며 신뢰도 승격 근거에서 제외.

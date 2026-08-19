@@ -44,7 +44,7 @@ def main():
     old = json.loads(path.read_text(encoding="utf-8"))
     meta = dict(old.get("meta", {}))
     meta.update({
-        "version": "V13.4.9",
+        "version": "V13.4.10",
         "weight": "minimum scheduled running time between consecutive callable passenger stops",
         "normalization": "Passenger-stop structural inference; operational points are non-callable; includes Shinbundang user-provided Rail.Blue timetable",
     })
