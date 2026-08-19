@@ -1,3 +1,13 @@
+# V13.5.0 — 신분당선 차량소재 기반 ETA 전면 재설계
+
+- 신분당선 `DXxxxx` 가상/비공개 열번 의존성을 완전히 제거했다.
+- 서울시 realtimePosition `trainNo`를 공개 열차번호가 아니라 차량 식별자(vehicle_id)로 사용한다.
+- 실시간 차량 소재 + 운영사 공식 역간 소요시간으로 출발역/도착역 ETA를 계산하며 지연시간은 별도 산출하지 않는다.
+- 실시간 차량 미포착 시 공개 역별 시각표로 fallback한다.
+- 신분당선 탑승 추적은 동일 vehicle_id를 고정 추적한다.
+- `realtimeStationArrival` 기반 생산 ETA 및 DX 매칭 코드를 제거했다.
+- `sinbundang_schedule.json`을 제거하고 `sinbundang_public_timetable.json`, `sinbundang_runtime.json`으로 분리했다.
+
 # V13.4.10 — 수도권 빠른 환승 위치 마스터 + 신분당선 환승 위치
 
 - 신분당선 8개 환승역(신사·논현·신논현·강남·양재·정자·미금·판교)에 양방향/방면별 환승 pair 16개, directional record 64개를 추가했다.

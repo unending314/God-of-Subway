@@ -1,0 +1,40 @@
+{
+  "version": "V13.5.0.0",
+  "architecture": {
+    "public_train_numbers_used": false,
+    "realtime_identifier": "realtimePosition.trainNo treated as opaque vehicle_id",
+    "delay_inference": false,
+    "live_eta": "vehicle position/status + official direction-dependent interstation runtime",
+    "fallback": "public station departure timetable + official interstation runtime",
+    "realtimeStationArrival_used": false
+  },
+  "fleet_reference": {
+    "trainsets": 23,
+    "cars_per_trainset": 6
+  },
+  "public_timetable": {
+    "weekday_station_events": 5166,
+    "holiday_station_events": 4288,
+    "legacy_DX_token_present_in_departures": false
+  },
+  "official_runtime_seconds": {
+    "toward_gwanggyo_expected": 2522,
+    "toward_gwanggyo_engine": 2522,
+    "toward_sinsa_expected": 2514,
+    "toward_sinsa_engine": 2514
+  },
+  "integrity": {
+    "ok": true,
+    "issue_count": 0,
+    "by_kind": {},
+    "by_line": {},
+    "examples": []
+  },
+  "qa": {
+    "pytest": "31 passed",
+    "python_compile": "passed",
+    "inline_javascript_syntax": "passed",
+    "api_smoke": "/api/health and /api/route returned HTTP 200 in local curl",
+    "browser_render": "not executed: localhost blocked by environment policy (ERR_BLOCKED_BY_ADMINISTRATOR)"
+  }
+}

@@ -583,6 +583,18 @@ function trackGaEvent(name,params={}){
 function fmtDur(sec){sec=Math.max(0,Number(sec)||0);let m=Math.round(sec/60);return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`}
 function fmtClock(s){if(!s)return'-';let m=String(s).match(/(\d{2}):(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:s}
 function fmtDelay(s){s=Number(s)||0;if(Math.abs(s)<30)return'정시권';return`${s>=0?'+':'−'}${Math.round(Math.abs(s)/60)}분`}
+function delayDisplay(s){
+ if(s?.line==='신분당선' && (s?.delay_available===false || ['vehicle_position','vehicle_tracking','vehicle_tracking_fallback','schedule_only'].includes(String(s?.delay_source||''))))return '지연 미산정';
+ return fmtDelay(s?.delay_seconds);
+}
+function trainIdentifierText(s){
+ const raw=String(s?.train_no||'');
+ if(s?.line==='신분당선'){
+  if(!raw || raw.includes('추정'))return '시간표 예정';
+  return `차량 ${raw}`;
+ }
+ return raw;
+}
 function confClass(c){return c==='높음'?'high':c==='중간'?'medium':'low'}
 function lineOpts(selected){
  const normalized=String(selected||'').trim();
@@ -1251,7 +1263,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.4.10.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.5.0.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}
@@ -1270,7 +1282,7 @@ function boardButton(s,routeIndex){
    :'';
  return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" data-board-dt="${esc(s.board_dt||'')}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${prevBtn}</div>`;
 }
-function trainServiceText(s){return s?.service==='express'?'급행열차':'일반열차'}
+function trainServiceText(s){if(s?.line==='신분당선')return '무인운전 차량';return s?.service==='express'?'급행열차':'일반열차'}
 function cleanStatusText(value){
  const t=String(value??'').trim();
  if(!t||/^[-+]?\d+(?:\.\d+)?$/.test(t))return '';
@@ -1298,8 +1310,9 @@ function trainLocationHtml(s){
  return `<div class="locationLine ${kind}"><span class="locationDot"></span>${prefix} · ${esc(trainLocationText(s))}</div>`;
 }
 function trainRunText(s){
- const origin=s?.origin||'시발역 미상';
  const destination=s?.destination||'종착역 미상';
+ if(s?.line==='신분당선')return `${destination} 방면`;
+ const origin=s?.origin||'시발역 미상';
  return `${origin} → ${destination}`;
 }
 function candidateRows(s,routeIndex){
@@ -1316,9 +1329,9 @@ function candidateRows(s,routeIndex){
   const serviceFull=trainServiceText(c);
   const serviceCompact=c.service==='express'?'급행':'일반';
   return `<div class="candidateRow ${c.selected?'selected':''}">
-   <div class="candidateTrain"><span class="trainNoLine">${esc(c.train_no)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}${c.is_previous?'<span class="previousBadge">직전</span>':''}</span></div>
+   <div class="candidateTrain"><span class="trainNoLine">${esc(trainIdentifierText(c))}${c.service==='express'?'<span class="expressBadge">급행</span>':''}${c.is_previous?'<span class="previousBadge">직전</span>':''}</span></div>
    <div class="candidateMeta">
-    <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${fmtDelay(c.delay_seconds)}</span><span class="metaSep">·</span>${source}</div>
+    <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${delayDisplay(c)}</span><span class="metaSep">·</span>${source}</div>
     ${trainLocationHtml(c)}
    </div>
    <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
@@ -1360,9 +1373,9 @@ function legHtml(s,walk,routeIndex,transferInfo,state=''){
    <div class="clock">${boardButton(s,routeIndex)}</div>
   </div>
   <div class="trainOverview">
-   <div><span>열차</span><b class="trainNoLine">${esc(s.train_no)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
+   <div><span>${s.line==='신분당선'?'차량':'열차'}</span><b class="trainNoLine">${esc(trainIdentifierText(s))}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
    <div><span>현재 소재</span><b>${esc(trainLocationText(s))}</b></div>
-   <div><span>실시간 지연</span><b>${fmtDelay(s.delay_seconds)}</b><span>${s.tracking?'탑승 중':`${until}분 후 ${esc(s.from)} 도착 예정`}</span></div>
+   <div><span>${s.line==='신분당선'?'운행 보정':'실시간 지연'}</span><b>${delayDisplay(s)}</b><span>${s.tracking?'탑승 중':`${until}분 후 ${esc(s.from)} 도착 예정`}</span></div>
   </div>
   ${candidateRows(s,routeIndex)}
  </div>${transferHtml(transferInfo,walk,journeyTransferState(routeIndex))}`;
@@ -1824,11 +1837,11 @@ async function pollLiveTrip(first=false){
 
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('livePanel').classList.add('show');
-  $('liveTrain').textContent=`${current.line} ${j.boarded_train_no}`;
+  $('liveTrain').textContent=current.line==='신분당선'?`${current.line} 차량 ${j.boarded_train_no}`:`${current.line} ${j.boarded_train_no}`;
   $('liveStation').textContent=trainLocationText(current);
   setLiveRemainingLabel();
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
-  $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${fmtDelay(current.delay_seconds)}`;
+  $('liveSub').textContent=`${trainRunText(current)} · ${trainServiceText(current)} · ${current.confidence} 신뢰도 · ${delayDisplay(current)}`;
   $('stopTrack').style.display='';
   $('stopTrack').textContent='이제 내렸어요';
 

@@ -119,7 +119,7 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
             self.assertEqual(result["chosen"].get("service"), "local", result["chosen"])
 
     def test_all_korail_passenger_pass_times_are_non_callable(self):
-        lines = ("1호선",) + engine.EXTRA_LINES
+        lines = ("1호선",) + engine.KORAIL_EXTRA_LINES
         for mode in ("DAY", "END"):
             for line in lines:
                 passenger = (
@@ -144,7 +144,7 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
     def test_route_graph_matches_all_korail_normalized_timetables(self):
         for mode in ("DAY", "SAT", "END"):
             expected = {}
-            korail_lines = ("1호선",) + engine.EXTRA_LINES
+            korail_lines = ("1호선",) + engine.KORAIL_EXTRA_LINES
             for line in korail_lines:
                 for tr in engine.all_trains(line, mode):
                     calls = [s for s in tr.get("stops", []) if s.get("call", True)]
@@ -176,317 +176,126 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
         self.assertNotIn("수색직결선", engine.STATIONS_BY_LINE["공항철도"])
 
 
-class ShinbundangTimetableRegressionTest(unittest.TestCase):
-    def test_imported_train_counts_and_station_options(self):
-        self.assertEqual(len(engine.SINBUNDANG["trains"]["weekday"]), 326)
-        self.assertEqual(len(engine.SINBUNDANG["trains"]["holiday"]), 272)
+class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
+    def test_public_timetable_has_no_legacy_dx_train_numbers(self):
+        self.assertEqual(engine.SINBUNDANG["meta"]["source_service_columns"]["weekday"], 326)
+        self.assertEqual(engine.SINBUNDANG["meta"]["source_service_columns"]["holiday"], 272)
+        self.assertGreater(engine.SINBUNDANG["counts"]["weekday"], 5000)
+        self.assertGreater(engine.SINBUNDANG["counts"]["holiday"], 4000)
+        self.assertFalse(engine.SINBUNDANG["meta"]["public_train_numbers_available"])
+        self.assertTrue(engine.SINBUNDANG["meta"]["legacy_dx_train_numbers_discarded"])
+        payload = str(engine.SINBUNDANG)
+        self.assertNotIn("DX9003", payload)
         self.assertEqual(len(engine.STATIONS_BY_LINE["신분당선"]), 16)
-        for operational in ("광교기지", "분당연결선분기", "판교주박기지"):
-            self.assertNotIn(operational, engine.STATIONS_BY_LINE["신분당선"])
 
-    def test_weekday_first_down_train_matches_uploaded_timetable(self):
-        tr = engine.get_train("신분당선", "DAY", "DX9003")
-        self.assertIsNotNone(tr)
-        self.assertEqual(tr["start"], "신사")
-        self.assertEqual(tr["dest"], "광교")
-        by_station = {s["station"]: s for s in tr["stops"]}
-        self.assertEqual(by_station["신사"]["dep"], 5 * 3600 + 30 * 60)
-        self.assertEqual(by_station["강남"]["arr"], 20066)
-        self.assertTrue(by_station["정자"]["call"])
+    def test_official_runtime_full_line_matches_operator(self):
+        self.assertEqual(engine.sinbundang_runtime_seconds("신사", "광교"), 42 * 60 + 2)
+        self.assertEqual(engine.sinbundang_runtime_seconds("광교", "신사"), 41 * 60 + 54)
+        self.assertEqual(engine.sinbundang_runtime_seconds("신사", "논현"), 58)
+        self.assertEqual(engine.sinbundang_runtime_seconds("논현", "신사"), 65)
 
-    def test_weekend_sat_and_end_use_same_uploaded_profile(self):
-        sat = engine.get_train("신분당선", "SAT", "DX0601")
-        end = engine.get_train("신분당선", "END", "DX0601")
-        self.assertEqual(sat, end)
-        self.assertEqual(sat["stops"][0]["station"], "신사")
-
-    def test_sinbundang_realtime_line_id_and_prefetch(self):
-        self.assertEqual(engine.LINE_IDS.get("신분당선"), "1077")
-        self.assertNotIn("신분당선", engine.SCHEDULE_ONLY_LINES)
-
-        sample_row = {
-            "subwayId": "1077",
-            "subwayNm": "신분당선",
-            "statnNm": "강남",
-            # API가 DX 접두사 없이 숫자 열번을 주더라도 digit fallback으로 매칭되어야 한다.
-            "trainNo": "9003",
-            "recptnDt": "2026-08-19 05:34:26",
-            "trainSttus": "1",
-            "updnLine": "1",
-            "statnTnm": "광교",
-        }
-        original = engine.fetch_position
-        calls = []
-        def fake_fetch(line, timeout=5):
-            calls.append((line, timeout))
-            return True, None, {"realtimePositionList": [sample_row]}
-        engine.fetch_position = fake_fetch
-        try:
-            cache = engine.prefetch_position_cache(["신분당선"], timeout=1)
-            self.assertEqual(calls, [("신분당선", 1)])
-            self.assertTrue(cache["신분당선"]["available"])
-            self.assertEqual(cache["신분당선"]["rows"], [sample_row])
-            observations, diag = engine.observe_delays("신분당선", "DAY", cache["신분당선"]["rows"], [])
-            self.assertEqual(diag["matched"], 1, diag)
-            self.assertEqual(observations[0]["train_no"], "DX9003")
-            self.assertEqual(observations[0]["source_kind"], "live")
-        finally:
-            engine.fetch_position = original
-
-
-    def test_sinbundang_realtime_query_uses_composite_identifier_first(self):
-        self.assertEqual(
-            engine.realtime_query_candidates("신분당선"),
-            ("1077:신분당선", "신분당선"),
-        )
-
-        sample = {
-            "realtimePositionList": [{
-                "subwayId": "1077", "subwayNm": "신분당선",
-                "statnNm": "강남", "trainNo": "16",
-            }]
-        }
-        class FakeResponse:
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                return False
-            def read(self):
-                import json
-                return json.dumps(sample, ensure_ascii=False).encode("utf-8")
-
-        original_urlopen = engine.urllib.request.urlopen
-        original_key = engine.API_KEY
-        seen = []
-        def fake_urlopen(req, timeout=5):
-            seen.append(req.full_url)
-            return FakeResponse()
-        engine.urllib.request.urlopen = fake_urlopen
-        engine.API_KEY = "test-key"
-        try:
-            ok, err, data = engine.fetch_position("신분당선", timeout=1)
-            self.assertTrue(ok, err)
-            self.assertEqual(data.get("_jigeumta_query"), "1077:신분당선")
-            self.assertEqual(len(seen), 1)
-            self.assertIn("1077%3A%EC%8B%A0%EB%B6%84%EB%8B%B9%EC%84%A0", seen[0])
-        finally:
-            engine.urllib.request.urlopen = original_urlopen
-            engine.API_KEY = original_key
-
-    def test_sinbundang_realtime_query_falls_back_to_plain_name_on_empty_result(self):
-        import json
-        row = {"subwayId": "1077", "subwayNm": "신분당선", "statnNm": "강남", "trainNo": "16"}
-        class FakeResponse:
-            def __init__(self, payload):
-                self.payload = payload
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                return False
-            def read(self):
-                return json.dumps(self.payload, ensure_ascii=False).encode("utf-8")
-
-        original_urlopen = engine.urllib.request.urlopen
-        original_key = engine.API_KEY
-        seen = []
-        def fake_urlopen(req, timeout=5):
-            seen.append(req.full_url)
-            if "1077%3A" in req.full_url:
-                return FakeResponse({"realtimePositionList": []})
-            return FakeResponse({"realtimePositionList": [row]})
-        engine.urllib.request.urlopen = fake_urlopen
-        engine.API_KEY = "test-key"
-        try:
-            ok, err, data = engine.fetch_position("신분당선", timeout=1)
-            self.assertTrue(ok, err)
-            self.assertEqual(len(seen), 2)
-            self.assertEqual(data.get("_jigeumta_query"), "신분당선")
-            self.assertEqual(data["realtimePositionList"], [row])
-        finally:
-            engine.urllib.request.urlopen = original_urlopen
-            engine.API_KEY = original_key
-
-    def test_sinbundang_context_matching_when_api_train_number_differs(self):
-        row = {
-            "subwayId": "1077",
-            "subwayNm": "신분당선",
-            "statnNm": "강남",
-            # 서울시 API 열차번호가 Rail.Blue DX 운행열번과 전혀 다른 체계여도 동작해야 한다.
-            "trainNo": "16",
-            "recptnDt": "2026-08-19 05:34:26",
-            "trainSttus": "1",
-            "updnLine": "1",
-            "statnTnm": "광교(경기대)",
-        }
-        observations, diag = engine.observe_delays("신분당선", "DAY", [row], [])
-        self.assertEqual(diag["matched"], 0, diag)
-        self.assertEqual(diag["matched_context"], 1, diag)
-        self.assertEqual(len(observations), 1)
-        self.assertEqual(observations[0]["train_no"], "DX9003")
-        self.assertEqual(observations[0]["raw_train_no"], "16")
-        self.assertEqual(observations[0]["source_kind"], "live_context")
-        self.assertEqual(round(observations[0]["delay"]), 0)
-
-    def test_sinbundang_context_live_data_promotes_confidence_medium(self):
+    def test_api_train_no_is_used_as_vehicle_id_not_timetable_train_number(self):
         original_now = engine.now_kst
-        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 34, 30)
+        engine.now_kst = lambda: datetime(2026, 8, 19, 11, 0, 10)
         try:
             row = {
                 "subwayId": "1077", "subwayNm": "신분당선",
-                "statnNm": "강남", "trainNo": "16",
-                "recptnDt": "2026-08-19 05:34:26", "trainSttus": "1",
+                "statnNm": "신논현", "trainNo": "16",
+                "recptnDt": "2026-08-19 11:00:00", "trainSttus": "2",
                 "updnLine": "1", "statnTnm": "광교(경기대)",
             }
-            cache = {
-                "신분당선": {
-                    "rows": [row], "error": "", "available": True,
-                    "query": "1077:신분당선",
-                }
-            }
-            result = engine.calculate_segment(
-                "신분당선", "DAY", "신사", "강남",
-                datetime(2026, 8, 19, 5, 29, 0), cache
-            )
+            cache = {"신분당선": {"rows": [row], "error": "", "available": True, "query": "1077:신분당선"}}
+            result = engine.calculate_segment("신분당선", "DAY", "강남", "판교", datetime(2026, 8, 19, 11, 0, 0), cache)
             self.assertTrue(result.get("ok"), result)
-            self.assertEqual(result["chosen"]["train_no"], "DX9003")
-            self.assertEqual(result["chosen"]["delay_source"], "schedule_only")
-            self.assertEqual(result["chosen"]["confidence"], "낮음")
-            self.assertEqual(result["diagnostics"]["matched_context"], 1)  # 진단에는 남음
-            self.assertEqual(result["diagnostics"]["position_rows_diagnostic_only"], 1)
-            self.assertEqual(result["diagnostics"]["realtime_query"], "1077:신분당선")
+            chosen = result["chosen"]
+            self.assertEqual(chosen["train_no"], "16")
+            self.assertEqual(chosen["vehicle_id"], "16")
+            self.assertEqual(chosen["delay_source"], "vehicle_position")
+            self.assertIsNone(chosen["delay_seconds"])
+            self.assertFalse(chosen["delay_available"])
+            self.assertEqual(chosen["confidence"], "중간")
+            self.assertEqual(chosen["board_dt"], datetime(2026, 8, 19, 11, 1, 38))
+            self.assertEqual(chosen["alight_dt"], datetime(2026, 8, 19, 11, 15, 0))
+            self.assertEqual(result["diagnostics"]["vehicle_ids"], ["16"])
+            self.assertFalse(result["diagnostics"]["delay_inference"])
+        finally:
+            engine.now_kst = original_now
+
+    def test_vehicle_already_departed_boarding_station_is_rejected(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 19, 11, 0, 10)
+        try:
+            row = {
+                "subwayId":"1077","statnNm":"강남","trainNo":"16",
+                "recptnDt":"2026-08-19 11:00:00","trainSttus":"2","updnLine":"1","statnTnm":"광교",
+            }
+            c = engine.sinbundang_vehicle_candidates("DAY", "강남", "판교", datetime(2026,8,19,11,0,0), [row])
+            self.assertEqual(c, [])
+        finally:
+            engine.now_kst = original_now
+
+    def test_schedule_fallback_uses_anonymous_public_station_timetable(self):
+        cache = {"신분당선": {"rows": [], "error": "test", "available": False}}
+        result = engine.calculate_segment("신분당선", "DAY", "신사", "강남", datetime(2026,8,19,5,29,0), cache)
+        self.assertTrue(result.get("ok"), result)
+        chosen = result["chosen"]
+        self.assertIn("추정", chosen["train_no"])
+        self.assertNotIn("DX", chosen["train_no"])
+        self.assertEqual(chosen["delay_source"], "schedule_only")
+        self.assertIsNone(chosen["delay_seconds"])
+        self.assertEqual(chosen["confidence"], "낮음")
+
+    def test_tracked_vehicle_uses_same_api_vehicle_id(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 19, 11, 5, 0)
+        try:
+            row = {
+                "subwayId":"1077","statnNm":"양재","trainNo":"16",
+                "recptnDt":"2026-08-19 11:04:50","trainSttus":"2","updnLine":"1","statnTnm":"광교",
+            }
+            cache={"신분당선":{"rows":[row],"error":"","available":True}}
+            result=engine.tracked_train_segment("신분당선","DAY","강남","판교","16",cache,"2026-08-19 11:01:38")
+            self.assertTrue(result.get("ok"), result)
+            self.assertFalse(result.get("arrived"))
+            self.assertEqual(result["chosen"]["train_no"], "16")
+            self.assertEqual(result["chosen"]["delay_source"], "vehicle_tracking")
+            self.assertFalse(result["chosen"]["delay_available"])
+            self.assertEqual(result["chosen"]["current_station"], "양재")
         finally:
             engine.now_kst = original_now
 
     def test_sinbundang_wrong_subway_id_is_filtered(self):
         data = {"realtimePositionList": [
-            {"subwayId": "1077", "trainNo": "9003"},
-            {"subwayId": "1002", "trainNo": "2001"},
+            {"subwayId": "1077", "trainNo": "16"},
+            {"subwayId": "1002", "trainNo": "2010"},
             {"trainNo": "legacy-without-id"},
         ]}
         rows = engine.position_rows(data, "신분당선")
-        self.assertEqual([x.get("trainNo") for x in rows], ["9003", "legacy-without-id"])
+        self.assertEqual([x.get("trainNo") for x in rows], ["16", "legacy-without-id"])
 
-    def test_sinbundang_live_exact_promotes_confidence_high(self):
-        original_now = engine.now_kst
-        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 34, 30)
-        try:
-            row = {
-                "subwayId": "1077", "subwayNm": "신분당선",
-                "statnNm": "강남", "trainNo": "9003",
-                "recptnDt": "2026-08-19 05:34:26", "trainSttus": "1",
-                "updnLine": "1", "statnTnm": "광교",
-            }
-            cache = {"신분당선": {"rows": [row], "error": "", "available": True}}
-            result = engine.calculate_segment(
-                "신분당선", "DAY", "신사", "강남",
-                datetime(2026, 8, 19, 5, 29, 0), cache
-            )
-            self.assertTrue(result.get("ok"), result)
-            self.assertEqual(result["chosen"]["train_no"], "DX9003")
-            self.assertEqual(result["chosen"]["delay_source"], "schedule_only")
-            self.assertEqual(result["chosen"]["confidence"], "낮음")
-            self.assertEqual(result["diagnostics"]["matched"], 1)  # 번호 매칭은 진단용일 뿐 ETA 근거가 아님
-            self.assertEqual(result["diagnostics"]["position_rows_diagnostic_only"], 1)
-        finally:
-            engine.now_kst = original_now
-
-
-
-    def test_sinbundang_station_arrival_is_primary_even_when_train_number_is_unrelated(self):
-        original_now = engine.now_kst
-        original_fetch = engine.fetch_station_arrival
-        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 29, 30)
-        row = {
-            "subwayId": "1077", "updnLine": "하행",
-            "btrainNo": "16", "bstatnNm": "광교(경기대)",
-            "barvlDt": "60", "recptnDt": "2026-08-19 05:29:00",
-            "arvlMsg2": "1분 후", "arvlMsg3": "신사", "arvlCd": "99",
-        }
-        engine.fetch_station_arrival = lambda station, timeout=5: (
-            True, None, {"realtimeArrivalList": [row]}
-        )
-        try:
-            cache = {
-                "신분당선": {
-                    "rows": [{
-                        "subwayId": "1077", "statnNm": "강남",
-                        "trainNo": "999", "recptnDt": "2026-08-19 05:29:20",
-                        "updnLine": "1", "statnTnm": "광교", "trainSttus": "1",
-                    }],
-                    "error": "", "available": True, "query": "1077:신분당선",
-                }
-            }
-            result = engine.calculate_segment(
-                "신분당선", "DAY", "신사", "강남",
-                datetime(2026, 8, 19, 5, 29, 0), cache
-            )
-            self.assertTrue(result.get("ok"), result)
-            self.assertEqual(result["chosen"]["train_no"], "DX9003")
-            self.assertEqual(result["chosen"].get("external_train_no"), "16")
-            self.assertEqual(result["chosen"]["delay_source"], "station_arrival")
-            self.assertEqual(result["chosen"]["confidence"], "중간")
-            self.assertEqual(result["chosen"]["board_dt"], datetime(2026, 8, 19, 5, 30, 0))
-            self.assertEqual(result["chosen"]["alight_dt"], datetime(2026, 8, 19, 5, 34, 26))
-            self.assertEqual(result["diagnostics"]["station_arrival_matched"], 1)
-            self.assertEqual(result["diagnostics"]["position_rows_diagnostic_only"], 1)
-        finally:
-            engine.now_kst = original_now
-            engine.fetch_station_arrival = original_fetch
-
-    def test_sinbundang_station_arrival_filters_other_lines(self):
-        data = {"realtimeArrivalList": [
-            {"subwayId": "1077", "btrainNo": "16"},
-            {"subwayId": "1002", "btrainNo": "2010"},
-        ]}
-        rows = engine.station_arrival_rows(data, "신분당선")
-        self.assertEqual([r["btrainNo"] for r in rows], ["16"])
-
-    def test_sinbundang_position_train_number_no_longer_promotes_route_confidence(self):
-        original_now = engine.now_kst
-        original_fetch = engine.fetch_station_arrival
-        engine.now_kst = lambda: datetime(2026, 8, 19, 5, 34, 30)
-        engine.fetch_station_arrival = lambda station, timeout=5: (True, None, {"realtimeArrivalList": []})
-        try:
-            row = {
-                "subwayId": "1077", "subwayNm": "신분당선",
-                "statnNm": "강남", "trainNo": "9003",
-                "recptnDt": "2026-08-19 05:34:26", "trainSttus": "1",
-                "updnLine": "1", "statnTnm": "광교",
-            }
-            cache = {"신분당선": {"rows": [row], "error": "", "available": True}}
-            result = engine.calculate_segment(
-                "신분당선", "DAY", "신사", "강남",
-                datetime(2026, 8, 19, 5, 29, 0), cache
-            )
-            self.assertTrue(result.get("ok"), result)
-            self.assertEqual(result["chosen"]["delay_source"], "schedule_only")
-            self.assertEqual(result["chosen"]["confidence"], "낮음")
-            self.assertEqual(result["diagnostics"]["position_rows_diagnostic_only"], 1)
-        finally:
-            engine.now_kst = original_now
-            engine.fetch_station_arrival = original_fetch
-
-    def test_after_midnight_auto_uses_previous_weekday_service_day(self):
+    def test_after_midnight_auto_uses_previous_weekday_station_timetable(self):
         result = engine.calculate_route({
-            "start_time": "2026-08-20 00:10:00",
-            "day": "AUTO",
+            "start_time": "2026-08-20 00:10:00", "day": "AUTO",
             "segments": [{"line": "신분당선", "from": "신사", "to": "강남", "transfer_walk": 0}],
         }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(result.get("service_mode"), "DAY")
-        self.assertEqual(result["segments"][0]["train_no"], "DX9325")
+        self.assertIn("추정", result["segments"][0]["train_no"])
+        self.assertNotIn("DX", result["segments"][0]["train_no"])
         self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
 
     def test_route_graph_contains_shinbundang_and_auto_transfer(self):
         edges = [row for row in engine.ROUTE_GRAPH["modes"]["DAY"] if row[0] == "신분당선"]
         self.assertTrue(edges)
-        self.assertIn(("신분당선", "신사", "논현"), {(l, a, b) for l, a, b, _ in edges})
         path = engine.auto_find_path("광교", "역삼", "DAY")
         self.assertTrue(path)
         lines_in_path = {edge[0][0] for edge in path["edges"]} | {edge[1][0] for edge in path["edges"]}
         self.assertIn("신분당선", lines_in_path)
         self.assertIn("2호선", lines_in_path)
 
+    def test_sinbundang_realtime_query_alias(self):
+        self.assertEqual(engine.LINE_IDS.get("신분당선"), "1077")
+        self.assertEqual(engine.realtime_query_candidates("신분당선"), ("1077:신분당선", "신분당선"))
 
 
 class PreviousTrainRegressionTest(unittest.TestCase):

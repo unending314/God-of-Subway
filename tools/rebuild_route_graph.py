@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """시간표 기반 외부노선(1호선·코레일계·신분당선) 정규화 결과를 route_graph.json에 반영한다.
 
-2~9호선 그래프는 기존 값을 보존하고, engine.EXTRA_LINES에 포함된 노선을 재생성한다.
+2~9호선 그래프는 기존 값을 보존한다. 신분당선은 운영사 공식 역간 소요시간, 그 외 외부노선은 정규화 시간표로 재생성한다.
 """
 import json
 import sys
@@ -17,6 +17,12 @@ REBUILD_LINES = {"1호선", *engine.EXTRA_LINES}
 def build_mode(mode):
     best = {}
     for line in REBUILD_LINES:
+        if line == "신분당선":
+            for direction, mapping in engine.SINBUNDANG_RUNTIME.get("edge_seconds", {}).items():
+                for pair, sec in mapping.items():
+                    a, b = pair.split(">", 1)
+                    best[(line, engine.canon_station(a), engine.canon_station(b))] = int(sec)
+            continue
         for tr in engine.all_trains(line, mode):
             calls = [s for s in tr.get("stops", []) if s.get("call", True)]
             for a, b in zip(calls, calls[1:]):
@@ -26,11 +32,7 @@ def build_mode(mode):
                     continue
                 while arr < dep:
                     arr += 86400
-                key = (
-                    line,
-                    engine.canon_station(a.get("station")),
-                    engine.canon_station(b.get("station")),
-                )
+                key = (line, engine.canon_station(a.get("station")), engine.canon_station(b.get("station")))
                 sec = int(arr - dep)
                 if sec < 0:
                     continue
@@ -44,9 +46,9 @@ def main():
     old = json.loads(path.read_text(encoding="utf-8"))
     meta = dict(old.get("meta", {}))
     meta.update({
-        "version": "V13.4.10",
+        "version": "V13.5.0",
         "weight": "minimum scheduled running time between consecutive callable passenger stops",
-        "normalization": "Passenger-stop structural inference; operational points are non-callable; includes Shinbundang user-provided Rail.Blue timetable",
+        "normalization": "Passenger-stop structural inference; Shinbundang edges use DX LINE official interstation runtime and no public train numbers",
     })
     modes = {}
     for mode in ("DAY", "SAT", "END"):

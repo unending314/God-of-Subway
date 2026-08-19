@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.4.10.0 — 신분당선 역 도착예정 기반 ETA + 실시간 API 진단
+지금타 V13.5.0.0 — 신분당선 차량소재 기반 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
-  신분당선: 사용자 제공 Rail.Blue 시각표 + 서울시 realtimeStationArrival(subwayId 1077)
-  신분당선 realtimePosition의 trainNo는 DX 운행열번과 동일하다고 가정하지 않으며 진단용으로만 사용한다.
+  신분당선: 서울시 realtimePosition(subwayId 1077)의 차량 식별값 + 운영사 공식 역간 소요시간 + 공개 역별 시각표
+  신분당선 API trainNo 필드는 공개 열차번호가 아닌 차량 식별자로 취급하며, DXxxxx 형태의 과거 가상 열번은 사용하지 않는다.
   기타 실시간 지원 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
 """
 import json, os, re, urllib.request, urllib.parse, time, statistics, heapq
@@ -42,13 +42,13 @@ S1 = {
 S1_STATIONS = load_json("stations.json")
 OFF = load_json("official_2to9_schedule.json")
 EXTRA = load_json("korail_extra_lines_schedule.json")
-SINBUNDANG = load_json("sinbundang_schedule.json")
-# 엔진의 기존 EXTRA 정규화/탐색 파이프라인을 재사용한다.
-EXTRA["신분당선"] = {"stations": SINBUNDANG["stations"], "trains": SINBUNDANG["trains"]}
+SINBUNDANG = load_json("sinbundang_public_timetable.json")
+SINBUNDANG_RUNTIME = load_json("sinbundang_runtime.json")
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
 ROUTE_GRAPH = load_json("route_graph.json")
 TRANSFER_DATA = load_json("transfer_data.json")
-EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도", "신분당선")
+KORAIL_EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도")
+EXTRA_LINES = KORAIL_EXTRA_LINES + ("신분당선",)
 SCHEDULE_ONLY_LINES = set()
 
 LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
@@ -561,7 +561,15 @@ def get_train(line, mode, raw_train_no):
             return normalize_s1_train(c[0], trains[c[0]])
         return None
 
-    if line in EXTRA_LINES:
+    if line == "신분당선":
+        # 공개 열차번호가 없으므로 get_train은 내부 시간표 slot_id에 대해서만 동작한다.
+        # 서울시 API의 trainNo(차량 식별자)는 여기에서 시간표 열번으로 매칭하지 않는다.
+        for tr in all_trains(line, mode):
+            if norm_train(tr.get("train_no")) == n:
+                return tr
+        return None
+
+    if line in KORAIL_EXTRA_LINES:
         trains = EXTRA[line]["trains"][korail_day]
 
         # 1) actual train number in the timetable always wins.
@@ -592,13 +600,40 @@ def get_train(line, mode, raw_train_no):
     return None
 
 
+def _sinbundang_route_templates():
+    """시간표 열번과 무관한 노선 토폴로지용 내부 템플릿 2개."""
+    stations=[canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    out=[]
+    for direction, seq in (("DOWN", stations), ("UP", list(reversed(stations)))):
+        stops=[]; t=0
+        for i, st in enumerate(seq):
+            if i==0:
+                stops.append({"station":st,"arr":None,"dep":0,"call":True})
+                continue
+            prev=seq[i-1]
+            edge=int(SINBUNDANG_RUNTIME.get("edge_seconds",{}).get(direction,{}).get(f"{prev}>{st}",0))
+            t += edge
+            if i==len(seq)-1:
+                stops.append({"station":st,"arr":t,"dep":None,"call":True})
+            else:
+                stops.append({"station":st,"arr":t,"dep":t+30,"call":True})
+                t += 30
+        out.append({
+            "train_no":f"@SBW-{direction}","direction":direction,"service":"local",
+            "start":seq[0],"dest":seq[-1],"stops":stops,"internal_route_template":True,
+        })
+    return tuple(out)
+
+
 @lru_cache(maxsize=None)
 def all_trains(line, mode):
     """정규화된 노선별 전체 시간표는 프로세스 생명주기 동안 재사용한다."""
     korail_day, metro_week = choose_modes(mode)
     if line == "1호선":
         return tuple(normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items())
-    if line in EXTRA_LINES:
+    if line == "신분당선":
+        return _sinbundang_route_templates()
+    if line in KORAIL_EXTRA_LINES:
         return tuple(
             normalize_extra_train(line, tn, tr)
             for tn, tr in EXTRA[line]["trains"][korail_day].items()
@@ -851,8 +886,9 @@ def station_options():
     for i in range(2, 10):
         num = str(i)
         out[f"{i}호선"] = sorted({canon_station(x) for x in OFF["stations"].get(num, [])})
-    for line in EXTRA_LINES:
+    for line in KORAIL_EXTRA_LINES:
         out[line] = sorted({canon_station(x) for x in EXTRA[line].get("stations", [])})
+    out["신분당선"] = list(SINBUNDANG.get("stations", []))
     return out
 
 
@@ -895,10 +931,27 @@ def timetable_integrity_report():
 
     for day, trains in S1.items():
         inspect("1호선", day, trains, S1_PASSENGER_STATIONS, r"K19\d{2}")
-    for line in EXTRA_LINES:
+    for line in KORAIL_EXTRA_LINES:
         passenger = {canon_station(x) for x in EXTRA[line].get("stations", [])}
         for day, trains in EXTRA[line].get("trains", {}).items():
             inspect(line, day, trains, passenger)
+
+    # 신분당선 생산 데이터에는 legacy DX 열번이 어떤 형태로도 남아 있으면 안 된다.
+    if "DX" in json.dumps(SINBUNDANG.get("departures", {}), ensure_ascii=False).upper():
+        issues.append({"line":"신분당선","day":"all","train_no":"","kind":"legacy_dx_identifier_present"})
+    stations = SINBUNDANG_RUNTIME.get("stations", [])
+    dwell = 30
+    for direction, expected in (("DOWN", 2522), ("UP", 2514)):
+        total = 0
+        if direction == "DOWN":
+            pairs = zip(stations, stations[1:])
+        else:
+            pairs = zip(reversed(stations), reversed(stations[:-1]))
+        for a, b in pairs:
+            total += int(SINBUNDANG_RUNTIME.get("edge_seconds", {}).get(direction, {}).get(f"{a}>{b}", 0))
+        total += max(0, len(stations)-2) * dwell
+        if total != expected:
+            issues.append({"line":"신분당선","day":"all","train_no":"","kind":"runtime_matrix_total_mismatch","direction":direction,"total":total,"expected":expected})
 
     by_kind = defaultdict(int)
     by_line = defaultdict(int)
@@ -1595,7 +1648,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V13.4.10.0/1.0",
+            "User-Agent": "JigeumTa-V13.5.0.0/1.0",
             "Accept": "application/json",
         })
         try:
@@ -1620,205 +1673,324 @@ def fetch_position(line, timeout=5):
 
 
 
-def fetch_station_arrival(station, timeout=5):
-    """서울시 realtimeStationArrival 원문을 조회한다. 신분당선은 이 API를 생산 ETA의 1차 실시간 신호로 사용한다."""
-    require_api_key()
-    q = urllib.parse.quote(canon_station(station), safe="")
-    url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimeStationArrival/0/100/{q}"
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "JigeumTa-V13.4.10.0/1.0",
-        "Accept": "application/json",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            raw = r.read().decode("utf-8", errors="replace")
-        data = json.loads(raw)
-        if isinstance(data, dict) and isinstance(data.get("RESULT"), dict):
-            return False, data.get("RESULT"), data
-        # realtimeStationArrival은 errorMessage + realtimeArrivalList 형태도 사용한다.
-        err = data.get("errorMessage") if isinstance(data, dict) else None
-        if isinstance(err, dict) and str(err.get("code") or "").upper() not in {"", "INFO-000"}:
-            return False, err, data
-        return True, None, data
-    except Exception as e:
-        return False, {"message": f"{type(e).__name__}: {e}"}, None
+def _sinbundang_day_key(mode):
+    korail_day, _ = choose_modes(mode)
+    return korail_day
 
 
-def station_arrival_rows(data, line=None):
-    rows = data.get("realtimeArrivalList", []) if isinstance(data, dict) else []
-    if not line:
-        return rows
-    expected = LINE_IDS.get(line)
-    if not expected:
-        return rows
-    return [
-        row for row in rows
-        if not str(row.get("subwayId") or "").strip()
-        or str(row.get("subwayId") or "").strip() == expected
-    ]
+def sinbundang_direction(start, end):
+    stations = [canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    a, b = canon_station(start), canon_station(end)
+    if a not in stations or b not in stations or a == b:
+        return ""
+    return "DOWN" if stations.index(a) < stations.index(b) else "UP"
 
 
-def cached_station_arrival_rows(line, station, position_cache, timeout=5):
-    key = f"__station_arrival__:{line}:{canon_station(station)}"
-    if key not in position_cache:
-        try:
-            ok, err, data = fetch_station_arrival(station, timeout=timeout)
-            if ok:
-                position_cache[key] = {
-                    "rows": station_arrival_rows(data, line),
-                    "error": "",
-                    "available": True,
-                }
-            else:
-                message = (err or {}).get("message", err) if isinstance(err, dict) else err
-                position_cache[key] = {
-                    "rows": [], "error": str(message or "실시간 도착 조회 실패"), "available": False,
-                }
-        except Exception as e:
-            position_cache[key] = {
-                "rows": [], "error": f"{type(e).__name__}: {e}", "available": False,
-            }
-    cached = position_cache[key]
-    return cached.get("rows", []), cached.get("error", ""), bool(cached.get("available"))
-
-
-def _clean_arrival_destination(value):
-    text = str(value or "").strip()
-    text = re.sub(r"\s*\(막차\)\s*$", "", text)
-    return canon_station(text)
-
-
-def _arrival_seconds(row):
-    try:
-        return max(0, int(float(str(row.get("barvlDt") or "0").strip())))
-    except Exception:
+def sinbundang_runtime_seconds(start, end):
+    """운영사 공식 역간 소요시간 + 중간역 30초 정차를 합산한다."""
+    stations = [canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    a, b = canon_station(start), canon_station(end)
+    if a not in stations or b not in stations or a == b:
         return None
+    ai, bi = stations.index(a), stations.index(b)
+    direction = "DOWN" if ai < bi else "UP"
+    step = 1 if direction == "DOWN" else -1
+    edge_map = SINBUNDANG_RUNTIME.get("edge_seconds", {}).get(direction, {})
+    total = 0
+    i = ai
+    while i != bi:
+        j = i + step
+        key = f"{stations[i]}>{stations[j]}"
+        sec = edge_map.get(key)
+        if sec is None:
+            return None
+        total += int(sec)
+        i = j
+    # 운영사 전체 소요시간표는 중간 정차역마다 30초 정차가 누적된다.
+    intermediate = max(0, abs(bi - ai) - 1)
+    total += intermediate * 30
+    return total
 
 
-def sinbundang_arrival_candidates(mode, start, end, ready_dt, rows):
+def _sinbundang_destination_reaches(destination, end, direction):
+    stations = [canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    dest, target = canon_station(destination), canon_station(end)
+    if target not in stations:
+        return False
+    if not dest or dest not in stations:
+        # 종착역이 비어 있으면 전구간 운행으로 단정하지 않고, 실시간 차량의 경우만
+        # 방향 정보가 정확하다는 전제에서 허용한다.
+        return True
+    di, ti = stations.index(dest), stations.index(target)
+    return di >= ti if direction == "DOWN" else di <= ti
+
+
+def _sinbundang_previous_station(station, direction):
+    stations = [canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    st = canon_station(station)
+    if st not in stations:
+        return ""
+    i = stations.index(st)
+    # trainSttus=3(전역출발)에서 statnNm은 다음 도착 대상역으로 해석한다.
+    j = i - 1 if direction == "DOWN" else i + 1
+    return stations[j] if 0 <= j < len(stations) else ""
+
+
+def _sinbundang_vehicle_anchor(row):
     """
-    신분당선 생산용 실시간 후보. API의 btrainNo를 DX 운행열번으로 해석하지 않는다.
-    승차역의 실제 도착예정시각을 기준으로 가장 가까운 Rail.Blue DIA를 찾고,
-    그 DIA의 승차역→목적역 실제 소요시간만 사용해 하차 ETA를 계산한다.
+    realtimePosition 한 행을 '어느 역 출발시각을 기준으로 볼 것인가'로 정규화한다.
+    반환: (anchor_station, anchor_departure_dt, current_station, status_text, observed_dt)
+    """
+    current = canon_station(row.get("statnNm"))
+    direction = _api_direction_to_schedule("신분당선", row.get("updnLine"))
+    observed = parse_dt(row.get("recptnDt") or row.get("lastRecptnDt"))
+    raw_status = str(row.get("trainSttus") or "").strip()
+    status = status_name(raw_status)
+    assumptions = SINBUNDANG_RUNTIME.get("status_assumptions_seconds", {})
+
+    if raw_status == "3":
+        previous = _sinbundang_previous_station(current, direction)
+        if previous:
+            return previous, observed, current, status or "전역출발", observed
+    if raw_status == "0":
+        return current, observed + timedelta(seconds=int(assumptions.get("진입_to_departure", 45))), current, status or "진입", observed
+    if raw_status == "1":
+        return current, observed + timedelta(seconds=int(assumptions.get("도착_to_departure", 25))), current, status or "도착", observed
+    # 출발(2) 또는 알 수 없는 상태는 수신시각을 현재역 출발 기준으로 둔다.
+    return current, observed, current, status or "위치확인", observed
+
+
+def _sinbundang_vehicle_eta_to(row, target):
+    direction = _api_direction_to_schedule("신분당선", row.get("updnLine"))
+    anchor, anchor_dt, current, status, observed = _sinbundang_vehicle_anchor(row)
+    if not direction or not anchor:
+        return None
+    runtime = sinbundang_runtime_seconds(anchor, target)
+    if runtime is None:
+        return None
+    return {
+        "eta": anchor_dt + timedelta(seconds=runtime),
+        "anchor_station": anchor,
+        "current_station": current,
+        "status": status,
+        "observed": observed,
+        "direction": direction,
+    }
+
+
+def sinbundang_vehicle_candidates(mode, start, end, ready_dt, rows):
+    """
+    공개 열차번호 없이 realtimePosition의 차량 식별값(trainNo)을 그 순간의 차량번호로 사용한다.
+    실시간 소재에서 출발역까지의 ETA를 계산하고, 출발역→도착역은 운영사 공식 소요시간을 적용한다.
+    지연시간은 별도로 추론하지 않는다.
     """
     now = now_kst()
+    stations = [canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations", [])]
+    start, end = canon_station(start), canon_station(end)
+    if start not in stations or end not in stations:
+        return []
+    direction = sinbundang_direction(start, end)
+    si, ei = stations.index(start), stations.index(end)
+    ride_seconds = sinbundang_runtime_seconds(start, end)
+    if ride_seconds is None:
+        return []
+
     out = []
-    passenger = {canon_station(x) for x in STATIONS_BY_LINE.get("신분당선", [])}
     for row in rows:
         if str(row.get("subwayId") or "1077").strip() not in {"", "1077"}:
             continue
-        seconds = _arrival_seconds(row)
-        if seconds is None:
+        vehicle_id = str(row.get("trainNo") or "").strip()
+        if not vehicle_id:
             continue
-        observed = parse_dt(row.get("recptnDt"))
-        # recptnDt 시점 기준 남은 초. 응답이 오래됐으면 현재 시각만큼 소진한다.
-        age = max(0.0, (now - observed).total_seconds())
-        remaining = max(0.0, seconds - age)
-        board_live = now + timedelta(seconds=remaining)
-        if board_live < ready_dt - timedelta(seconds=10):
+        row_direction = _api_direction_to_schedule("신분당선", row.get("updnLine"))
+        if row_direction != direction:
             continue
-        if board_live > ready_dt + timedelta(hours=1):
+        current = canon_station(row.get("statnNm"))
+        if current not in stations:
+            continue
+        ci = stations.index(current)
+        if (direction == "DOWN" and ci > si) or (direction == "UP" and ci < si):
+            continue
+        destination = canon_station(row.get("statnTnm"))
+        if not _sinbundang_destination_reaches(destination, end, direction):
             continue
 
-        direction = _api_direction_to_schedule("신분당선", row.get("updnLine"))
-        destination = _clean_arrival_destination(row.get("bstatnNm") or row.get("statnTnm"))
-        ranked = []
-        for tr in route_trains("신분당선", mode, start, end):
-            if direction and str(tr.get("direction") or "").upper() != direction:
-                continue
-            tr_dest = canon_station(tr.get("dest"))
-            # API가 여객 종착역을 명시하면 같은 종착 계통만 허용.
-            if destination and destination in passenger and tr_dest != destination:
-                continue
-            pair = route_pair(tr.get("stops", []), start, end)
-            if not pair:
-                continue
-            si, ei = pair
-            bsec = stop_board_sec(tr["stops"][si])
-            asec = stop_alight_sec(tr["stops"][ei])
-            if bsec is None or asec is None:
-                continue
-            while asec < bsec:
-                asec += 86400
-            sched_board = nearest_schedule_dt(bsec, board_live, 0)
-            diff = (board_live - sched_board).total_seconds()
-            # 8분 이상 차이나면 다른 운행편일 가능성이 높아 매칭하지 않는다.
-            if abs(diff) > 8 * 60:
-                continue
-            ranked.append((abs(diff), tr.get("train_no", ""), tr, sched_board, asec - bsec, diff))
-        if not ranked:
+        # 현재 승차역에서 이미 '출발' 상태면 해당 차량은 놓친 것으로 본다.
+        raw_status = str(row.get("trainSttus") or "").strip()
+        if current == start and raw_status == "2":
             continue
-        ranked.sort(key=lambda x: (x[0], x[1]))
-        best = ranked[0]
-        tr, sched_board, ride_seconds, delay = best[2], best[3], best[4], best[5]
-        # 촘촘한 배차에서 두 DIA가 거의 동일하게 가까우면 과도한 확신을 피한다.
-        margin = (ranked[1][0] - best[0]) if len(ranked) > 1 else None
-        alight_dt = board_live + timedelta(seconds=ride_seconds)
+
+        eta_info = _sinbundang_vehicle_eta_to(row, start)
+        if not eta_info:
+            continue
+        board_dt = eta_info["eta"]
+        # anchor가 승차역 이전 역이면 runtime은 승차역 '도착'까지이므로 평균 정차 30초 뒤 출발로 본다.
+        if canon_station(eta_info.get("anchor_station")) != start:
+            board_dt += timedelta(seconds=30)
+        age = max(0.0, (now - eta_info["observed"]).total_seconds())
+        # 3분 넘게 오래된 소재는 실시간 후보로 쓰지 않는다.
+        if age > 180:
+            continue
+        if board_dt < ready_dt - timedelta(seconds=10):
+            continue
+        if board_dt > ready_dt + timedelta(hours=1):
+            continue
+        alight_dt = board_dt + timedelta(seconds=ride_seconds)
         out.append({
-            "line": "신분당선",
-            "from": canon_station(start), "to": canon_station(end),
-            "train_no": tr["train_no"],
-            "external_train_no": str(row.get("btrainNo") or ""),
-            "service": tr.get("service", "local"), "direction": tr.get("direction", ""),
-            "origin": tr.get("start", ""), "destination": tr.get("dest", ""),
-            "board_dt": board_live, "alight_dt": alight_dt,
-            "wait_seconds": round((board_live - ready_dt).total_seconds()),
-            "ride_seconds": round(ride_seconds),
-            "delay_seconds": round(delay),
-            "delay_source": "station_arrival",
-            "observed_at": observed.strftime("%Y-%m-%d %H:%M:%S"),
+            "line": "신분당선", "from": start, "to": end,
+            "train_no": vehicle_id, "vehicle_id": vehicle_id,
+            "external_train_no": vehicle_id,
+            "service": "local", "direction": direction,
+            "origin": "", "destination": destination or ("광교" if direction == "DOWN" else "신사"),
+            "board_dt": board_dt, "alight_dt": alight_dt,
+            "wait_seconds": round((board_dt - ready_dt).total_seconds()),
+            "ride_seconds": int(ride_seconds),
+            "delay_seconds": None, "delay_source": "vehicle_position",
+            "observed_at": eta_info["observed"].strftime("%Y-%m-%d %H:%M:%S"),
             "data_age_seconds": max(0, round(age)),
-            "current_station": canon_station(row.get("arvlMsg3") or ""),
-            "status": str(row.get("arvlMsg2") or ""),
-            "location_kind": "arrival",
-            "location_label": str(row.get("arvlMsg2") or row.get("arvlMsg3") or "실시간 도착예정"),
+            "current_station": current, "status": eta_info["status"],
+            "location_kind": "live",
+            "location_label": f"{current} {eta_info['status']}".strip(),
             "confidence": "중간",
-            "method": "승차역 실시간 도착예정 + 공식 시간표 구간소요시간",
+            "method": "실시간 차량 소재 + 운영사 공식 역간 소요시간",
             "projected": False,
-            "schedule_match_offset_seconds": round(delay),
-            "schedule_match_margin_seconds": round(margin) if margin is not None else None,
+            "delay_available": False,
         })
-    # 같은 DX 시간표 편성이 여러 arrival row에 중복되면 최신/가까운 것 하나만 유지.
-    merged = {}
-    for c in sorted(out, key=lambda x: (x["board_dt"], abs(x.get("schedule_match_offset_seconds", 0)))):
-        merged.setdefault(c["train_no"], c)
-    return sorted(merged.values(), key=lambda x: (x["alight_dt"], x["board_dt"]))
+    out.sort(key=lambda x: (x["alight_dt"], x["board_dt"], str(x["train_no"])))
+    return out
+
+
+def _sinbundang_event_reaches(event, end, direction):
+    return _sinbundang_destination_reaches(event.get("dest"), end, direction)
+
+
+def sinbundang_schedule_candidates(mode, start, end, ready_dt, limit=8):
+    """실시간 소재 미포착 시 공개 역별 시각표로 다음 출발시각만 제공한다."""
+    day = _sinbundang_day_key(mode)
+    direction = sinbundang_direction(start, end)
+    ride_seconds = sinbundang_runtime_seconds(start, end)
+    events = SINBUNDANG.get("departures", {}).get(day, {}).get(canon_station(start), {}).get(direction, [])
+    if not direction or ride_seconds is None:
+        return []
+    rows = []
+    for event in events:
+        if not _sinbundang_event_reaches(event, end, direction):
+            continue
+        board_dt = schedule_dt_after(int(event.get("sec", 0)), ready_dt, 0)
+        if not board_dt or board_dt > ready_dt + timedelta(hours=4):
+            continue
+        alight_dt = board_dt + timedelta(seconds=ride_seconds)
+        rows.append({
+            "line":"신분당선", "from":canon_station(start), "to":canon_station(end),
+            "train_no":f"추정 {board_dt.strftime('%H:%M')}", "vehicle_id":"",
+            "external_train_no":"", "service":"local", "direction":direction,
+            "origin":canon_station(event.get("start")), "destination":canon_station(event.get("dest")),
+            "board_dt":board_dt, "alight_dt":alight_dt,
+            "wait_seconds":round((board_dt-ready_dt).total_seconds()), "ride_seconds":int(ride_seconds),
+            "delay_seconds":None, "delay_source":"schedule_only",
+            "observed_at":"", "data_age_seconds":0, "current_station":"",
+            "status":"", "location_kind":"expected", "location_label":"공개 역별 시각표 예정",
+            "confidence":"낮음", "method":"공개 역별 시각표 + 운영사 공식 역간 소요시간",
+            "projected":True, "delay_available":False,
+        })
+    rows.sort(key=lambda x:(x["alight_dt"],x["board_dt"]))
+    # 동일 출발시각 중복 제거
+    unique=[]; seen=set()
+    for row in rows:
+        key=(row["board_dt"],row["destination"])
+        if key in seen: continue
+        seen.add(key); unique.append(row)
+        if len(unique)>=limit: break
+    return unique
+
+
+def sinbundang_previous_schedule_candidate(mode, start, end, ready_dt):
+    day = _sinbundang_day_key(mode)
+    direction = sinbundang_direction(start, end)
+    ride_seconds = sinbundang_runtime_seconds(start, end)
+    events = SINBUNDANG.get("departures", {}).get(day, {}).get(canon_station(start), {}).get(direction, [])
+    best = None
+    for event in events:
+        if not _sinbundang_event_reaches(event, end, direction):
+            continue
+        board_dt = schedule_dt_before(int(event.get("sec", 0)), ready_dt, 0)
+        if not board_dt:
+            continue
+        if best is None or board_dt > best[0]:
+            best=(board_dt,event)
+    if not best or ride_seconds is None:
+        return None
+    board_dt,event=best
+    return {
+        "line":"신분당선","from":canon_station(start),"to":canon_station(end),
+        "train_no":f"추정 {board_dt.strftime('%H:%M')}","vehicle_id":"","external_train_no":"",
+        "service":"local","direction":direction,"origin":canon_station(event.get("start")),"destination":canon_station(event.get("dest")),
+        "board_dt":board_dt,"alight_dt":board_dt+timedelta(seconds=ride_seconds),
+        "wait_seconds":round((board_dt-ready_dt).total_seconds()),"ride_seconds":int(ride_seconds),
+        "delay_seconds":None,"delay_source":"schedule_only","observed_at":"","data_age_seconds":0,
+        "current_station":"","status":"","location_kind":"expected","location_label":"직전 공개 시각표",
+        "confidence":"낮음","method":"공개 역별 시각표 + 운영사 공식 역간 소요시간","projected":True,
+        "delay_available":False,"is_previous":True,
+    }
+
+
+def calculate_sinbundang_segment(mode, start, end, ready_dt, position_cache):
+    positions, realtime_error, realtime_available = cached_position_rows("신분당선", position_cache)
+    direct = sinbundang_vehicle_candidates(mode, start, end, ready_dt, positions)
+    projected = sinbundang_schedule_candidates(mode, start, end, ready_dt, limit=10)
+
+    # 같은 시각대(±3분)의 시간표 예정과 실시간 차량은 실시간 차량 하나로 본다.
+    merged = list(direct)
+    for p in projected:
+        if any(abs((p["board_dt"]-d["board_dt"]).total_seconds()) <= 180 for d in direct):
+            continue
+        merged.append(p)
+    merged.sort(key=lambda c:(c["alight_dt"], 1 if c.get("projected") else 0, c["board_dt"]))
+    near=[c for c in merged if -5 <= (c["board_dt"]-ready_dt).total_seconds() <= 3600] or merged
+    if not near:
+        return {"ok":False,"error":f"신분당선 {start}→{end} 운행 정보를 찾지 못했습니다.","diagnostics":{}}
+    chosen=near[0]
+    previous=sinbundang_previous_schedule_candidate(mode,start,end,ready_dt)
+    diag={
+        "positions":len(positions),
+        "vehicle_ids":sorted({str(x.get("trainNo") or "") for x in positions if str(x.get("trainNo") or "")})[:30],
+        "live_vehicle_candidates":len(direct),
+        "schedule_candidates":len(projected),
+        "realtime_available":realtime_available,
+        "realtime_error":realtime_error or "",
+        "strategy":"vehicle_position_plus_official_runtime",
+        "delay_inference":False,
+    }
+    cached_meta=position_cache.get("신분당선",{}) if isinstance(position_cache,dict) else {}
+    if isinstance(cached_meta,dict) and cached_meta.get("query"):
+        diag["realtime_query"]=cached_meta.get("query")
+    public=[public_candidate(c, selected=(c is chosen)) for c in near[:6]]
+    if previous:
+        public.insert(0, public_candidate(previous))
+    return {
+        "ok":True,"chosen":chosen,"candidates":near[:10],"public_candidates":public,
+        "previous_candidate":public_candidate(previous) if previous else None,
+        "diagnostics":diag,
+    }
 
 
 def sinbundang_probe_snapshot(stations=None, timeout=5):
-    """한 시점의 realtimePosition + realtimeStationArrival을 원문 필드 중심으로 수집한다."""
-    stations = [canon_station(x) for x in (stations or ["강남", "판교", "정자"]) if canon_station(x)]
+    """신분당선 realtimePosition 차량 소재 단일 스냅샷. trainNo는 차량 식별자로 기록한다."""
     ok_pos, err_pos, pos_data = fetch_position("신분당선", timeout=timeout)
     pos_rows = position_rows(pos_data or {}, "신분당선") if ok_pos else []
-    arrivals = {}
-    arrival_errors = {}
-    for station in stations[:8]:
-        ok, err, data = fetch_station_arrival(station, timeout=timeout)
-        if ok:
-            arrivals[station] = station_arrival_rows(data, "신분당선")
-        else:
-            arrivals[station] = []
-            arrival_errors[station] = err
-    keep_pos = ("subwayId", "subwayNm", "statnId", "statnNm", "trainNo", "lastRecptnDt", "recptnDt", "updnLine", "statnTid", "statnTnm", "trainSttus", "directAt", "lstcarAt")
-    keep_arr = ("subwayId", "updnLine", "trainLineNm", "statnId", "statnNm", "ordkey", "btrainSttus", "barvlDt", "btrainNo", "bstatnId", "bstatnNm", "recptnDt", "arvlMsg2", "arvlMsg3", "arvlCd")
-    clean_pos = [{k: row.get(k) for k in keep_pos} for row in pos_rows]
-    clean_arr = {st: [{k: row.get(k) for k in keep_arr} for row in rows] for st, rows in arrivals.items()}
-    pos_numbers = sorted({str(r.get("trainNo") or "") for r in clean_pos if str(r.get("trainNo") or "")})
-    arr_numbers = sorted({str(r.get("btrainNo") or "") for rows in clean_arr.values() for r in rows if str(r.get("btrainNo") or "")})
+    keep = ("subwayId","subwayNm","statnId","statnNm","trainNo","lastRecptnDt","recptnDt","updnLine","statnTid","statnTnm","trainSttus","directAt","lstcarAt")
+    rows=[]
+    for row in pos_rows:
+        clean={k:row.get(k) for k in keep}
+        clean["vehicle_id"]=str(row.get("trainNo") or "")
+        rows.append(clean)
     return {
-        "ok": bool(ok_pos or any(clean_arr.values())),
-        "captured_at": now_kst().strftime("%Y-%m-%d %H:%M:%S"),
-        "position": {
-            "ok": ok_pos, "error": err_pos,
-            "query": (pos_data or {}).get("_jigeumta_query", "") if isinstance(pos_data, dict) else "",
-            "rows": clean_pos, "train_numbers": pos_numbers,
-        },
-        "arrivals": clean_arr,
-        "arrival_errors": arrival_errors,
-        "arrival_train_numbers": arr_numbers,
-        "number_overlap": sorted(set(pos_numbers) & set(arr_numbers)),
-        "note": "trainNo/btrainNo는 DX 운행열번으로 간주하지 않고 반복 스냅샷에서 안정성만 판정",
+        "captured_at":now_kst().strftime("%Y-%m-%d %H:%M:%S"),
+        "position":{"ok":ok_pos,"error":err_pos,"query":(pos_data or {}).get("_jigeumta_query","") if isinstance(pos_data,dict) else "","rows":rows},
+        "vehicle_ids":sorted({r["vehicle_id"] for r in rows if r.get("vehicle_id")}),
+        "note":"서울시 trainNo 필드는 신분당선에서 공개 운행열번이 아니라 실시간 차량 식별자로 취급한다.",
     }
+
 
 def position_rows(data, line=None):
     """
@@ -2023,58 +2195,9 @@ def _api_direction_to_schedule(line, raw):
     return ""
 
 def infer_live_train_by_context(line, mode, position):
-    """
-    API 열차번호 체계와 시간표 열번 체계가 다를 때의 보조 매칭.
+    """폐기된 호환 함수. 신분당선 차량번호를 공개 시간표 열번으로 매칭하지 않는다."""
+    return None
 
-    신분당선 realtimePosition의 열차번호가 Rail.Blue의 DX9xxx 운행열번과
-    직접 일치하지 않아도 현재역/방향/종착역/관측시각으로 가장 가까운 DIA를 찾는다.
-    이 매칭은 exact train-id 매칭보다 불확실하므로 `live_context`(중간 신뢰도)로만 사용한다.
-    """
-    if line != "신분당선":
-        return None
-    cur = canon_station(position.get("statnNm"))
-    if not cur:
-        return None
-    direction = _api_direction_to_schedule(line, position.get("updnLine"))
-    destination = canon_station(position.get("statnTnm"))
-    status = position.get("trainSttus")
-    observed = parse_dt(position.get("recptnDt") or position.get("lastRecptnDt"))
-
-    ranked = []
-    for tr in all_trains(line, mode):
-        if direction and str(tr.get("direction") or "").upper() != direction:
-            continue
-        tr_dest = canon_station(tr.get("dest"))
-        # API 종착역이 여객역으로 명시된 경우 같은 종착 계통을 우선한다.
-        destination_penalty = 0
-        if destination and destination in {canon_station(x) for x in STATIONS_BY_LINE.get(line, [])}:
-            if tr_dest != destination:
-                destination_penalty = 900
-        for ci in indices(tr.get("stops", []), cur):
-            ref = scheduled_reference_at(tr["stops"], ci, status)
-            if ref is None:
-                continue
-            delay = align_clock(observed, ref) - ref
-            # 신분당선은 촘촘한 배차라 과도한 지연까지 문맥으로 특정하면 다른 편성을
-            # 잘못 붙일 수 있다. 12분 이내 관측만 보조 매칭에 사용한다.
-            if abs(delay) > 12 * 60:
-                continue
-            ranked.append((abs(delay) + destination_penalty, abs(delay), tr["train_no"], tr, ci, delay, ref))
-    if not ranked:
-        return None
-    ranked.sort(key=lambda x: (x[0], x[1], x[2]))
-    best = ranked[0]
-    # 종착 불일치 패널티가 붙은 후보밖에 없다면 매칭하지 않는다.
-    if best[0] >= 900:
-        return None
-    return {
-        "train": best[3],
-        "current_index": best[4],
-        "delay": best[5],
-        "ref": best[6],
-        "observed": observed,
-        "match_margin_seconds": (ranked[1][0] - best[0]) if len(ranked) > 1 else None,
-    }
 
 def _is_live_source(kind):
     return kind in {"live", "live_context"}
@@ -2431,6 +2554,7 @@ def public_candidate(c, selected=False):
     return {
         "line": c.get("line", ""),
         "train_no": c.get("train_no", ""),
+        "vehicle_id": c.get("vehicle_id", ""),
         "external_train_no": c.get("external_train_no", ""),
         "continuation_train_no": c.get("continuation_train_no", ""),
         "physical_continuation": bool(c.get("physical_continuation")),
@@ -2442,8 +2566,9 @@ def public_candidate(c, selected=False):
         "alight_dt": c["alight_dt"].strftime("%Y-%m-%d %H:%M:%S") if isinstance(c.get("alight_dt"), datetime) else c.get("alight_dt"),
         "wait_seconds": c.get("wait_seconds", 0),
         "ride_seconds": c.get("ride_seconds", 0),
-        "delay_seconds": c.get("delay_seconds", 0),
+        "delay_seconds": c.get("delay_seconds"),
         "delay_source": c.get("delay_source", ""),
+        "delay_available": c.get("delay_available", True),
         "observed_at": c.get("observed_at", ""),
         "data_age_seconds": c.get("data_age_seconds", 0),
         "is_previous": bool(c.get("is_previous")),
@@ -2473,6 +2598,9 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
     if canon_station(end) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
         return {"ok": False, "error": f"{line} 시간표에서 하차역 '{end}'을 찾지 못했습니다."}
 
+    if line == "신분당선":
+        return calculate_sinbundang_segment(mode, start, end, ready_dt, position_cache)
+
     positions, realtime_error, realtime_available = cached_position_rows(line, position_cache)
     raw_observations, diag = observe_delays(line, mode, positions, cached_delay_rows(position_cache))
     diag["realtime_available"] = realtime_available
@@ -2482,30 +2610,11 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
     if realtime_error:
         diag["realtime_error"] = realtime_error
 
-    if line == "신분당선":
-        # 신분당선 realtimePosition trainNo는 Rail.Blue DX 운행열번과 동일하다고
-        # 보장할 수 없으므로 생산 ETA의 지연 보정에는 사용하지 않는다. 위치 API는 진단용.
-        observations = []
-        arrival_rows, arrival_error, arrival_available = cached_station_arrival_rows(
-            line, start, position_cache
-        )
-        diag["position_rows_diagnostic_only"] = len(positions)
-        diag["position_train_numbers"] = sorted({str(x.get("trainNo") or "") for x in positions if str(x.get("trainNo") or "")})[:20]
-        diag["station_arrival_available"] = arrival_available
-        diag["station_arrival_rows"] = len(arrival_rows)
-        diag["station_arrival_train_numbers"] = sorted({str(x.get("btrainNo") or "") for x in arrival_rows if str(x.get("btrainNo") or "")})[:20]
-        if arrival_error:
-            diag["station_arrival_error"] = arrival_error
-        direct = sinbundang_arrival_candidates(mode, start, end, ready_dt, arrival_rows)
-        diag["station_arrival_matched"] = len(direct)
-        # 실시간 도착정보가 없거나 매칭되지 않을 때만 공식 시간표로 자연스럽게 fallback.
-        projected = static_projected_candidates(line, mode, start, end, ready_dt, observations)
-    else:
-        observations = raw_observations
-        # 현재 API에 실제로 잡힌 열차.
-        direct = direct_live_candidates(line, mode, start, end, ready_dt, observations)
-        # 실시간에 아직 안 잡힌 열차까지 포함한 공식 시간표 후보.
-        projected = static_projected_candidates(line, mode, start, end, ready_dt, observations)
+    observations = raw_observations
+    # 현재 API에 실제로 잡힌 열차.
+    direct = direct_live_candidates(line, mode, start, end, ready_dt, observations)
+    # 실시간에 아직 안 잡힌 열차까지 포함한 공식 시간표 후보.
+    projected = static_projected_candidates(line, mode, start, end, ready_dt, observations)
 
     # 같은 열차번호가 양쪽에 있으면 실시간 관측값이 우선.
     merged = {}
@@ -2557,12 +2666,97 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
         "diagnostics": diag,
     }
 
+def tracked_sinbundang_vehicle_segment(mode, start, end, vehicle_id, position_cache, boarded_at=None):
+    """신분당선은 API 차량 식별값을 고정 추적한다. 공개 열차번호/DIA 매칭은 사용하지 않는다."""
+    now = now_kst()
+    start, end = canon_station(start), canon_station(end)
+    ride_seconds = sinbundang_runtime_seconds(start, end)
+    if ride_seconds is None:
+        return {"ok":False,"error":f"신분당선 {start}→{end} 소요시간을 계산하지 못했습니다."}
+    board_dt = None
+    if boarded_at:
+        try: board_dt = datetime.strptime(boarded_at, "%Y-%m-%d %H:%M:%S")
+        except Exception: board_dt = None
+    positions, realtime_error, realtime_available = cached_position_rows("신분당선", position_cache)
+    rows=[r for r in positions if norm_train(r.get("trainNo")) == norm_train(vehicle_id)]
+    row=max(rows, key=lambda r: parse_dt(r.get("recptnDt") or r.get("lastRecptnDt")), default=None)
+    diag={
+        "positions":len(positions),"tracked_vehicle_id":str(vehicle_id),"vehicle_found":bool(row),
+        "realtime_available":realtime_available,"realtime_error":realtime_error or "",
+        "strategy":"tracked_vehicle_position_plus_official_runtime","delay_inference":False,
+    }
+    cached_meta=position_cache.get("신분당선",{}) if isinstance(position_cache,dict) else {}
+    if isinstance(cached_meta,dict) and cached_meta.get("query"):
+        diag["realtime_query"]=cached_meta.get("query")
+
+    if row:
+        current=canon_station(row.get("statnNm"))
+        direction=_api_direction_to_schedule("신분당선", row.get("updnLine")) or sinbundang_direction(start,end)
+        status=status_name(row.get("trainSttus")) or "위치확인"
+        observed=parse_dt(row.get("recptnDt") or row.get("lastRecptnDt"))
+        stations=[canon_station(x) for x in SINBUNDANG_RUNTIME.get("stations",[])]
+        if current in stations and end in stations:
+            ci,ei=stations.index(current),stations.index(end)
+            raw=str(row.get("trainSttus") or "").strip()
+            passed=(direction=="DOWN" and ci>ei) or (direction=="UP" and ci<ei)
+            at_done=(ci==ei and raw in {"1","2"})
+            if passed or at_done:
+                return {"ok":True,"arrived":True,"chosen":{
+                    "line":"신분당선","from":start,"to":end,"train_no":str(vehicle_id),"vehicle_id":str(vehicle_id),
+                    "service":"local","direction":direction,"origin":"","destination":canon_station(row.get("statnTnm")),
+                    "board_dt":board_dt or now,"alight_dt":now,"wait_seconds":0,"ride_seconds":0,"remaining_seconds":0,
+                    "delay_seconds":None,"delay_source":"vehicle_tracking","delay_available":False,
+                    "observed_at":observed.strftime("%Y-%m-%d %H:%M:%S"),"data_age_seconds":max(0,round((now-observed).total_seconds())),
+                    "current_station":current,"status":status,"location_kind":"live","location_label":f"{current} {status}".strip(),
+                    "confidence":"중간","method":"탑승 차량 실시간 소재 + 운영사 공식 역간 소요시간","projected":False,
+                    "tracking":True,"arrived":True,
+                },"diagnostics":diag}
+
+        eta_info=_sinbundang_vehicle_eta_to(row,end)
+        if eta_info:
+            alight_dt=max(now,eta_info["eta"])
+            shown_board=board_dt or now
+            if shown_board>alight_dt: shown_board=alight_dt
+            return {"ok":True,"arrived":False,"chosen":{
+                "line":"신분당선","from":start,"to":end,"train_no":str(vehicle_id),"vehicle_id":str(vehicle_id),
+                "service":"local","direction":direction,"origin":"","destination":canon_station(row.get("statnTnm")),
+                "board_dt":shown_board,"alight_dt":alight_dt,"wait_seconds":0,
+                "ride_seconds":max(0,round((alight_dt-shown_board).total_seconds())),
+                "remaining_seconds":max(0,round((alight_dt-now).total_seconds())),
+                "delay_seconds":None,"delay_source":"vehicle_tracking","delay_available":False,
+                "observed_at":eta_info["observed"].strftime("%Y-%m-%d %H:%M:%S"),
+                "data_age_seconds":max(0,round((now-eta_info["observed"]).total_seconds())),
+                "current_station":eta_info["current_station"],"status":eta_info["status"],
+                "location_kind":"live","location_label":f"{eta_info['current_station']} {eta_info['status']}".strip(),
+                "confidence":"중간","method":"탑승 차량 실시간 소재 + 운영사 공식 역간 소요시간",
+                "projected":False,"tracking":True,"arrived":False,
+            },"diagnostics":diag}
+
+    # 차량이 순간 미포착되면 탑승시각 + 운영사 공식 소요시간으로 임시 유지한다.
+    shown_board=board_dt or now
+    target_dt=shown_board+timedelta(seconds=ride_seconds)
+    if target_dt<now: target_dt=now
+    return {"ok":True,"arrived":False,"chosen":{
+        "line":"신분당선","from":start,"to":end,"train_no":str(vehicle_id),"vehicle_id":str(vehicle_id),
+        "service":"local","direction":sinbundang_direction(start,end),"origin":"","destination":"",
+        "board_dt":shown_board,"alight_dt":target_dt,"wait_seconds":0,
+        "ride_seconds":max(0,round((target_dt-shown_board).total_seconds())),
+        "remaining_seconds":max(0,round((target_dt-now).total_seconds())),
+        "delay_seconds":None,"delay_source":"vehicle_tracking_fallback","delay_available":False,
+        "observed_at":"","data_age_seconds":0,"current_station":"","status":"위치 재포착 대기",
+        "location_kind":"expected","location_label":"차량 위치 재포착 대기","confidence":"낮음",
+        "method":"탑승 차량 잠금 + 운영사 공식 소요시간 fallback","projected":True,"tracking":True,"arrived":False,
+    },"diagnostics":diag}
+
+
 def tracked_train_segment(line, mode, start, end, train_no, position_cache, boarded_at=None):
     """
     사용자가 실제 탑승했다고 표시한 열차를 잠금 추적한다.
     다른 후보 열차로 절대 교체하지 않고 지정 train_no만 따라간다.
     """
     now = now_kst()
+    if line == "신분당선":
+        return tracked_sinbundang_vehicle_segment(mode, start, end, train_no, position_cache, boarded_at)
     base_tr = get_train(line, mode, train_no)
     if not base_tr:
         return {
@@ -2590,12 +2784,6 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
 
     positions, realtime_error, realtime_available = cached_position_rows(line, position_cache)
     observations, diag = observe_delays(line, mode, positions, cached_delay_rows(position_cache))
-    if line == "신분당선":
-        # 탑승 후에도 DX 열번과 realtimePosition.trainNo를 동일시하지 않는다.
-        # 위치 행은 diagnostics에만 남기고 정확열차 추적 근거로 사용하지 않는다.
-        diag["position_rows_diagnostic_only"] = len(positions)
-        diag["position_train_numbers"] = sorted({str(x.get("trainNo") or "") for x in positions if str(x.get("trainNo") or "")})[:20]
-        observations = []
     diag["realtime_available"] = realtime_available
     cached_meta = position_cache.get(line, {}) if isinstance(position_cache, dict) else {}
     if isinstance(cached_meta, dict) and cached_meta.get("query"):

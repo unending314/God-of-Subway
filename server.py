@@ -12,7 +12,7 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.4.10.0-vercel"
+VERSION = "V13.5.0.0-vercel"
 
 app = FastAPI(
     title="지금타",
@@ -61,24 +61,19 @@ def _record_realtime_match_issues(*, endpoint: str, request_id: str, payload, re
             continue
         line = segment.get("line", "")
         if line == "신분당선":
-            arrival_rows = int(diag.get("station_arrival_rows") or 0)
-            arrival_matched = int(diag.get("station_arrival_matched") or 0)
-            if arrival_rows > 0 and arrival_matched == 0:
+            # 신분당선은 공개 열차번호와 매칭하지 않는다. API trainNo는 차량 식별자다.
+            positions = int(diag.get("positions") or 0)
+            vehicle_ids = diag.get("vehicle_ids") or []
+            if positions > 0 and not vehicle_ids:
                 observability.record_event(
-                    event_type="sinbundang_station_arrival_match_failure",
-                    level="warning",
-                    endpoint=endpoint, request_id=request_id, status_code=200,
-                    message=f"신분당선 {arrival_rows}건 도착정보 수신 후 DX 시간표 매칭 0건",
-                    payload=payload,
-                    diagnostics={
-                        "segment_index": index, "from": segment.get("from", ""), "to": segment.get("to", ""),
-                        "station_arrival_rows": arrival_rows,
-                        "station_arrival_train_numbers": diag.get("station_arrival_train_numbers", [])[:20],
-                        "station_arrival_error": diag.get("station_arrival_error", ""),
-                    },
-                    context=context,
+                    event_type="sinbundang_vehicle_id_missing",
+                    level="warning", endpoint=endpoint, request_id=request_id, status_code=200,
+                    message=f"신분당선 실시간 {positions}건 수신했으나 차량 식별값이 없음",
+                    payload=payload, diagnostics={
+                        "segment_index":index,"from":segment.get("from", ""),"to":segment.get("to", ""),
+                        "positions":positions,"realtime_query":diag.get("realtime_query", ""),
+                    }, context=context,
                 )
-            # realtimePosition은 신분당선 생산 ETA에서 진단용이므로 번호 매칭 실패를 오류로 보지 않는다.
             continue
 
         positions = int(diag.get("positions") or 0)
@@ -208,20 +203,22 @@ def health():
         "gyeongui_holiday_trains": len(engine.EXTRA["경의중앙선"]["trains"]["holiday"]),
         "suin_weekday_trains": len(engine.EXTRA["수인분당선"]["trains"]["weekday"]),
         "suin_holiday_trains": len(engine.EXTRA["수인분당선"]["trains"]["holiday"]),
-        "sinbundang_weekday_trains": len(engine.SINBUNDANG["trains"]["weekday"]),
-        "sinbundang_weekend_trains": len(engine.SINBUNDANG["trains"]["holiday"]),
+        "sinbundang_weekday_station_events": int(engine.SINBUNDANG.get("counts", {}).get("weekday", 0)),
+        "sinbundang_weekend_station_events": int(engine.SINBUNDANG.get("counts", {}).get("holiday", 0)),
         "sinbundang_source_sha256": engine.SINBUNDANG.get("meta", {}).get("source_sha256", ""),
         "schedule_only_lines": sorted(engine.SCHEDULE_ONLY_LINES),
         "realtime_line_ids": dict(engine.LINE_IDS),
         "realtime_query_aliases": {k: list(v) for k, v in engine.REALTIME_QUERY_ALIASES.items()},
-        "sinbundang_realtime_strategy": "realtimeStationArrival + Rail.Blue DIA 구간소요시간",
-        "sinbundang_position_role": "diagnostic_only",
+        "sinbundang_realtime_strategy": "realtimePosition vehicle id + official interstation runtime",
+        "sinbundang_position_role": "primary_eta_signal",
+        "sinbundang_public_train_numbers": False,
+        "sinbundang_delay_inference": False,
         "extra_lines": {
             line: {
                 "weekday_trains": len(engine.EXTRA[line]["trains"]["weekday"]),
                 "holiday_trains": len(engine.EXTRA[line]["trains"]["holiday"]),
             }
-            for line in engine.EXTRA_LINES
+            for line in engine.KORAIL_EXTRA_LINES
         },
         "api_key_configured": bool(engine.API_KEY),
         "persistent_error_log_configured": bool(os.environ.get("DATABASE_URL", "").strip()),
@@ -262,7 +259,7 @@ def _debug_authorized(request: Request) -> bool:
 @app.get("/api/debug/sinbundang_probe")
 async def sinbundang_probe(request: Request):
     """
-    신분당선 realtimePosition + realtimeStationArrival 단일 스냅샷.
+    신분당선 realtimePosition 차량 소재 단일 스냅샷.
     API quota 남용 방지를 위해 JIGEUMTA_DEBUG_TOKEN 설정 시에만 사용한다.
     """
     request_id = _request_id(request)
@@ -274,10 +271,9 @@ async def sinbundang_probe(request: Request):
         }, 503, request_id)
     if not _debug_authorized(request):
         return _response({"ok": False, "error": "unauthorized", "request_id": request_id}, 401, request_id)
-    raw = str(request.query_params.get("stations") or "강남,판교,정자")
-    stations = [x.strip() for x in raw.split(",") if x.strip()][:8]
+    stations = []
     try:
-        snapshot = await run_in_threadpool(engine.sinbundang_probe_snapshot, stations, 5)
+        snapshot = await run_in_threadpool(engine.sinbundang_probe_snapshot, None, 5)
         await run_in_threadpool(
             observability.record_event,
             event_type="sinbundang_realtime_probe",

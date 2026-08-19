@@ -35,12 +35,12 @@
 
 ## 지원 노선
 
-경로 탐색과 실시간 지연 반영이 모두 제공되는 노선입니다.
+경로 탐색을 지원합니다. 대부분 노선은 열차별 지연을 반영하며, 신분당선은 공개 열차번호가 없어 차량 소재 기반 ETA를 제공합니다.
 
 | | |
 | :-- | :-- |
 | 수도권 전철 | 1 · 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9호선 |
-| 광역 · 간선 | 경의중앙선 · 수인분당선 · 경춘선 · 경강선 · 서해선 · 공항철도 |
+| 광역 · 간선 | 경의중앙선 · 수인분당선 · 경춘선 · 경강선 · 서해선 · 공항철도 · 신분당선 |
 
 **제외 노선** — 인천1호선, 인천2호선, 김포도시철도, 의정부경전철, 용인경전철은 운영기관 사정으로 실시간 지연정보 제공이 어렵습니다.
 
@@ -82,7 +82,9 @@ Vercel에 배포되어 있습니다. `server.py`의 FastAPI 앱이 Python Functi
 | `index.html` | 프론트엔드 |
 | `route_graph.json` | 공식 시간표 기반 역-노선 그래프 |
 | `stations.json` · `transfer_data.json` | 역 정보 · 환승 소요시간 |
-| `schedule_*.json` · `official_2to9_schedule.json` · `sinbundang_schedule.json` | 공식/사용자 제공 시간표 |
+| `schedule_*.json` · `official_2to9_schedule.json` | 공식 열차 시간표 |
+| `sinbundang_public_timetable.json` | 신분당선 공개 역별 출발시각(열차번호 없음) |
+| `sinbundang_runtime.json` | 신분당선 운영사 공식 역간 소요시간 |
 | `kr_holidays_2026_2035.json` | 공휴일 · 대체공휴일 |
 
 ## 알려진 한계
@@ -125,6 +127,17 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 [CHANGELOG.md](CHANGELOG.md) — V13.3.0부터는 [Releases](https://github.com/unending314/God-of-Subway/releases)에서 관리합니다.
 
 
+
+## V13.5.0
+
+- 신분당선의 과거 `DXxxxx` 열번 설계를 전면 폐기했습니다. 공개 열차번호가 없는 노선으로 취급합니다.
+- 서울시 `realtimePosition`의 `trainNo`는 신분당선에서 **실시간 차량 식별값**으로만 사용하며, 앱 화면에는 `차량 16`처럼 표시합니다.
+- 신분당선 ETA는 `실시간 차량 소재 → 출발역 ETA → 운영사 공식 역간 소요시간 → 목적역 ETA` 순으로 계산합니다. 별도 지연시간은 산출하지 않습니다.
+- 차량 소재를 받지 못하면 `sinbundang_public_timetable.json`의 역별 예정 출발시각으로 fallback하며 이 경우 차량 추적 버튼을 제공하지 않습니다.
+- `sinbundang_schedule.json`과 DX 열번 기반 매칭/realtimeStationArrival 생산 로직은 제거했습니다.
+- 탑승 후에는 사용자가 선택한 API 차량 식별값을 그대로 고정 추적합니다.
+- 상세 설계는 `SINBUNDANG_V13_5_0_DESIGN.md`를 참고하십시오.
+
 ## V13.4.4
 
 급행 판정은 특정 열차번호에만 의존하지 않습니다. 코레일계 노선에서 중간 여객역의 `arr=null + dep=통과시각`을 구조적으로 통과역으로 판정하고, 해당 열차를 급행으로 분류합니다. 경의중앙선·수인분당선·1호선의 누락 급행을 함께 보정했습니다. 상세 내용은 `EXPRESS_NORMALIZATION_V13_4_4.md`와 `TIMETABLE_NORMALIZATION_AUDIT.json`을 참조하십시오.
@@ -149,7 +162,7 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - `call=false` 운전상 지점은 환승 방향 판단에서 제외한다.
 - 상세 수집/충돌/우선순위는 `TRANSFER_POSITION_MASTER_V13_4_10.md` 참조.
 
-## V13.4.9
+## V13.4.9 (V13.5.0에서 폐기된 실험 설계)
 
 - 신분당선은 `realtimePosition.trainNo`를 Rail.Blue DX 열번과 동일시하지 않습니다.
 - 승차역 `realtimeStationArrival`의 `barvlDt`로 실제 탑승예정시각을 계산하고, 가장 가까운 공식 DX DIA의 구간소요시간을 더해 ETA를 산출합니다.
@@ -157,7 +170,7 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - 실제 API 연속 관측용 `tools/probe_sinbundang_api.py`와 보호된 `/api/debug/sinbundang_probe`를 추가했습니다.
 - 상세 내용은 `SINBUNDANG_REALTIME_STRATEGY_V13_4_9.md`를 참고하십시오.
 
-## V13.4.8
+## V13.4.8 (V13.5.0에서 폐기된 열번 매칭 설계)
 
 - 신분당선을 서울시 `realtimePosition` 실시간 위치 조회 대상에 추가했습니다.
 - 서울시 공식 노선 ID `1077`을 `신분당선`에 매핑하고, 응답의 `subwayId=1077`을 검증합니다.
@@ -166,7 +179,7 @@ Vercel에서는 Function Logs에서 바로 확인할 수 있고, `DATABASE_URL`�
 - exact 열차 매칭 시 지연 보정과 신뢰도 `높음`, 동일 방향 관측만 있을 때 `중간`, API 실패/미매칭 시 시간표 기반 `낮음`으로 자동 강등합니다.
 - 신분당선도 최근 exact-train 지연 캐시 대상에 포함했습니다.
 
-## V13.4.6
+## V13.4.6 (초기 신분당선 가져오기 이력)
 
 - 사용자 제공 `신분당선 시간표.xlsx`를 Rail.Blue 원본 구조대로 정규화해 신분당선 지원을 추가했습니다.
 - 평일 326편(상행 163 / 하행 163), 주말 272편(상행 136 / 하행 136)을 수록합니다.
