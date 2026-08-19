@@ -239,11 +239,20 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         result = engine.calculate_segment("신분당선", "DAY", "신사", "강남", datetime(2026,8,19,5,29,0), cache)
         self.assertTrue(result.get("ok"), result)
         chosen = result["chosen"]
-        self.assertIn("추정", chosen["train_no"])
-        self.assertNotIn("DX", chosen["train_no"])
+        self.assertEqual(chosen["train_no"], "")
         self.assertEqual(chosen["delay_source"], "schedule_only")
         self.assertIsNone(chosen["delay_seconds"])
         self.assertEqual(chosen["confidence"], "낮음")
+
+    def test_schedule_fallback_exposes_same_candidate_count_as_other_lines(self):
+        cache = {"신분당선": {"rows": [], "error": "test", "available": False}}
+        result = engine.calculate_segment("신분당선", "DAY", "신사", "청계산입구", datetime(2026,8,19,15,3,30), cache)
+        self.assertTrue(result.get("ok"), result)
+        public = result.get("public_candidates", [])
+        self.assertEqual(len(public), 7, public)
+        self.assertEqual(sum(1 for c in public if c.get("is_previous")), 1)
+        self.assertEqual(sum(1 for c in public if c.get("selected")), 1)
+        self.assertTrue(all(c.get("train_no", "") == "" for c in public))
 
     def test_tracked_vehicle_uses_same_api_vehicle_id(self):
         original_now = engine.now_kst
@@ -280,8 +289,7 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(result.get("service_mode"), "DAY")
-        self.assertIn("추정", result["segments"][0]["train_no"])
-        self.assertNotIn("DX", result["segments"][0]["train_no"])
+        self.assertEqual(result["segments"][0]["train_no"], "")
         self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
 
     def test_route_graph_contains_shinbundang_and_auto_transfer(self):

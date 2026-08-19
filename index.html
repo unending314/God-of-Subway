@@ -509,7 +509,7 @@ header{margin-bottom:30px}
   <details class="expList"><summary>최근 실험 기록 보기</summary><div id="expRows" class="expRows"></div></details>
  </section>
 
- <div class="footNote"><b>계산 기준</b> · 일반 노선은 실시간 위치와 시간표를 조합합니다. 신분당선은 실시간 차량 소재가 확인되면 공식 역간 소요시간으로 ETA를 계산하고, 해당 시점의 차량을 아직 특정할 수 없으면 공개 역별 시간표를 사용합니다.</div>
+ <div class="footNote"><b>계산 기준</b> · 실시간 위치와 시간표를 조합해 경로를 계산합니다. 신분당선은 사용자가 제공한 공개 역별 시각표를 기준으로 후보를 구성하며, 공개되지 않은 열차번호는 화면에 표시하지 않습니다.</div>
 </main>
 <div id="toast" class="toast"></div>
 </div>
@@ -590,10 +590,7 @@ function delayDisplay(s){
 }
 function trainIdentifierText(s){
  const raw=String(s?.train_no||'');
- if(s?.line==='신분당선'){
-  if(!raw || raw.includes('추정'))return '시간표 예정';
-  return `차량 ${raw}`;
- }
+ if(s?.line==='신분당선')return '';
  return raw;
 }
 function confClass(c){return c==='높음'?'high':c==='중간'?'medium':'low'}
@@ -1264,7 +1261,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.5.1.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.5.2.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}
@@ -1316,31 +1313,8 @@ function trainRunText(s){
  const origin=s?.origin||'시발역 미상';
  return `${origin} → ${destination}`;
 }
-function sinbundangScheduleNeighborsHtml(s){
- const list=s.nearby_candidates||[];
- const chosen=list.find(c=>c.selected)||s;
- const chosenTime=parseLocalDT(chosen?.board_dt);
- const prev=[...list].filter(c=>c.is_previous).sort((a,b)=>String(b.board_dt||'').localeCompare(String(a.board_dt||'')))[0];
- const next=[...list].filter(c=>!c.is_previous&&!c.selected&&parseLocalDT(c.board_dt)&&chosenTime&&parseLocalDT(c.board_dt)>chosenTime).sort((a,b)=>parseLocalDT(a.board_dt)-parseLocalDT(b.board_dt))[0];
- const parts=[];
- if(prev)parts.push(`직전 ${fmtClock(prev.board_dt)}`);
- parts.push(`선택 ${fmtClock(chosen.board_dt)}`);
- if(next)parts.push(`다음 ${fmtClock(next.board_dt)}`);
- return `<div class="sinbundangNeighbors"><b>주변 출발시각</b> · ${parts.join(' · ')}</div>`;
-}
-function sinbundangScheduleOverview(s){
- return `<div class="sinbundangScheduleCard">
-  <div><span>출발 예정</span><b>${fmtClock(s.board_dt)}</b><span>공개 역별 시간표</span></div>
-  <div><span>도착 예정</span><b>${fmtClock(s.alight_dt)}</b><span>공식 역간 소요시간 기준</span></div>
-  <div><span>실시간 상태</span><b>이 구간 차량 미확정</b><span>차량번호·현재 소재·지연값은 표시하지 않음</span></div>
- </div>${sinbundangScheduleNeighborsHtml(s)}`;
-}
 function candidateRows(s,routeIndex){
- const raw=s.nearby_candidates||[];
- if(!raw.length)return '';
- // 신분당선 시간표 fallback은 일반 열차 후보 UI로 펼치지 않는다.
- if(s?.line==='신분당선' && s?.delay_source==='schedule_only')return '';
- const list=s?.line==='신분당선' ? raw.filter(c=>c.live_detected) : raw;
+ const list=s.nearby_candidates||[];
  if(!list.length)return '';
  const rows=list.map(c=>{
   const source=c.live_detected
@@ -1352,8 +1326,12 @@ function candidateRows(s,routeIndex){
     : '';
   const serviceFull=trainServiceText(c);
   const serviceCompact=c.service==='express'?'급행':'일반';
+  const identifier=trainIdentifierText(c);
+  const candidateHead=c?.line==='신분당선'
+    ? `${c.is_previous?'<span class="previousBadge">직전</span>':''}`
+    : `${esc(identifier)}${c.service==='express'?'<span class="expressBadge">급행</span>':''}${c.is_previous?'<span class="previousBadge">직전</span>':''}`;
   return `<div class="candidateRow ${c.selected?'selected':''}">
-   <div class="candidateTrain"><span class="trainNoLine">${esc(trainIdentifierText(c))}${c.service==='express'?'<span class="expressBadge">급행</span>':''}${c.is_previous?'<span class="previousBadge">직전</span>':''}</span></div>
+   <div class="candidateTrain"><span class="trainNoLine">${candidateHead}</span></div>
    <div class="candidateMeta">
     <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${delayDisplay(c)}</span><span class="metaSep">·</span>${source}</div>
     ${trainLocationHtml(c)}
@@ -1362,13 +1340,15 @@ function candidateRows(s,routeIndex){
    <div class="candidateAction">${btn}</div>
   </div>`;
  }).join('');
- if(s?.line==='신분당선'){
-  return `<details class="candidateBox"><summary><span>주변 실시간 차량 ${list.length}개</span><span>차량번호 기준</span></summary><div class="candidateList">${rows}</div></details>`;
- }
  const hasUnseen=list.some(c=>!c.live_detected);
+ const hint=hasUnseen
+  ? (s?.line==='신분당선'
+      ? '공개 역별 시각표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 후보입니다. 실시간 소재가 확인된 차량은 자동으로 실시간 후보로 표시됩니다.'
+      : '공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 실제 탑승한 열차를 알고 있다면 ‘이 열차를 탔어요’를 눌러 추적할 수 있습니다.')
+  : '';
  return `<details class="candidateBox">
   <summary><span>근처 열차 후보 ${list.length}개</span><span>${hasUnseen?'미포착 열차 포함':''}</span></summary>
-  ${hasUnseen?`<div class="startHint">공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 실제 탑승한 열차를 알고 있다면 ‘이 열차를 탔어요’를 눌러 추적할 수 있습니다.</div>`:''}
+  ${hint?`<div class="startHint">${hint}</div>`:''}
   <div class="candidateList">${rows}</div>
  </details>`;
 }
@@ -1392,22 +1372,19 @@ function transferHtml(info,walk,state=''){
 function legHtml(s,walk,routeIndex,transferInfo,state=''){
  const tracking=s.tracking?' · <b style="color:#087451">고정 추적</b>':'';
  const isSb=s?.line==='신분당선';
- const sbSchedule=isSb && s?.delay_source==='schedule_only';
- const source=isSb
-  ? (sbSchedule?'공개 시간표 기준':'실시간 차량 소재 기준')
-  : (s.location_kind==='live'?'실시간':'예상');
- const overview=sbSchedule
-  ? sinbundangScheduleOverview(s)
-  : `<div class="trainOverview">
-   <div><span>${isSb?'차량':'열차'}</span><b class="trainNoLine">${esc(trainIdentifierText(s))}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b><span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
+ const source=s.location_kind==='live'?'실시간':'예상';
+ const identifier=trainIdentifierText(s);
+ const idHtml=isSb?'':`<b class="trainNoLine">${esc(identifier)}${s.service==='express'?'<span class="expressBadge">급행</span>':''}</b>`;
+ const overview=`<div class="trainOverview">
+   <div><span>열차</span>${idHtml}<span>${esc(trainRunText(s))} · ${trainServiceText(s)}</span></div>
    <div><span>현재 소재</span><b>${esc(trainLocationText(s))}</b></div>
-   <div><span>${isSb?'ETA 방식':'실시간 지연'}</span><b>${isSb?'공식 역간 소요시간':' '+delayDisplay(s)}</b><span>${isSb?'지연 미산정':(s.tracking?'탑승 중':`${minutesUntil(s.board_dt,s.wait_seconds)}분 후 ${esc(s.from)} 도착 예정`)}</span></div>
+   <div><span>실시간 지연</span><b>${delayDisplay(s)}</b><span>${s.tracking?'탑승 중':`${minutesUntil(s.board_dt,s.wait_seconds)}분 후 ${esc(s.from)} 도착 예정`}</span></div>
   </div>`;
  return `<div class="leg ${confClass(s.confidence)} ${state?`sequence-${state}`:''}">
   <div class="legTop">
    <div class="lineBadge" data-line="${esc(s.line)}">${esc(s.line)}</div>
    <div><h4>${esc(s.from)} <span class="timePoint">(${fmtClock(s.board_dt)})</span> → ${esc(s.to)} <span class="timePoint">(${fmtClock(s.alight_dt)})</span></h4><div class="journeyMinutes">${fmtDur(s.ride_seconds)} 이동 · ${source} · 신뢰도 ${esc(s.confidence)}${tracking}</div></div>
-   <div class="clock">${sbSchedule?'':boardButton(s,routeIndex)}</div>
+   <div class="clock">${boardButton(s,routeIndex)}</div>
   </div>
   ${overview}
   ${candidateRows(s,routeIndex)}
@@ -1605,16 +1582,7 @@ async function calculate(options={}){
   const rank={'높음':3,'중간':2,'낮음':1};$('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
   const first=segments[0],last=segments[segments.length-1];
   $('sumTitle').textContent=`${first.from} → ${last.to} · ${fmtClock(j.arrival_time)} 도착`;
-  const sbSegments=(j.segments||[]).filter(s=>s.line==='신분당선');
-  const sbScheduleOnly=sbSegments.some(s=>s.delay_source==='schedule_only');
-  const sbLive=sbSegments.some(s=>s.delay_source==='vehicle_position');
-  if(sbScheduleOnly){
-   $('sumText').textContent='신분당선의 아직 특정되지 않은 차량 구간은 공개 역별 시간표와 공식 역간 소요시간으로 계산했습니다. 차량이 실시간 소재에 잡히는 구간만 차량번호와 현재 위치를 표시합니다.';
-  }else if(sbLive){
-   $('sumText').textContent='신분당선은 실시간 차량 소재와 공식 역간 소요시간으로 ETA를 계산합니다. 차량별 지연시간 자체는 별도로 산정하지 않습니다.';
-  }else{
-   $('sumText').textContent='현재 운행상황과 실제 환승시간을 반영했습니다. 실제 열차에 탑승하면 ‘이 열차를 탔어요’를 눌러 이동 중 ETA를 계속 갱신할 수 있습니다.';
-  }
+  $('sumText').textContent='현재 운행상황과 실제 환승시간을 반영했습니다. 실시간으로 특정된 열차에 탑승하면 ‘이 열차를 탔어요’를 눌러 이동 중 ETA를 계속 갱신할 수 있습니다.';
   updateRouteStamps(j.calculated_at||localDateTimeString(new Date()),fixedPlatformStart||j.start_time);
   updateRefreshAvailability();
   renderRouteSegments(j,0);
@@ -1879,7 +1847,7 @@ async function pollLiveTrip(first=false){
 
   updateAutoDayInfo(j.service_mode,j.service_mode_reason,j.service_mode==='END');
   $('livePanel').classList.add('show');
-  $('liveTrain').textContent=current.line==='신분당선'?`${current.line} 차량 ${j.boarded_train_no}`:`${current.line} ${j.boarded_train_no}`;
+  $('liveTrain').textContent=current.line==='신분당선'?current.line:`${current.line} ${j.boarded_train_no}`;
   $('liveStation').textContent=trainLocationText(current);
   setLiveRemainingLabel();
   $('liveRemain').textContent=fmtDur(j.current_segment_remaining_seconds);
@@ -1893,7 +1861,7 @@ async function pollLiveTrip(first=false){
   const rank={'높음':3,'중간':2,'낮음':1};
   $('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
   $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
-  $('sumText').textContent=`${j.boarded_train_no}열차의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.`;
+  $('sumText').textContent=current.line==='신분당선'?'탑승 중인 신분당선 차량의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.':`${j.boarded_train_no}열차의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.`;
   fixedPlatformStart=liveTrip.platformStart||fixedPlatformStart;
   updateRouteStamps(j.updated_at||localDateTimeString(new Date()),fixedPlatformStart);
   updateRefreshAvailability();
@@ -1910,9 +1878,13 @@ async function pollLiveTrip(first=false){
    if(liveTrip.previousNextTrain&&liveTrip.previousNextTrain!==sig){
     const old=liveTrip.previousNextTrain.split('|');
     if(old[1]!=='높음'&&next.confidence==='높음'){
-     toast(`다음 ${next.line} 열차가 실시간으로 확인됐습니다: ${next.train_no}`);
+     toast(next.line==='신분당선'
+      ? '다음 신분당선 열차가 실시간으로 확인됐습니다.'
+      : `다음 ${next.line} 열차가 실시간으로 확인됐습니다: ${next.train_no}`);
     }else if(old[0]!==String(next.train_no)){
-     toast(`다음 추천 열차가 ${next.train_no}로 변경됐습니다.`);
+     toast(next.line==='신분당선'
+      ? '다음 신분당선 추천 열차가 변경됐습니다.'
+      : `다음 추천 열차가 ${next.train_no}로 변경됐습니다.`);
     }
    }
    liveTrip.previousNextTrain=sig;saveTrip();
