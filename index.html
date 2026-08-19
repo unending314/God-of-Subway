@@ -1261,7 +1261,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.5.2.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V13.5.4.0`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}
@@ -1343,7 +1343,7 @@ function candidateRows(s,routeIndex){
  const hasUnseen=list.some(c=>!c.live_detected);
  const hint=hasUnseen
   ? (s?.line==='신분당선'
-      ? '공개 역별 시각표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 후보입니다. 실시간 소재가 확인된 차량은 자동으로 실시간 후보로 표시됩니다.'
+      ? '공개 역별 시각표를 연결해 구성한 운행편입니다. 시간표 기준 예상 소재를 표시하며, 실제로 이 편을 탔다면 ‘이 열차를 탔어요’를 눌러 고정 추적할 수 있습니다.'
       : '공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 실제 탑승한 열차를 알고 있다면 ‘이 열차를 탔어요’를 눌러 추적할 수 있습니다.')
   : '';
  return `<details class="candidateBox">
@@ -1861,7 +1861,7 @@ async function pollLiveTrip(first=false){
   const rank={'높음':3,'중간':2,'낮음':1};
   $('quality').textContent=j.segments.reduce((a,s)=>rank[s.confidence]<rank[a]?s.confidence:a,'높음');
   $('sumTitle').textContent=`${fmtClock(j.arrival_time)} 도착 예상`;
-  $('sumText').textContent=current.line==='신분당선'?'탑승 중인 신분당선 차량의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.':`${j.boarded_train_no}열차의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.`;
+  $('sumText').textContent=current.line==='신분당선'?'탑승 중인 신분당선 운행편의 예상/실시간 소재와 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.':`${j.boarded_train_no}열차의 최신 하차 ETA + 실제 환승시간을 기준으로 이후 경로를 계속 계산합니다.`;
   fixedPlatformStart=liveTrip.platformStart||fixedPlatformStart;
   updateRouteStamps(j.updated_at||localDateTimeString(new Date()),fixedPlatformStart);
   updateRefreshAvailability();

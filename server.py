@@ -12,7 +12,7 @@ import engine
 import observability
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.5.2.0-vercel"
+VERSION = "V13.5.4.0-vercel"
 
 app = FastAPI(
     title="지금타",
@@ -209,8 +209,10 @@ def health():
         "schedule_only_lines": sorted(engine.SCHEDULE_ONLY_LINES),
         "realtime_line_ids": dict(engine.LINE_IDS),
         "realtime_query_aliases": {k: list(v) for k, v in engine.REALTIME_QUERY_ALIASES.items()},
-        "sinbundang_realtime_strategy": "realtimePosition vehicle id + official interstation runtime",
-        "sinbundang_position_role": "primary_eta_signal",
+        "sinbundang_virtual_weekday_runs": int(engine.SINBUNDANG_VIRTUAL.get("counts", {}).get("weekday", 0)),
+        "sinbundang_virtual_weekend_runs": int(engine.SINBUNDANG_VIRTUAL.get("counts", {}).get("holiday", 0)),
+        "sinbundang_realtime_strategy": "anonymous public-timetable virtual run + optional realtimePosition vehicle attachment",
+        "sinbundang_position_role": "optional live material override for virtual run",
         "sinbundang_public_train_numbers": False,
         "sinbundang_delay_inference": False,
         "extra_lines": {

@@ -1,0 +1,50 @@
+{
+  "version": "V13.5.3.0",
+  "virtual_runs": {
+    "weekday": 326,
+    "holiday": 272
+  },
+  "legacy_dx_in_virtual_runs": false,
+  "regression_tests": {
+    "passed": 35,
+    "failed": 0
+  },
+  "timetable_integrity": {
+    "ok": true,
+    "issue_count": 0
+  },
+  "api_smoke": {
+    "/": 200,
+    "/api/health": 200,
+    "/api/stations": 200
+  },
+  "frontend_js_syntax": "PASS",
+  "browser_render": "NOT_RUN: Chromium localhost blocked by administrator in execution environment",
+  "verified_examples": [
+    {
+      "now": "2026-08-19 15:03:30",
+      "run": "15:04 신사 출발편",
+      "expected_location": "신사 출발 전 예상"
+    },
+    {
+      "now": "2026-08-19 15:05:30",
+      "run": "15:04 신사 출발편",
+      "expected_location": "논현 정차 예상"
+    },
+    {
+      "now": "2026-08-19 15:08:00",
+      "run": "15:04 신사 출발편",
+      "expected_location": "신논현 → 강남 이동 예상"
+    },
+    {
+      "tracking": "virtual run locked without live vehicle",
+      "expected_location": "신논현 → 강남 이동 예상"
+    },
+    {
+      "tracking": "matching API vehicle 16 attached",
+      "location_kind": "live",
+      "current_station": "신논현",
+      "confidence": "중간"
+    }
+  ]
+}

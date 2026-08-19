@@ -1,9 +1,10 @@
 {
   "meta": {
-    "version": "V13.4.10",
-    "generated_at_kst": "2026-08-19T11:10:49+09:00",
+    "version": "V13.5.4",
+    "generated_at_kst": "2026-08-19T17:57:00+09:00",
     "purpose": "수도권 전철 빠른 환승 위치 reusable master; current app + future-line scaffold",
     "precedence": [
+      "user_provided_csv",
       "user_direct_verification",
       "newer_namu_station",
       "namu_line_transfer_page",
@@ -33,8 +34,8 @@
     "record_count": 1138,
     "current_app_record_count": 942,
     "future_network_record_count": 196,
-    "verified_position_count": 992,
-    "needs_verification_count": 146,
+    "verified_position_count": 1014,
+    "needs_verification_count": 124,
     "conflicts": [
       {
         "station": "신논현",
@@ -57,7 +58,10 @@
         "reason": "newer individual station page takes precedence"
       }
     ],
-    "future_network_note": "향후 미지원 노선은 확인된 빠른환승 위치는 verified, 방향/값이 문서에서 확정되지 않은 조합은 needs_verification으로 유지. 추정값을 채우지 않음."
+    "future_network_note": "향후 미지원 노선은 확인된 빠른환승 위치는 verified, 방향/값이 문서에서 확정되지 않은 조합은 needs_verification으로 유지. 추정값을 채우지 않음.",
+    "default_transfer_fallback_seconds": 180,
+    "user_csv_patch_count": 22,
+    "user_csv_patch_note": "신분당선 관련 빠른환승 위치 22개 방향을 사용자 수동 입력 CSV에서 반영."
   },
   "records": [
     {
@@ -380,7 +384,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "note": "2호선 내선순환",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -397,7 +401,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "note": "2호선 내선순환",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -414,7 +418,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "note": "2호선 외선순환",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -431,7 +435,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%202%ED%98%B8%EC%84%A0",
       "note": "2호선 외선순환",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -448,7 +452,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EA%B0%95%EB%82%A8%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -465,7 +469,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EA%B0%95%EB%82%A8%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -482,7 +486,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EA%B0%95%EB%82%A8%EC%97%AD",
       "note": "신분당선 광교 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -499,7 +503,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EA%B0%95%EB%82%A8%EC%97%AD",
       "note": "신분당선 광교 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3304,7 +3308,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3389,7 +3393,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3406,7 +3410,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3423,7 +3427,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3440,7 +3444,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3457,7 +3461,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3474,7 +3478,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3491,7 +3495,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3848,7 +3852,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://d.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "7호선 석남 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3865,7 +3869,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://d.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "7호선 석남 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3882,7 +3886,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://d.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "7호선 장암 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3899,7 +3903,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://d.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "7호선 장암 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3909,14 +3913,14 @@
       "from_direction_key": "신논현",
       "to_line": "7호선",
       "to_direction_key": "반포",
-      "position_primary": "",
+      "position_primary": "6-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3926,14 +3930,14 @@
       "from_direction_key": "신논현",
       "to_line": "7호선",
       "to_direction_key": "학동",
-      "position_primary": "",
+      "position_primary": "6-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3943,14 +3947,14 @@
       "from_direction_key": "신사",
       "to_line": "7호선",
       "to_direction_key": "반포",
-      "position_primary": "",
+      "position_primary": "1-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3960,14 +3964,14 @@
       "from_direction_key": "신사",
       "to_line": "7호선",
       "to_direction_key": "학동",
-      "position_primary": "",
+      "position_primary": "1-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -3984,7 +3988,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EA%B2%BD%EC%9D%98%C2%B7%EC%A4%91%EC%95%99%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EA%B2%BD%EC%9D%98%C2%B7%EC%A4%91%EC%95%99%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -4001,7 +4005,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EA%B2%BD%EC%9D%98%C2%B7%EC%A4%91%EC%95%99%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EA%B2%BD%EC%9D%98%C2%B7%EC%A4%91%EC%95%99%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -4018,7 +4022,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -4035,7 +4039,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -4443,7 +4447,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -4460,7 +4464,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6143,7 +6147,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6160,7 +6164,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6408,14 +6412,14 @@
       "from_direction_key": "오리",
       "to_line": "신분당선",
       "to_direction_key": "동천",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6425,14 +6429,14 @@
       "from_direction_key": "오리",
       "to_line": "신분당선",
       "to_direction_key": "정자",
-      "position_primary": "",
+      "position_primary": "5-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6442,14 +6446,14 @@
       "from_direction_key": "정자",
       "to_line": "신분당선",
       "to_direction_key": "동천",
-      "position_primary": "",
+      "position_primary": "3-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6459,14 +6463,14 @@
       "from_direction_key": "정자",
       "to_line": "신분당선",
       "to_direction_key": "정자",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6476,14 +6480,14 @@
       "from_direction_key": "동천",
       "to_line": "수인분당선",
       "to_direction_key": "오리",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6493,14 +6497,14 @@
       "from_direction_key": "동천",
       "to_line": "수인분당선",
       "to_direction_key": "정자",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6510,14 +6514,14 @@
       "from_direction_key": "정자",
       "to_line": "수인분당선",
       "to_direction_key": "오리",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6527,14 +6531,14 @@
       "from_direction_key": "정자",
       "to_line": "수인분당선",
       "to_direction_key": "정자",
-      "position_primary": "",
+      "position_primary": "4-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6823,7 +6827,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -6840,7 +6844,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8149,7 +8153,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8166,7 +8170,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8251,7 +8255,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8268,7 +8272,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8285,7 +8289,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8302,7 +8306,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8948,7 +8952,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8965,7 +8969,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8982,7 +8986,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 개화 방면 급행",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -8999,7 +9003,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 개화 방면 급행",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9016,7 +9020,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 개화 방면 일반",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9033,7 +9037,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 개화 방면 일반",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9050,7 +9054,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 중앙보훈병원 방면 급행",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9067,7 +9071,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 중앙보훈병원 방면 급행",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9084,7 +9088,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 중앙보훈병원 방면 일반",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9101,7 +9105,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%209%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "9호선 중앙보훈병원 방면 일반",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9118,7 +9122,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "사용자 직접 원문 확인: 신분당선 광교 방면 → 9호선 = 6-3. 미러 6-4보다 우선.",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9135,7 +9139,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "사용자 직접 원문 확인: 신분당선 광교 방면 → 9호선 = 6-3. 미러 6-4보다 우선.",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9152,7 +9156,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "사용자 직접 원문 확인: 신분당선 광교 방면 → 9호선 = 6-3. 미러 6-4보다 우선.",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9169,7 +9173,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "사용자 직접 원문 확인: 신분당선 광교 방면 → 9호선 = 6-3. 미러 6-4보다 우선.",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9186,7 +9190,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9203,7 +9207,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9220,7 +9224,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9237,7 +9241,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.namu.moe/w/%EC%8B%A0%EB%85%BC%ED%98%84%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9662,7 +9666,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "note": "3호선 대화 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9679,7 +9683,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://www.namu.moe/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "note": "3호선 오금 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9689,14 +9693,14 @@
       "from_direction_key": "",
       "to_line": "3호선",
       "to_direction_key": "압구정",
-      "position_primary": "",
+      "position_primary": "4-3",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://d.namu.moe/w/%EC%8B%A0%EC%82%AC%EC%97%AD",
-      "note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -9706,14 +9710,14 @@
       "from_direction_key": "",
       "to_line": "3호선",
       "to_direction_key": "잠원",
-      "position_primary": "",
+      "position_primary": "3-2",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "namu_station",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://d.namu.moe/w/%EC%8B%A0%EC%82%AC%EC%97%AD",
-      "note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정",
-      "pair_default_seconds": 240,
+      "note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10070,7 +10074,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "3호선 대화 방면; 최신 개별 역 문서 우선",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10087,7 +10091,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "3호선 대화 방면; 최신 개별 역 문서 우선",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10104,7 +10108,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "3호선 오금 방면; 최신 개별 역 문서 우선",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10121,7 +10125,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%203%ED%98%B8%EC%84%A0",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "3호선 오금 방면; 최신 개별 역 문서 우선",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10138,7 +10142,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10155,7 +10159,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10172,7 +10176,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "신분당선 광교 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -10189,7 +10193,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://m.namu.moe/w/%EC%96%91%EC%9E%AC%EC%97%AD",
       "note": "신분당선 광교 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12076,7 +12080,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12093,7 +12097,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12110,7 +12114,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12127,7 +12131,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12715,14 +12719,14 @@
       "from_direction_key": "미금",
       "to_line": "신분당선",
       "to_direction_key": "미금",
-      "position_primary": "",
+      "position_primary": "6-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12732,14 +12736,14 @@
       "from_direction_key": "미금",
       "to_line": "신분당선",
       "to_direction_key": "판교",
-      "position_primary": "",
+      "position_primary": "6-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12749,14 +12753,14 @@
       "from_direction_key": "수내",
       "to_line": "신분당선",
       "to_direction_key": "미금",
-      "position_primary": "",
+      "position_primary": "1-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12766,14 +12770,14 @@
       "from_direction_key": "수내",
       "to_line": "신분당선",
       "to_direction_key": "판교",
-      "position_primary": "",
+      "position_primary": "1-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://www.data.go.kr/data/15041060/fileData.do",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12783,14 +12787,14 @@
       "from_direction_key": "미금",
       "to_line": "수인분당선",
       "to_direction_key": "미금",
-      "position_primary": "",
+      "position_primary": "2-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12800,14 +12804,14 @@
       "from_direction_key": "미금",
       "to_line": "수인분당선",
       "to_direction_key": "수내",
-      "position_primary": "",
+      "position_primary": "2-4",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12817,14 +12821,14 @@
       "from_direction_key": "판교",
       "to_line": "수인분당선",
       "to_direction_key": "미금",
-      "position_primary": "",
+      "position_primary": "2-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -12834,14 +12838,14 @@
       "from_direction_key": "판교",
       "to_line": "수인분당선",
       "to_direction_key": "수내",
-      "position_primary": "",
+      "position_primary": "2-1",
       "position_alternatives": "",
-      "status": "needs_verification",
-      "source_kind": "official_public_data_ambiguous",
+      "status": "user_confirmed",
+      "source_kind": "user_provided_csv",
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
-      "pair_default_seconds": 240,
+      "note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14405,7 +14409,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14456,7 +14460,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14524,7 +14528,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14541,7 +14545,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%EC%88%98%EC%9D%B8%C2%B7%EB%B6%84%EB%8B%B9%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14626,7 +14630,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -14643,7 +14647,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%84%9C%EC%9A%B8%20%EC%A7%80%ED%95%98%EC%B2%A0%207%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15068,7 +15072,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15151816/fileData.do?recommendDataYn=Y",
       "note": "경강선 판교 종착→신분당선 광교 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15085,7 +15089,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15151816/fileData.do?recommendDataYn=Y",
       "note": "경강선 판교 종착→신분당선 신사 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15102,7 +15106,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
       "note": "신분당선 광교 방면→경강선 여주 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15119,7 +15123,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
       "note": "신분당선 신사 방면→경강선 여주 방면",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15867,7 +15871,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15901,7 +15905,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%201%ED%98%B8%EC%84%A0",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -15986,7 +15990,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {
@@ -16003,7 +16007,7 @@
       "canonical_namu_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "evidence_url": "https://namu.wiki/w/%EC%88%98%EB%8F%84%EA%B6%8C%20%EC%A0%84%EC%B2%A0%20%ED%99%98%EC%8A%B9%20%EC%A0%95%EB%B3%B4",
       "note": "",
-      "pair_default_seconds": 240,
+      "pair_default_seconds": 180,
       "record_seconds": null
     },
     {

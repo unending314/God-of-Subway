@@ -208,7 +208,7 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
             result = engine.calculate_segment("신분당선", "DAY", "강남", "판교", datetime(2026, 8, 19, 11, 0, 0), cache)
             self.assertTrue(result.get("ok"), result)
             chosen = result["chosen"]
-            self.assertEqual(chosen["train_no"], "16")
+            self.assertTrue(chosen["train_no"].startswith("SBV-"))
             self.assertEqual(chosen["vehicle_id"], "16")
             self.assertEqual(chosen["delay_source"], "vehicle_position")
             self.assertIsNone(chosen["delay_seconds"])
@@ -239,8 +239,9 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         result = engine.calculate_segment("신분당선", "DAY", "신사", "강남", datetime(2026,8,19,5,29,0), cache)
         self.assertTrue(result.get("ok"), result)
         chosen = result["chosen"]
-        self.assertEqual(chosen["train_no"], "")
-        self.assertEqual(chosen["delay_source"], "schedule_only")
+        self.assertTrue(chosen["train_no"].startswith("SBV-"))
+        self.assertNotIn("DX", chosen["train_no"])
+        self.assertEqual(chosen["delay_source"], "schedule_virtual_run")
         self.assertIsNone(chosen["delay_seconds"])
         self.assertEqual(chosen["confidence"], "낮음")
 
@@ -252,7 +253,65 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         self.assertEqual(len(public), 7, public)
         self.assertEqual(sum(1 for c in public if c.get("is_previous")), 1)
         self.assertEqual(sum(1 for c in public if c.get("selected")), 1)
-        self.assertTrue(all(c.get("train_no", "") == "" for c in public))
+        self.assertTrue(all(str(c.get("train_no", "")).startswith("SBV-") for c in public))
+        self.assertTrue(all("DX" not in str(c.get("train_no", "")) for c in public))
+
+
+    def test_virtual_schedule_candidate_has_expected_location(self):
+        original_now = engine.now_kst
+        try:
+            engine.now_kst = lambda: datetime(2026, 8, 19, 15, 3, 30)
+            cache = {"신분당선": {"rows": [], "error": "test", "available": False}}
+            result = engine.calculate_segment("신분당선", "DAY", "신사", "청계산입구", datetime(2026,8,19,15,3,30), cache)
+            self.assertTrue(result.get("ok"), result)
+            chosen = result["chosen"]
+            self.assertTrue(chosen["train_no"].startswith("SBV-"))
+            self.assertEqual(chosen["location_label"], "신사 출발 전 예상")
+            self.assertEqual(chosen["location_kind"], "expected")
+        finally:
+            engine.now_kst = original_now
+
+    def test_virtual_schedule_candidate_can_be_locked_and_tracks_expected_position(self):
+        original_now = engine.now_kst
+        try:
+            engine.now_kst = lambda: datetime(2026, 8, 19, 15, 3, 30)
+            cache = {"신분당선": {"rows": [], "error": "test", "available": False}}
+            first = engine.calculate_segment("신분당선", "DAY", "신사", "청계산입구", datetime(2026,8,19,15,3,30), cache)
+            run_id = first["chosen"]["train_no"]
+            board_dt = first["chosen"]["board_dt"].strftime("%Y-%m-%d %H:%M:%S")
+            engine.now_kst = lambda: datetime(2026, 8, 19, 15, 8, 0)
+            tracked = engine.tracked_train_segment("신분당선", "DAY", "신사", "청계산입구", run_id, cache, board_dt)
+            self.assertTrue(tracked.get("ok"), tracked)
+            self.assertTrue(tracked["chosen"].get("tracking"))
+            self.assertEqual(tracked["chosen"]["train_no"], run_id)
+            self.assertEqual(tracked["chosen"]["location_label"], "신논현 → 강남 이동 예상")
+            self.assertEqual(tracked["chosen"]["delay_source"], "schedule_virtual_tracking")
+        finally:
+            engine.now_kst = original_now
+
+    def test_virtual_schedule_tracking_can_attach_matching_live_vehicle(self):
+        original_now = engine.now_kst
+        try:
+            engine.now_kst = lambda: datetime(2026, 8, 19, 15, 3, 30)
+            empty = {"신분당선": {"rows": [], "error": "", "available": True}}
+            first = engine.calculate_segment("신분당선", "DAY", "신사", "청계산입구", datetime(2026,8,19,15,3,30), empty)
+            run_id = first["chosen"]["train_no"]
+            board_dt = first["chosen"]["board_dt"].strftime("%Y-%m-%d %H:%M:%S")
+            engine.now_kst = lambda: datetime(2026, 8, 19, 15, 8, 0)
+            row = {
+                "subwayId":"1077","statnNm":"신논현","trainNo":"16",
+                "recptnDt":"2026-08-19 15:07:20","trainSttus":"2","updnLine":"1","statnTnm":"광교",
+            }
+            cache={"신분당선":{"rows":[row],"error":"","available":True}}
+            tracked=engine.tracked_train_segment("신분당선","DAY","신사","청계산입구",run_id,cache,board_dt)
+            self.assertTrue(tracked.get("ok"), tracked)
+            self.assertEqual(tracked["chosen"]["train_no"], run_id)
+            self.assertEqual(tracked["chosen"]["vehicle_id"], "16")
+            self.assertEqual(tracked["chosen"]["location_kind"], "live")
+            self.assertEqual(tracked["chosen"]["current_station"], "신논현")
+            self.assertEqual(tracked["chosen"]["confidence"], "중간")
+        finally:
+            engine.now_kst = original_now
 
     def test_tracked_vehicle_uses_same_api_vehicle_id(self):
         original_now = engine.now_kst
@@ -289,7 +348,7 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(result.get("service_mode"), "DAY")
-        self.assertEqual(result["segments"][0]["train_no"], "")
+        self.assertTrue(result["segments"][0]["train_no"].startswith("SBV-"))
         self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
 
     def test_route_graph_contains_shinbundang_and_auto_transfer(self):

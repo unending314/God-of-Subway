@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "V13.4.10 transfer-position master + Shinbundang directional patch",
+    "version": "V13.5.4 transfer-position user patch + 180s fallback",
     "sources": [
       "서울교통공사_환승역거리 소요시간 정보_20250331",
       "서울교통공사_수도권 도시철도 환승 데이터_20250317"
@@ -23,9 +23,9 @@
       "공항철도",
       "신분당선"
     ],
-    "fallback_seconds": 240,
-    "note": "서울교통공사 수도권 도시철도 환승 데이터(2025-03-17)의 방향별 환승 위치를 현재 지원 노선 전체에 재반영. 소요시간 미제공 조합은 기존 시간 또는 240초 fallback.",
-    "position_patch_policy": "Namu source explicitly-supported missing positions only; existing nonblank records untouched; new position-only pairs use 240-second fallback until manual times are supplied.",
+    "fallback_seconds": 180,
+    "note": "서울교통공사 수도권 도시철도 환승 데이터의 방향별 환승 위치를 현재 지원 노선 전체에 반영. 소요시간 미제공 조합은 기존 실측값을 보존하고 180초 fallback을 사용.",
+    "position_patch_policy": "Existing verified positions/times are preserved. User-provided Shinbundang position rows are authoritative. Pairs without any measured transfer time use a 180-second fallback.",
     "position_note": "Fast-transfer positions refreshed from Namu transfer/station documents; user-supplied transfer times applied from 환승시간 추가.xlsx.",
     "zero_second_rule": "Same-platform/service-change transfers may be 0 seconds; engine preserves numeric zero.",
     "position_master_file": "transfer_position_master.json",
@@ -36,7 +36,8 @@
       "official_public_data",
       "legacy_app"
     ],
-    "position_note_v13_4_10": "신분당선 8개 환승역 모든 실제 방면 조합을 exact record로 생성. 미확정 방향은 빈 위치로 명시해 다른 방향 위치로 fallback되는 것을 방지."
+    "position_note_v13_4_10": "신분당선 8개 환승역 모든 실제 방면 조합을 exact record로 생성. 미확정 방향은 빈 위치로 명시해 다른 방향 위치로 fallback되는 것을 방지.",
+    "position_note_v13_5_4": "사용자 입력 CSV에서 신분당선 관련 미확정 빠른환승 위치 22개 방향 레코드를 반영. 정확 환승시간 미확정 pair의 기본값을 180초로 변경."
   },
   "pairs": {
     "서울역|1호선|4호선": {
@@ -10192,7 +10193,7 @@
       "to_line": "3호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "곡산",
@@ -10221,7 +10222,7 @@
       "to_line": "서해선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "행신",
@@ -10250,7 +10251,7 @@
       "to_line": "경의중앙선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "김포공항",
@@ -10321,7 +10322,7 @@
       "to_line": "서해선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "고잔",
@@ -10350,7 +10351,7 @@
       "to_line": "4호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "선부",
@@ -10379,7 +10380,7 @@
       "to_line": "서해선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "마곡나루",
@@ -10408,7 +10409,7 @@
       "to_line": "5호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "능곡",
@@ -10437,7 +10438,7 @@
       "to_line": "9호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "능곡",
@@ -10466,7 +10467,7 @@
       "to_line": "공항철도",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "능곡",
@@ -10495,7 +10496,7 @@
       "to_line": "9호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "디지털미디어시티",
@@ -10524,7 +10525,7 @@
       "to_line": "7호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "원종",
@@ -10553,7 +10554,7 @@
       "to_line": "9호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "강남구청",
@@ -10582,7 +10583,7 @@
       "to_line": "서해선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "역곡",
@@ -10611,7 +10612,7 @@
       "to_line": "1호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "부천종합운동장",
@@ -10640,7 +10641,7 @@
       "to_line": "6호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "망우",
@@ -10669,7 +10670,7 @@
       "to_line": "수인분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "성남",
@@ -10716,7 +10717,7 @@
       "to_line": "4호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "남성",
@@ -10745,7 +10746,7 @@
       "to_line": "경춘선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "외대앞",
@@ -10774,7 +10775,7 @@
       "to_line": "1호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "중랑",
@@ -10845,7 +10846,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "압구정",
@@ -10885,38 +10886,38 @@
       "to_line": "3호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "3",
           "to_direction": "압구정",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://d.namu.moe/w/%EC%8B%A0%EC%82%AC%EC%97%AD",
-          "position_note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "3",
+          "alight_door": "2",
           "to_direction": "잠원",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://d.namu.moe/w/%EC%8B%A0%EC%82%AC%EC%97%AD",
-          "position_note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "신분당선은 신사 종착. 최신 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     },
     "논현|7호선|신분당선": {
@@ -10925,7 +10926,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "학동",
@@ -10993,66 +10994,66 @@
       "to_line": "7호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "신사",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "1",
+          "alight_door": "1",
           "to_direction": "학동",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "신사",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "1",
+          "alight_door": "1",
           "to_direction": "반포",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "신논현",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "6",
+          "alight_door": "4",
           "to_direction": "학동",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "신논현",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "6",
+          "alight_door": "4",
           "to_direction": "반포",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "namu_station",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://namu.moe/w/%EB%85%BC%ED%98%84%EC%97%AD",
-          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정",
+          "position_note": "최신 개별 역 문서에서 숫자형 빠른환승 위치 미확정 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     },
     "신논현|9호선|신분당선": {
@@ -11061,7 +11062,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "사평",
@@ -11185,7 +11186,7 @@
       "to_line": "9호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "논현",
@@ -11317,7 +11318,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "교대",
@@ -11385,7 +11386,7 @@
       "to_line": "2호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "신논현",
@@ -11461,7 +11462,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "남부터미널",
@@ -11533,7 +11534,7 @@
       "to_line": "3호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "강남",
@@ -11601,7 +11602,7 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "",
@@ -11641,7 +11642,7 @@
       "to_line": "경강선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "청계산입구",
@@ -11681,66 +11682,66 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "수내",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "1",
+          "alight_door": "1",
           "to_direction": "판교",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "수내",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "1",
+          "alight_door": "1",
           "to_direction": "미금",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "미금",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "6",
+          "alight_door": "4",
           "to_direction": "판교",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "미금",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "6",
+          "alight_door": "4",
           "to_direction": "미금",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     },
     "정자|신분당선|수인분당선": {
@@ -11749,66 +11750,66 @@
       "to_line": "수인분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "판교",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "2",
+          "alight_door": "1",
           "to_direction": "수내",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "판교",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "2",
+          "alight_door": "1",
           "to_direction": "미금",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "미금",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "2",
+          "alight_door": "4",
           "to_direction": "수내",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "미금",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "2",
+          "alight_door": "4",
           "to_direction": "미금",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     },
     "미금|수인분당선|신분당선": {
@@ -11817,66 +11818,66 @@
       "to_line": "신분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "정자",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "정자",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "정자",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "3",
+          "alight_door": "1",
           "to_direction": "동천",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "오리",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "5",
+          "alight_door": "1",
           "to_direction": "정자",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "오리",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "동천",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041060/fileData.do",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     },
     "미금|신분당선|수인분당선": {
@@ -11885,66 +11886,66 @@
       "to_line": "수인분당선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 240,
+      "default_seconds": 180,
       "records": [
         {
           "from_direction": "정자",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "정자",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "정자",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "오리",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "동천",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "정자",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         },
         {
           "from_direction": "동천",
-          "alight_car": "",
-          "alight_door": "",
+          "alight_car": "4",
+          "alight_door": "1",
           "to_direction": "오리",
           "board_car": "",
           "board_door": "",
           "seconds": null,
-          "position_status": "needs_verification",
-          "position_source_kind": "official_public_data_ambiguous",
+          "position_status": "user_confirmed",
+          "position_source_kind": "user_provided_csv",
           "position_source_url": "https://www.data.go.kr/data/15041072/fileData.do?recommendDataYn=Y",
-          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류",
+          "position_note": "공공데이터 후보 위치는 존재하나 출발 방향 컬럼이 없어 방향별 확정 전 보류 / 사용자 수동 입력 반영 2026-08-19",
           "position_alternatives": []
         }
       ],
-      "position_patch_version": "V13.4.10",
+      "position_patch_version": "V13.5.4",
       "position_pair_note": ""
     }
   }

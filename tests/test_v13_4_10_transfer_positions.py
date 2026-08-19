@@ -64,8 +64,8 @@ def test_transfer_master_counts_and_critical_override():
     assert meta["record_count"] == len(master["records"]) == 1138
     assert meta["current_app_record_count"] == 942
     assert meta["future_network_record_count"] == 196
-    assert meta["verified_position_count"] == 992
-    assert meta["needs_verification_count"] == 146
+    assert meta["verified_position_count"] == 1014
+    assert meta["needs_verification_count"] == 124
 
     rows = [
         r for r in master["records"]

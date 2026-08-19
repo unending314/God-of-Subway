@@ -1,0 +1,231 @@
+{
+  "version": "V13.5.4",
+  "user_position_patch_count": 22,
+  "user_position_patches": [
+    {
+      "station": "논현",
+      "from_line": "신분당선",
+      "from_direction_key": "신논현",
+      "to_line": "7호선",
+      "to_direction_key": "반포",
+      "position_primary": "6-4"
+    },
+    {
+      "station": "논현",
+      "from_line": "신분당선",
+      "from_direction_key": "신논현",
+      "to_line": "7호선",
+      "to_direction_key": "학동",
+      "position_primary": "6-4"
+    },
+    {
+      "station": "논현",
+      "from_line": "신분당선",
+      "from_direction_key": "신사",
+      "to_line": "7호선",
+      "to_direction_key": "반포",
+      "position_primary": "1-1"
+    },
+    {
+      "station": "논현",
+      "from_line": "신분당선",
+      "from_direction_key": "신사",
+      "to_line": "7호선",
+      "to_direction_key": "학동",
+      "position_primary": "1-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "수인분당선",
+      "from_direction_key": "오리",
+      "to_line": "신분당선",
+      "to_direction_key": "동천",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "수인분당선",
+      "from_direction_key": "오리",
+      "to_line": "신분당선",
+      "to_direction_key": "정자",
+      "position_primary": "5-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "수인분당선",
+      "from_direction_key": "정자",
+      "to_line": "신분당선",
+      "to_direction_key": "동천",
+      "position_primary": "3-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "수인분당선",
+      "from_direction_key": "정자",
+      "to_line": "신분당선",
+      "to_direction_key": "정자",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "신분당선",
+      "from_direction_key": "동천",
+      "to_line": "수인분당선",
+      "to_direction_key": "오리",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "신분당선",
+      "from_direction_key": "동천",
+      "to_line": "수인분당선",
+      "to_direction_key": "정자",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "신분당선",
+      "from_direction_key": "정자",
+      "to_line": "수인분당선",
+      "to_direction_key": "오리",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "미금",
+      "from_line": "신분당선",
+      "from_direction_key": "정자",
+      "to_line": "수인분당선",
+      "to_direction_key": "정자",
+      "position_primary": "4-1"
+    },
+    {
+      "station": "신사",
+      "from_line": "신분당선",
+      "from_direction_key": "",
+      "to_line": "3호선",
+      "to_direction_key": "압구정",
+      "position_primary": "4-3"
+    },
+    {
+      "station": "신사",
+      "from_line": "신분당선",
+      "from_direction_key": "",
+      "to_line": "3호선",
+      "to_direction_key": "잠원",
+      "position_primary": "3-2"
+    },
+    {
+      "station": "정자",
+      "from_line": "수인분당선",
+      "from_direction_key": "미금",
+      "to_line": "신분당선",
+      "to_direction_key": "미금",
+      "position_primary": "6-4"
+    },
+    {
+      "station": "정자",
+      "from_line": "수인분당선",
+      "from_direction_key": "미금",
+      "to_line": "신분당선",
+      "to_direction_key": "판교",
+      "position_primary": "6-4"
+    },
+    {
+      "station": "정자",
+      "from_line": "수인분당선",
+      "from_direction_key": "수내",
+      "to_line": "신분당선",
+      "to_direction_key": "미금",
+      "position_primary": "1-1"
+    },
+    {
+      "station": "정자",
+      "from_line": "수인분당선",
+      "from_direction_key": "수내",
+      "to_line": "신분당선",
+      "to_direction_key": "판교",
+      "position_primary": "1-1"
+    },
+    {
+      "station": "정자",
+      "from_line": "신분당선",
+      "from_direction_key": "미금",
+      "to_line": "수인분당선",
+      "to_direction_key": "미금",
+      "position_primary": "2-4"
+    },
+    {
+      "station": "정자",
+      "from_line": "신분당선",
+      "from_direction_key": "미금",
+      "to_line": "수인분당선",
+      "to_direction_key": "수내",
+      "position_primary": "2-4"
+    },
+    {
+      "station": "정자",
+      "from_line": "신분당선",
+      "from_direction_key": "판교",
+      "to_line": "수인분당선",
+      "to_direction_key": "미금",
+      "position_primary": "2-1"
+    },
+    {
+      "station": "정자",
+      "from_line": "신분당선",
+      "from_direction_key": "판교",
+      "to_line": "수인분당선",
+      "to_direction_key": "수내",
+      "position_primary": "2-1"
+    }
+  ],
+  "fallback_transfer_seconds_old": 240,
+  "fallback_transfer_seconds_new": 180,
+  "fallback_pair_count": 35,
+  "fallback_pairs": [
+    "대곡|서해선|3호선",
+    "능곡|경의중앙선|서해선",
+    "능곡|서해선|경의중앙선",
+    "초지|수인분당선|서해선",
+    "초지|서해선|4호선",
+    "김포공항|공항철도|서해선",
+    "김포공항|서해선|5호선",
+    "김포공항|서해선|9호선",
+    "김포공항|서해선|공항철도",
+    "마곡나루|공항철도|9호선",
+    "부천종합운동장|서해선|7호선",
+    "선정릉|수인분당선|9호선",
+    "소사|1호선|서해선",
+    "소사|서해선|1호선",
+    "신내|경춘선|6호선",
+    "이매|경강선|수인분당선",
+    "총신대입구|7호선|4호선",
+    "회기|1호선|경춘선",
+    "회기|경춘선|1호선",
+    "신사|3호선|신분당선",
+    "신사|신분당선|3호선",
+    "논현|7호선|신분당선",
+    "논현|신분당선|7호선",
+    "신논현|9호선|신분당선",
+    "신논현|신분당선|9호선",
+    "강남|2호선|신분당선",
+    "강남|신분당선|2호선",
+    "양재|3호선|신분당선",
+    "양재|신분당선|3호선",
+    "판교|경강선|신분당선",
+    "판교|신분당선|경강선",
+    "정자|수인분당선|신분당선",
+    "정자|신분당선|수인분당선",
+    "미금|수인분당선|신분당선",
+    "미금|신분당선|수인분당선"
+  ],
+  "measured_240_second_pairs_preserved": [
+    "상봉|경의중앙선|7호선",
+    "상봉|경춘선|7호선",
+    "상봉|7호선|경춘선",
+    "효창공원앞|경의중앙선|6호선",
+    "청량리|1호선|경춘선",
+    "청량리|경춘선|1호선"
+  ],
+  "remaining_needs_verification_count": 124
+}
