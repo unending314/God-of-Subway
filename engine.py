@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.5.0.0 — 신분당선 차량소재 기반 ETA
+지금타 V13.5.1.0 — 신분당선 차량소재 기반 ETA
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -1648,7 +1648,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V13.5.0.0/1.0",
+            "User-Agent": "JigeumTa-V13.5.1.0/1.0",
             "Accept": "application/json",
         })
         try:
@@ -1964,9 +1964,20 @@ def calculate_sinbundang_segment(mode, start, end, ready_dt, position_cache):
     cached_meta=position_cache.get("신분당선",{}) if isinstance(position_cache,dict) else {}
     if isinstance(cached_meta,dict) and cached_meta.get("query"):
         diag["realtime_query"]=cached_meta.get("query")
-    public=[public_candidate(c, selected=(c is chosen)) for c in near[:6]]
-    if previous:
-        public.insert(0, public_candidate(previous))
+    # 신분당선은 공개 열차번호가 없으므로 일반 노선처럼 시간표 후보를 여러 "열차"로 노출하지 않는다.
+    # 시간표 fallback이면 직전/선택/다음 출발시각만 UI가 참고할 수 있도록 최소화하고,
+    # 실시간 차량 후보가 있으면 차량번호가 확인된 후보만 노출한다.
+    public=[]
+    if chosen.get("projected"):
+        if previous:
+            public.append(public_candidate(previous))
+        public.append(public_candidate(chosen, selected=True))
+        next_sched = next((c for c in near if c.get("projected") and c["board_dt"] > chosen["board_dt"]), None)
+        if next_sched:
+            public.append(public_candidate(next_sched))
+    else:
+        for c in [x for x in near if not x.get("projected")][:4]:
+            public.append(public_candidate(c, selected=(c is chosen)))
     return {
         "ok":True,"chosen":chosen,"candidates":near[:10],"public_candidates":public,
         "previous_candidate":public_candidate(previous) if previous else None,
@@ -3044,9 +3055,18 @@ def calculate_live_trip(payload):
         results.append(chosen)
 
         if chosen["confidence"] != "높음":
-            warnings.append(
-                f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
-            )
+            if line == "신분당선" and chosen.get("delay_source") == "schedule_only":
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: 공개 역별 시간표 + 공식 역간 소요시간 (해당 시점 차량 미확정)"
+                )
+            elif line == "신분당선":
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: 실시간 차량 소재 + 공식 역간 소요시간 (지연 미산정)"
+                )
+            else:
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
+                )
 
         if idx < len(segments) - 1:
             ready_dt = chosen["alight_dt"] + timedelta(
@@ -3140,9 +3160,18 @@ def calculate_route(payload, position_cache=None):
         results.append(chosen)
 
         if chosen["confidence"] != "높음":
-            warnings.append(
-                f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
-            )
+            if line == "신분당선" and chosen.get("delay_source") == "schedule_only":
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: 공개 역별 시간표 + 공식 역간 소요시간 (해당 시점 차량 미확정)"
+                )
+            elif line == "신분당선":
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: 실시간 차량 소재 + 공식 역간 소요시간 (지연 미산정)"
+                )
+            else:
+                warnings.append(
+                    f"{idx+1}구간 {line} {fr}→{to}: {chosen['method']} ({chosen['confidence']} 신뢰도)"
+                )
 
         transfer_seconds_value = max(0, _segment_transfer_seconds(s))
         if idx < len(segments) - 1:
