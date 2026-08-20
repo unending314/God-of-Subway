@@ -470,193 +470,45 @@ header{margin-bottom:30px}
 .altRouteBtn:disabled{background:#eaf2fc;color:#315f94;cursor:default}
 
 
-/* V14.9 — God-of-Subway input surface transplant only. Result UI stays on V14.8. */
-.searchStage{max-width:980px;margin:22px auto 30px;text-align:left}
-.upstreamInputCard{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
-.upstreamSearchPanel{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr) 122px;gap:10px;align-items:center;position:relative;z-index:2;overflow:visible}
-.upstreamStationControl{position:relative;z-index:1;overflow:visible;display:flex;min-width:0;min-height:80px;flex-direction:column;justify-content:center;margin:0;padding:11px 15px 9px;border:1px solid var(--line);border-radius:18px;background:var(--surface);text-align:left;transition:border-color .16s ease,box-shadow .16s ease}
-.upstreamStationControl:focus-within{z-index:100;border-color:#9eb8dc;box-shadow:0 0 0 3px var(--bluebg)}
-.upstreamStationControl>label{display:block;margin:0 0 2px;font-size:11px;font-weight:900;line-height:1.25;color:var(--muted)}
-.upstreamInputWrap{position:relative;min-width:0;overflow:visible}
-.upstreamStationControl .upstreamInputWrap input{width:100%;min-height:38px;padding:0 64px 0 0;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:22px;font-weight:850;line-height:1.2;letter-spacing:-.45px;color:var(--text)}
-.upstreamStationControl .upstreamInputWrap input:focus{border:0;box-shadow:none;outline:0}
-.upstreamStationControl .upstreamInputWrap input::placeholder{color:#9aa5b1;font-weight:700}
-.stationClear{position:absolute;right:30px;top:50%;transform:translateY(-50%);width:26px;height:30px;padding:0;border:0;background:transparent;color:#87929e;font-size:22px;line-height:1;cursor:pointer}
-.stationSearchIcon{position:absolute;right:0;top:50%;transform:translateY(-50%);width:22px;height:22px;fill:none;stroke:#26313d;stroke-width:1.8;stroke-linecap:round;pointer-events:none}
-.upstreamStationControl .stationSuggest{top:calc(100% + 6px);z-index:1000;max-height:min(360px,52vh)}
-.upstreamSwapBtn{align-self:center;justify-self:center;width:46px;height:46px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface2);color:var(--muted);font-size:22px;font-weight:700;line-height:1;box-shadow:0 5px 15px rgba(20,32,48,.08)}
-.upstreamSwapBtn:hover{border-color:#9eb8dc;background:var(--bluebg);color:var(--text)}
-.upstreamSearchBtn{align-self:stretch;height:auto;min-height:46px;border:0;border-radius:14px;background:#3e6f9f;color:#fff;padding:0 14px;font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap}
-.upstreamSearchBtn:hover{background:#315f8d;filter:none}.upstreamSearchBtn:disabled{opacity:.55}
-.upstreamTimeStrip{display:grid;grid-template-columns:auto auto minmax(126px,1fr) auto;gap:8px;align-items:center;justify-content:stretch;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-.upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button{border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:10px;min-height:42px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
-.upstreamTimeStrip>button:hover,.upstreamTimeStrip .timeStepGroup button:hover{border-color:#9eb8dc;background:#f5f8fb}
-.timeStepGroup{display:flex;gap:5px;min-width:0}.timeStepGroup button{flex:1 1 auto}
-.upstreamTimeStrip .selectedTime{position:relative;display:flex;align-items:center;justify-content:center;min-width:126px;min-height:42px;overflow:hidden;border:1px solid #3e6f9f;border-radius:10px;background:#3e6f9f;color:#fff;font-size:16px;font-weight:900;letter-spacing:-.2px;cursor:pointer;user-select:none}
-.upstreamTimeStrip .selectedTime:hover{background:#315f8d;border-color:#315f8d}
-.upstreamTimeStrip .selectedTime>span{pointer-events:none}.upstreamTimeStrip .selectedTime>input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:.001;cursor:pointer;background:transparent;color:transparent;color-scheme:light}
-.upstreamTimeStrip .selectedTime>input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0}
-.searchAuxActions{display:flex;justify-content:flex-end;margin-top:8px}.upstreamSettingsBtn{width:auto;height:auto;padding:5px 3px;border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer}.upstreamSettingsBtn:hover{color:#3e6f9f;background:transparent}
-.upstreamInputCard .settingsPanel{margin-top:8px}
-@media(max-width:850px){
- .upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}
- .upstreamSearchBtn{grid-column:1/-1;min-height:48px}
-}
+
+/* V14.9.2 — input UI ported directly from God-of-Subway-dev-ts-bun.
+   Only the initial search surface is transplanted; route/result UI stays V14.8+. */
+.searchStage{width:min(1120px,calc(100vw - 36px));max-width:none;margin:22px auto 30px;position:relative;left:50%;transform:translateX(-50%);text-align:left}
+.search-card{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
+.search-panel{position:relative;z-index:2;overflow:visible;padding:0;border:0;border-radius:0;box-shadow:none;display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr) 122px;gap:10px;align-items:center;background:transparent}
+.station-control{position:relative;z-index:1;overflow:visible;display:flex;min-width:0;min-height:80px;flex-direction:column;justify-content:center;margin:0;padding:11px 15px 9px;border:1px solid var(--line);border-radius:18px;background:var(--surface);transition:border-color .16s ease,box-shadow .16s ease}
+.station-control:focus-within{z-index:100;border-color:#9eb8dc;box-shadow:0 0 0 3px var(--bluebg)}
+.station-control>span{display:block;margin:0 0 2px;font-size:11px;font-weight:900;line-height:1.25;color:var(--muted)}
+.input-wrap{position:relative;min-width:0;overflow:visible}
+.station-control .input-wrap input{width:100%;min-height:38px!important;padding:0 34px 0 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-size:22px!important;font-weight:850;line-height:1.2;letter-spacing:-.45px;color:var(--text);outline:0}
+.station-control .input-wrap input::placeholder{color:#9aa5b1;font-weight:700}
+.clear-input,.search-icon{position:absolute;top:50%;transform:translateY(-50%)}
+.clear-input{right:0;border:0;background:transparent;color:#9aa3ad;cursor:pointer;font-size:18px;padding:4px 6px;line-height:1}
+.search-icon{display:none;right:9px;color:#7f8a96;pointer-events:none}
+.suggestions{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:1000;display:none;max-height:min(360px,52vh);overflow-x:hidden;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 32px rgba(18,31,46,.14)}
+.suggestions.show{display:block}
+.suggestions button{display:flex;align-items:center;gap:10px;min-height:46px;width:100%;border:0;border-bottom:1px solid var(--line);background:var(--surface);color:var(--text);text-align:left;padding:12px 13px;font-size:14px;cursor:pointer}
+.suggestions button:last-child{border-bottom:0}.suggestions button:hover,.suggestions button.active{background:var(--bluebg);color:#174f9c}
+.suggestion-badges{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;min-width:24px}.line-badge-svg{display:block;overflow:visible;flex:0 0 auto}.line-badge-svg text{font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif;pointer-events:none}.suggestion-station{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:750;color:inherit}.stationNoResult{padding:12px 13px;font-size:13px;color:#8a949e}
+.swap-button{align-self:center;justify-self:center;width:46px;height:46px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface2);color:var(--muted);font-size:22px;font-weight:700;line-height:1;box-shadow:0 5px 15px rgba(20,32,48,.08);cursor:pointer}.swap-button:hover{border-color:#9eb8dc;background:var(--bluebg);color:var(--text)}
+.primary-button,.search-button{border:0;background:#3e6f9f;color:#fff;font-weight:900;cursor:pointer}.search-button{align-self:stretch;height:auto;min-height:46px;border-radius:14px;padding:0 14px;font-size:14px;white-space:nowrap}.search-button:hover{background:#315f8d}.search-button:disabled{opacity:.55;cursor:default}
+.time-strip{position:relative;z-index:1;display:grid;grid-template-columns:auto auto minmax(126px,1fr) auto;gap:8px;align-items:center;justify-content:stretch;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.time-strip>button,.time-strip .time-step-group button{border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:10px;min-height:42px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}.time-strip>button:hover,.time-strip .time-step-group button:hover{border-color:#9eb8dc}.time-step-group{display:flex;gap:5px;min-width:0}.time-step-group button{flex:1 1 auto}
+.time-strip .selected-time{position:relative;display:flex;align-items:center;justify-content:center;min-width:126px;min-height:42px;overflow:hidden;border:1px solid #3e6f9f;border-radius:10px;background:#3e6f9f;color:#fff;font-size:16px;font-weight:900;letter-spacing:-.2px;cursor:pointer;user-select:none}.time-strip .selected-time:hover{background:#315f8d;border-color:#315f8d}.time-picker>strong{pointer-events:none}.time-picker>input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:.001;cursor:pointer;background:transparent;color:transparent;color-scheme:light}.time-picker>input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0}
+.input-settings-row{display:flex;justify-content:flex-end;margin:7px 1px 0}.input-settings-link{border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;padding:5px 3px;border-radius:7px;cursor:pointer}.input-settings-link:hover{color:#3e6f9f}
+.settingsPanel.input-settings-panel{margin-top:8px}
+@media(max-width:850px){.searchStage{width:min(100%,calc(100vw - 24px))}.search-panel{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}.search-button{grid-column:1/-1;min-height:48px}}
 @media(max-width:620px){
- .searchStage{margin-top:14px}.upstreamInputCard{padding:14px;border-radius:20px}
- .upstreamSearchPanel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"from" "swap" "to" "submit";gap:0;align-items:stretch}
- .upstreamStationControl:first-child{grid-area:from}.upstreamStationControl:nth-of-type(2){grid-area:to}
- .upstreamStationControl{min-height:106px;padding:15px 20px 12px;border-radius:24px}
- .upstreamStationControl>label{margin-bottom:7px;font-size:12px}.upstreamStationControl .upstreamInputWrap input{min-height:42px;font-size:28px;font-weight:900;letter-spacing:-.9px}
- .upstreamSwapBtn{grid-area:swap;justify-self:center;width:54px;height:54px;margin:11px 0;font-size:24px;z-index:2}
- .upstreamSearchBtn{grid-area:submit;width:100%;height:46px;margin-top:12px}
- .upstreamTimeStrip{grid-template-columns:.72fr .9fr .9fr 1.55fr .9fr .9fr;gap:4px;overflow:hidden}
- .upstreamTimeStrip .timeStepGroup{display:contents}
- .upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button,.upstreamTimeStrip .selectedTime{height:40px;min-height:40px;min-width:0;width:100%;padding:0 2px;border-radius:9px;font-size:10.5px;line-height:1;white-space:nowrap}
- .upstreamTimeStrip .selectedTime{font-size:11.5px}
- .searchAuxActions{margin-top:5px}
+ .searchStage{width:auto;left:auto;transform:none;margin:10px 0 18px}.search-card{padding:14px}
+ .search-panel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"from" "swap" "to" "submit";gap:0;align-items:stretch}
+ .station-control:first-child{grid-area:from;grid-column:auto!important;grid-row:auto!important}.station-control:nth-of-type(2){grid-area:to;grid-column:auto!important;grid-row:auto!important}
+ .station-control{min-height:106px;padding:15px 20px 12px;border-radius:24px}.station-control>span{margin-bottom:7px;font-size:12px}.station-control .input-wrap input{min-height:42px!important;font-size:28px!important;font-weight:900;letter-spacing:-.9px}
+ .swap-button{grid-area:swap;grid-column:auto!important;grid-row:auto!important;position:relative;z-index:2;justify-self:center;width:54px;height:54px;margin:11px 0;font-size:24px!important;box-shadow:0 5px 16px rgba(20,32,48,.1)}
+ .search-button{grid-area:submit;grid-column:auto!important;grid-row:auto!important;width:100%;height:46px;margin-top:12px}
+ .time-strip{display:grid;width:100%;box-sizing:border-box;grid-template-columns:.72fr .9fr .9fr 1.55fr .9fr .9fr;gap:4px;justify-content:stretch;align-items:stretch;overflow:hidden}.time-step-group{display:contents}
+ .time-strip>button:first-child,.time-strip .selected-time,.time-picker{grid-column:auto!important;grid-row:auto!important;height:40px!important;min-height:40px;min-width:0!important;width:100%!important}.time-strip button{width:100%;height:40px;min-width:0;padding:0 2px;border-radius:9px;font-size:10.5px;line-height:1;white-space:nowrap}.time-strip .selected-time{padding:0 2px;font-size:11.5px;line-height:1;white-space:nowrap}
 }
-@media(max-width:360px){
- .upstreamInputCard{padding:10px}.upstreamStationControl{min-height:96px;padding:13px 16px 10px;border-radius:21px}.upstreamStationControl .upstreamInputWrap input{font-size:25px}
- .upstreamTimeStrip{grid-template-columns:.68fr .9fr .9fr 1.45fr .9fr .9fr;gap:2px}.upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button{font-size:9.2px}.upstreamTimeStrip .selectedTime{font-size:10px}
-}
-
-
-/* V14.9 reference-fidelity pass: only the initial input card follows God-of-Subway-dev-ts-bun design-reference. */
-.upstreamInputCard{padding:24px 28px 18px;border-radius:11px;border-color:#d5dde7;box-shadow:none}
-.upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 82px minmax(0,1fr) 154px 172px;gap:20px;align-items:end}
-.upstreamStationControl{display:block;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none!important}
-.upstreamStationControl>label,.upstreamTimeControl>span{display:block;margin:0 0 9px 5px;color:#344155;font-size:13px;font-weight:700;line-height:1}
-.upstreamInputWrap{height:64px;border:1px solid #9daabd;border-radius:10px;background:#fff;transition:border-color .15s ease,box-shadow .15s ease}
-.upstreamStationControl:focus-within .upstreamInputWrap{border-color:#6d85aa;box-shadow:0 0 0 2px rgba(70,96,135,.08)}
-.upstreamStationControl .upstreamInputWrap input{height:62px;min-height:62px;padding:0 74px 0 20px;border:0;background:transparent;font-size:20px;font-weight:800;letter-spacing:-.35px;color:#10151d}
-.upstreamStationControl .upstreamInputWrap input::placeholder{color:#98a3b2;font-weight:700}
-.stationClear{right:42px;width:27px;height:62px;font-size:22px;color:#536176}.stationSearchIcon{right:15px;width:25px;height:25px;stroke:#060b12;stroke-width:1.8}
-.upstreamStationControl .stationSuggest{top:calc(100% + 5px)}
-.upstreamSwapBtn{width:82px;height:64px;margin:0;border:1px solid #d5dde7;border-radius:10px;background:#fff;color:#17212d;font-size:28px;box-shadow:none}
-.upstreamSwapBtn:hover{background:#f7f9fb;border-color:#aebbc9;color:#111923}
-.upstreamTimeControl{min-width:0}
-.upstreamTimePicker{position:relative;display:flex!important;align-items:center;justify-content:space-between;width:100%;height:64px!important;min-width:0!important;padding:0 17px!important;border:1px solid #9daabd!important;border-radius:10px!important;background:#fff!important;color:#111923!important;overflow:hidden;cursor:pointer}
-.upstreamTimePicker strong{font-size:18px;font-weight:700}.upstreamTimePicker svg{width:18px;height:18px;fill:none;stroke:#314158;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.upstreamTimePicker input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:.001;cursor:pointer;background:transparent;color:transparent}
-.upstreamTimePicker input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0}
-.upstreamSearchBtn{display:flex;align-items:center;justify-content:center;gap:13px;height:64px;min-height:64px;padding:0 22px;border-radius:10px;background:#0c55e8;font-size:18px;box-shadow:0 5px 14px rgba(12,85,232,.16)}
-.upstreamSearchBtn:hover{background:#084ad1}.upstreamSearchBtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.searchAuxActions{margin-top:10px}.upstreamSettingsBtn{font-size:11px}
-@media(max-width:850px){
- .upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);gap:12px}
- .upstreamTimeControl{grid-column:1/3}.upstreamSearchBtn{grid-column:3;height:56px;min-height:56px;align-self:end}.upstreamSwapBtn{width:62px}
-}
-@media(max-width:620px){
- .searchStage{margin-top:12px}.upstreamInputCard{padding:19px 20px 14px;border-radius:9px}
- .upstreamSearchPanel{display:grid;grid-template-columns:1fr 1.28fr;grid-template-areas:"from from" "swap swap" "to to" "time submit";gap:0 12px;align-items:end}
- .upstreamFromControl{grid-area:from}.upstreamToControl{grid-area:to}.upstreamTimeControl{grid-area:time;grid-column:auto}.upstreamSearchBtn{grid-area:submit;grid-column:auto}
- .upstreamStationControl>label,.upstreamTimeControl>span{margin:0 0 8px 4px;font-size:12px}
- .upstreamInputWrap{height:64px}.upstreamStationControl .upstreamInputWrap input{height:62px;min-height:62px;padding-left:18px;font-size:22px}
- .upstreamSwapBtn{grid-area:swap;width:64px;height:58px;justify-self:center;margin:12px 0;border-radius:9px;font-size:27px}
- .upstreamTimeControl{margin-top:20px}.upstreamTimePicker{height:64px!important}.upstreamTimePicker strong{font-size:20px}
- .upstreamSearchBtn{height:64px;min-height:64px;margin-top:20px;font-size:18px}
- .searchAuxActions{margin-top:8px}
-}
-@media(max-width:360px){
- .upstreamInputCard{padding:16px 14px 12px}.upstreamSearchPanel{gap:0 8px}.upstreamStationControl .upstreamInputWrap input{font-size:20px}.upstreamTimePicker strong{font-size:17px}.upstreamSearchBtn{font-size:16px;gap:8px;padding:0 14px}
-}
-
-
-
-/* V14.9.1 — live jigumta input surface fidelity fix.
-   Source of truth: current jigumta search-card structure + user-provided live screenshot.
-   Result/route UI remains unchanged. */
-.liveReferenceSearch{
- width:calc(100vw - 52px);max-width:none;margin:14px 0 22px;position:relative;left:50%;transform:translateX(-50%);text-align:left;
-}
-.liveReferenceCard{
- position:relative;z-index:30;overflow:visible;background:#fff;border:1px solid #dfe5eb;border-radius:32px;
- padding:29px 31px 31px;box-shadow:0 18px 46px rgba(33,47,64,.08);
-}
-.liveReferencePanel{
- display:grid!important;grid-template-columns:minmax(0,1fr) 80px minmax(0,1fr) 209px!important;
- gap:20px!important;align-items:center!important;position:relative;z-index:2;overflow:visible;
-}
-.liveReferenceStation{
- display:flex!important;min-width:0!important;height:137px!important;min-height:137px!important;flex-direction:column!important;justify-content:center!important;
- margin:0!important;padding:22px 25px 18px!important;border:1px solid #dfe5eb!important;border-radius:30px!important;background:#fff!important;box-shadow:none!important;
-}
-.liveReferenceStation:focus-within{z-index:100;border-color:#aab6c3!important;box-shadow:0 0 0 3px rgba(91,119,161,.08)!important}
-.liveReferenceStation>label{display:block!important;margin:0 0 13px!important;color:#596575!important;font-size:20px!important;font-weight:850!important;line-height:1!important;letter-spacing:-.4px}
-.liveReferenceInputWrap{position:relative!important;min-width:0!important;height:48px!important;border:0!important;background:transparent!important}
-.liveReferenceStation .liveReferenceInputWrap input{
- width:100%!important;height:48px!important;min-height:48px!important;padding:0 46px 0 0!important;border:0!important;border-radius:0!important;background:transparent!important;
- box-shadow:none!important;color:#111821!important;font-size:35px!important;font-weight:850!important;line-height:1.12!important;letter-spacing:-1.4px!important;
-}
-.liveReferenceStation .liveReferenceInputWrap input::placeholder{color:#a0a9b5!important;font-weight:800!important;opacity:1}
-.liveReferenceStation .stationClear{right:1px!important;top:50%!important;width:38px!important;height:48px!important;padding:0!important;transform:translateY(-50%)!important;border:0!important;background:transparent!important;color:#929da9!important;font-size:26px!important;font-weight:500!important;line-height:1!important}
-.liveReferenceStation .stationSearchIcon{display:none!important}
-.liveReferenceStation .stationSuggest{top:calc(100% + 16px)!important;left:0!important;right:0!important;z-index:1000!important;max-height:min(390px,52vh)!important;border-radius:17px!important}
-.liveReferenceSwap{
- align-self:center!important;justify-self:center!important;width:80px!important;height:80px!important;margin:0!important;padding:0!important;border:1px solid #dfe5eb!important;
- border-radius:50%!important;background:#fbfcfd!important;color:#626e7e!important;box-shadow:0 8px 24px rgba(35,49,66,.08)!important;font-size:0!important;transform:none!important;
-}
-.liveReferenceSwap svg{width:46px;height:46px;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
-.liveReferenceSwap:hover{background:#f5f7f9!important;border-color:#cbd3dc!important;color:#384555!important}
-.liveReferenceSearchBtn{
- align-self:stretch!important;width:100%!important;height:137px!important;min-height:137px!important;margin:0!important;padding:0 20px!important;border:0!important;border-radius:27px!important;
- background:#121822!important;color:#fff!important;box-shadow:none!important;font-size:24px!important;font-weight:900!important;letter-spacing:-.6px!important;line-height:1!important;
-}
-.liveReferenceSearchBtn:hover{background:#1a222e!important;filter:none!important}
-.liveReferenceTimeStrip{
- display:grid!important;grid-template-columns:80px 187px minmax(0,1fr) 187px!important;gap:13px!important;align-items:center!important;justify-content:stretch!important;
- margin-top:24px!important;padding-top:25px!important;border-top:1px solid #dfe5eb!important;
-}
-.liveReferenceTimeStrip>button,.liveReferenceTimeStrip .liveReferenceTimeGroup button{
- height:68px!important;min-height:68px!important;margin:0!important;padding:0 12px!important;border:1px solid #dfe5eb!important;border-radius:17px!important;background:#fafbfc!important;
- color:#111821!important;font-size:20px!important;font-weight:900!important;line-height:1!important;cursor:pointer!important;white-space:nowrap!important;
-}
-.liveReferenceTimeGroup{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;min-width:0!important}
-.liveReferenceTimeStrip>button:hover,.liveReferenceTimeStrip .liveReferenceTimeGroup button:hover{background:#f3f5f7!important;border-color:#cbd3dc!important}
-.liveReferenceTimeStrip .liveReferenceTimeBtn.active{background:#fafbfc!important;border-color:#dfe5eb!important;color:#111821!important}
-.liveReferenceSelectedTime{
- position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;height:73px!important;min-height:73px!important;min-width:0!important;
- margin:0!important;padding:0 18px!important;overflow:hidden!important;border:1px solid #5877a8!important;border-radius:17px!important;background:#5877a8!important;color:#fff!important;cursor:pointer!important;user-select:none!important;
-}
-.liveReferenceSelectedTime strong{font-size:27px!important;font-weight:900!important;letter-spacing:-.6px!important;line-height:1!important;color:#fff!important;pointer-events:none}
-.liveReferenceSelectedTime input{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;opacity:.001!important;cursor:pointer!important;background:transparent!important;color:transparent!important;color-scheme:light!important}
-.liveReferenceSelectedTime input::-webkit-calendar-picker-indicator{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;cursor:pointer!important;opacity:0!important}
-.liveReferenceCard>.searchAuxActions{display:none!important}
-.liveReferenceCard>.settingsPanel{margin-top:12px!important}
-
-@media(max-width:850px){
- .liveReferenceSearch{width:calc(100vw - 24px);margin-top:12px}
- .liveReferenceCard{padding:18px;border-radius:24px}
- .liveReferencePanel{grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr)!important;gap:12px!important}
- .liveReferenceStation{height:116px!important;min-height:116px!important;padding:18px 20px 15px!important;border-radius:24px!important}
- .liveReferenceStation>label{font-size:16px!important;margin-bottom:9px!important}
- .liveReferenceStation .liveReferenceInputWrap input{font-size:29px!important}
- .liveReferenceSwap{width:64px!important;height:64px!important}.liveReferenceSwap svg{width:38px;height:38px}
- .liveReferenceSearchBtn{grid-column:1/-1!important;height:62px!important;min-height:62px!important;border-radius:18px!important;font-size:20px!important}
- .liveReferenceTimeStrip{grid-template-columns:72px 1fr minmax(180px,2fr) 1fr!important;gap:8px!important;margin-top:18px!important;padding-top:18px!important}
- .liveReferenceTimeGroup{gap:6px!important}
- .liveReferenceTimeStrip>button,.liveReferenceTimeStrip .liveReferenceTimeGroup button{height:56px!important;min-height:56px!important;border-radius:14px!important;font-size:16px!important}
- .liveReferenceSelectedTime{height:58px!important;min-height:58px!important;border-radius:14px!important}.liveReferenceSelectedTime strong{font-size:22px!important}
-}
-@media(max-width:620px){
- .liveReferenceSearch{width:auto;left:auto;transform:none;margin:10px 0 18px}
- .liveReferenceCard{padding:14px;border-radius:22px}
- .liveReferencePanel{display:grid!important;grid-template-columns:minmax(0,1fr) 54px!important;grid-template-areas:"from swap" "to to" "submit submit"!important;gap:10px!important}
- .liveReferencePanel .upstreamFromControl{grid-area:from!important}.liveReferencePanel .upstreamToControl{grid-area:to!important}.liveReferenceSwap{grid-area:swap!important}.liveReferenceSearchBtn{grid-area:submit!important}
- .liveReferenceStation{height:102px!important;min-height:102px!important;padding:15px 17px 12px!important;border-radius:21px!important}
- .liveReferenceStation>label{font-size:14px!important;margin-bottom:7px!important}.liveReferenceStation .liveReferenceInputWrap input{font-size:25px!important}
- .liveReferenceSwap{width:54px!important;height:54px!important}.liveReferenceSwap svg{width:32px;height:32px}
- .liveReferenceSearchBtn{height:56px!important;min-height:56px!important;border-radius:16px!important;font-size:18px!important}
- .liveReferenceTimeStrip{grid-template-columns:62px 1fr 1fr!important;grid-template-rows:48px 48px!important;gap:6px!important;margin-top:14px!important;padding-top:14px!important}
- .liveReferenceTimeStrip>.liveReferenceTimeBtn{grid-row:1/3!important;height:100%!important;min-height:100%!important}
- .liveReferenceTimeStrip>.liveReferenceTimeGroup:first-of-type{grid-column:2!important;grid-row:1/3!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:1fr 1fr!important}
- .liveReferenceSelectedTime{grid-column:3!important;grid-row:1/3!important;height:100%!important;min-height:100%!important;padding:0 6px!important}.liveReferenceSelectedTime strong{font-size:17px!important}
- .liveReferenceTimeStrip>.liveReferenceTimeGroup:last-of-type{grid-column:4!important;grid-row:1/3!important}
- .liveReferenceTimeStrip{grid-template-columns:62px 1fr minmax(92px,1.35fr) 1fr!important}
- .liveReferenceTimeGroup{grid-template-columns:1fr!important;grid-template-rows:1fr 1fr!important;gap:5px!important}
- .liveReferenceTimeStrip>button,.liveReferenceTimeStrip .liveReferenceTimeGroup button{height:45px!important;min-height:45px!important;padding:0 4px!important;border-radius:12px!important;font-size:12px!important}
-}
+@media(max-width:360px){.search-card{padding:10px}.station-control{min-height:96px;padding:13px 16px 10px;border-radius:21px}.station-control .input-wrap input{font-size:25px!important}.swap-button{width:50px;height:50px;margin:9px 0;font-size:22px!important}.time-strip{grid-template-columns:.68fr .9fr .9fr 1.45fr .9fr .9fr;gap:2px}.time-strip button{font-size:9.2px}.time-strip .selected-time{font-size:10px}}
 
 </style>
 </head>
@@ -667,40 +519,36 @@ header{margin-bottom:30px}
  <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
 </header>
 
-<section class="searchStage liveReferenceSearch" aria-label="경로 입력">
- <div class="searchCard upstreamInputCard liveReferenceCard">
-  <div class="journeySearch upstreamSearchPanel liveReferencePanel">
-   <div class="stationBig stationInputWrap upstreamStationControl upstreamFromControl liveReferenceStation">
-    <label for="autoFrom">출발역</label>
-    <div class="upstreamInputWrap liveReferenceInputWrap"><input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off"><button class="stationClear" type="button" data-target="autoFrom" aria-label="출발역 지우기">×</button></div>
-    <div class="stationSuggest"></div>
-   </div>
-   <button id="swapStations" class="swapBtn upstreamSwapBtn liveReferenceSwap" type="button" aria-label="출발역과 도착역 바꾸기">
-    <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M11 17h24"></path><path d="m29 11 6 6-6 6"></path><path d="M37 31H13"></path><path d="m19 25-6 6 6 6"></path></svg>
-   </button>
-   <div class="stationBig stationInputWrap upstreamStationControl upstreamToControl liveReferenceStation">
-    <label for="autoTo">도착역</label>
-    <div class="upstreamInputWrap liveReferenceInputWrap"><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off"><button class="stationClear" type="button" data-target="autoTo" aria-label="도착역 지우기">×</button></div>
-    <div class="stationSuggest"></div>
-   </div>
-   <button id="autoRouteBtn" class="searchBtn upstreamSearchBtn liveReferenceSearchBtn" type="button">경로 조회</button>
+<section class="searchStage" aria-label="경로 입력">
+ <div class="search-card">
+  <form class="search-panel" id="journeySearchForm">
+   <label class="station-control stationInputWrap">
+    <span>출발역</span>
+    <div class="input-wrap"><input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off" role="combobox" aria-autocomplete="list"><button type="button" class="clear-input stationClear" data-target="autoFrom" aria-label="출발역 지우기">×</button><span class="search-icon">⌕</span><div class="suggestions stationSuggest" role="listbox"></div></div>
+   </label>
+   <button id="swapStations" class="swap-button" type="button" aria-label="출발역과 도착역 바꾸기">⇄</button>
+   <label class="station-control stationInputWrap">
+    <span>도착역</span>
+    <div class="input-wrap"><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off" role="combobox" aria-autocomplete="list"><button type="button" class="clear-input stationClear" data-target="autoTo" aria-label="도착역 지우기">×</button><span class="search-icon">⌕</span><div class="suggestions stationSuggest" role="listbox"></div></div>
+   </label>
+   <button id="autoRouteBtn" class="search-button" type="submit">경로 조회</button>
+  </form>
+  <div class="time-strip" aria-label="조회 시각 조정">
+   <button id="searchNowBtn" class="timeChip" type="button" data-min="0">지금</button>
+   <span class="time-step-group"><button class="searchTimeAdjust" type="button" data-adjust="-5">−5분</button><button class="searchTimeAdjust" type="button" data-adjust="-1">−1분</button></span>
+   <label id="searchTimeDisplay" class="selected-time time-picker" aria-label="플랫폼 도착시간 직접 선택"><strong id="searchTimeLabel">지금</strong><input id="startTime" type="time"></label>
+   <span class="time-step-group"><button class="searchTimeAdjust" type="button" data-adjust="1">+1분</button><button class="searchTimeAdjust" type="button" data-adjust="5">+5분</button></span>
   </div>
-  <div class="upstreamTimeStrip liveReferenceTimeStrip" aria-label="조회 시각 조정">
-   <button id="searchNowBtn" class="timeChip liveReferenceTimeBtn" type="button" data-min="0">지금</button>
-   <span class="timeStepGroup liveReferenceTimeGroup"><button class="liveReferenceAdjustBtn" type="button" data-adjust="-5">−5분</button><button class="liveReferenceAdjustBtn" type="button" data-adjust="-1">−1분</button></span>
-   <label id="searchTimeDisplay" class="selectedTime searchTimeDisplay liveReferenceSelectedTime" aria-label="플랫폼 도착시간 직접 선택"><strong id="searchTimeLabel">지금</strong><input id="startTime" type="time"></label>
-   <span class="timeStepGroup liveReferenceTimeGroup"><button class="liveReferenceAdjustBtn" type="button" data-adjust="1">+1분</button><button class="liveReferenceAdjustBtn" type="button" data-adjust="5">+5분</button></span>
-  </div>
-  <div class="searchAuxActions"><button id="settingsBtn" class="settingsBtn upstreamSettingsBtn" type="button" aria-label="상세 설정" aria-expanded="false">상세 설정</button></div>
-  <div id="settingsPanel" class="settingsPanel">
-   <div class="settingsGrid">
-    <div class="settingsSection"><label>시간 빠른 선택</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button class="timeChip" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div></div>
-    <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
-    <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
-   </div>
-  </div>
-  <div id="autoRouteResult" class="autoRouteResult"></div>
  </div>
+ <div class="input-settings-row"><button id="settingsBtn" class="input-settings-link" type="button" aria-label="상세 설정" aria-expanded="false">상세 설정</button></div>
+ <div id="settingsPanel" class="settingsPanel input-settings-panel">
+  <div class="settingsGrid">
+   <div class="settingsSection"><label>추가 시간 선택</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button class="timeChip" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div></div>
+   <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
+   <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
+  </div>
+ </div>
+ <div id="autoRouteResult" class="autoRouteResult"></div>
 </section>
 
 <div class="legacyControls">
@@ -925,14 +773,30 @@ function stationSuggestions(line,query){
   .sort((a,b)=>a.length-b.length || a.localeCompare(b,'ko'))
   .slice(0,8);
 }
-function allStationNames(){
- return [...new Set(Object.values(stations).flat())];
+const LINE_BADGES={
+ '1호선':{text:'1',color:'#0052A4',shape:'circle',width:24},'2호선':{text:'2',color:'#00A84D',shape:'circle',width:24},'3호선':{text:'3',color:'#EF7C1C',shape:'circle',width:24},'4호선':{text:'4',color:'#00A5DE',shape:'circle',width:24},'5호선':{text:'5',color:'#996CAC',shape:'circle',width:24},'6호선':{text:'6',color:'#CD7C2F',shape:'circle',width:24},'7호선':{text:'7',color:'#747F00',shape:'circle',width:24},'8호선':{text:'8',color:'#E6186C',shape:'circle',width:24},'9호선':{text:'9',color:'#BDB092',shape:'circle',width:24},
+ '공항철도':{text:'공항',color:'#0090D2',shape:'pill',width:42},'경의중앙선':{text:'경의중앙',color:'#56A98A',shape:'pill',width:62},'경춘선':{text:'경춘',color:'#178C72',shape:'pill',width:42},'수인분당선':{text:'수인분당',color:'#E8A000',shape:'pill',width:62},'경강선':{text:'경강',color:'#0054A6',shape:'pill',width:42},'서해선':{text:'서해',color:'#8FC31F',shape:'pill',width:42},'신분당선':{text:'신분당',color:'#D4003B',shape:'pill',width:52},
+ '인천1호선':{text:'인천1',color:'#7CA8D5',shape:'pill',width:48},'인천2호선':{text:'인천2',color:'#ED8B00',shape:'pill',width:48},'용인에버라인':{text:'에버',color:'#4EA346',shape:'pill',width:42},'용인경전철':{text:'에버',color:'#4EA346',shape:'pill',width:42},'김포골드라인':{text:'김포',color:'#B99A31',shape:'pill',width:42},'의정부경전철':{text:'의정부',color:'#F28C28',shape:'pill',width:52},'우이신설선':{text:'우이신설',color:'#B0CE18',shape:'pill',width:62},'신림선':{text:'신림',color:'#6789CA',shape:'pill',width:42},'GTX-A':{text:'GTX-A',color:'#9A6292',shape:'pill',width:54},'GTX-A(북부)':{text:'GTX-A',color:'#9A6292',shape:'pill',width:54},'GTX-A(남부)':{text:'GTX-A',color:'#9A6292',shape:'pill',width:54}
+};
+const LINE_BADGE_ORDER=Object.keys(LINE_BADGES);
+function lineOrder(a,b){const ai=LINE_BADGE_ORDER.indexOf(a),bi=LINE_BADGE_ORDER.indexOf(b);if(ai>=0||bi>=0)return (ai<0?9999:ai)-(bi<0?9999:bi);return a.localeCompare(b,'ko')}
+function lineBadgeSvg(line){
+ const spec=LINE_BADGES[line]||{text:String(line||'?').slice(0,4),color:'#65717E',shape:'pill',width:48};
+ const width=spec.shape==='circle'?24:spec.width;
+ const shape=spec.shape==='circle'?`<circle cx="12" cy="12" r="11" fill="${spec.color}"></circle>`:`<rect x="1" y="1" width="${width-2}" height="22" rx="11" fill="${spec.color}"></rect>`;
+ return `<svg class="line-badge-svg ${spec.shape}" width="${width}" height="24" viewBox="0 0 ${width} 24" role="img" aria-label="${esc(line)}">${shape}<text x="${width/2}" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="${spec.shape==='circle'?12:10}" font-weight="800">${esc(spec.text)}</text></svg>`;
 }
 function globalStationSuggestions(query){
- return allStationNames()
-  .filter(name=>stationMatches(name,query))
-  .sort((a,b)=>a.length-b.length || a.localeCompare(b,'ko'))
-  .slice(0,8);
+ const byStation=new Map();
+ for(const [line,names] of Object.entries(stations||{})){
+  for(const name of names||[]){
+   if(!stationMatches(name,query))continue;
+   if(!byStation.has(name))byStation.set(name,new Set());
+   byStation.get(name).add(line);
+  }
+ }
+ return [...byStation.entries()].map(([station,lineSet])=>({station,lines:[...lineSet].sort(lineOrder)}))
+  .sort((a,b)=>a.station.length-b.station.length||a.station.localeCompare(b.station,'ko')||a.lines.join('|').localeCompare(b.lines.join('|'),'ko')).slice(0,10);
 }
 function setupGlobalStationAutocomplete(input){
  const box=input.closest('.stationInputWrap').querySelector('.stationSuggest');
@@ -941,35 +805,18 @@ function setupGlobalStationAutocomplete(input){
   const q=input.value.trim();active=-1;
   if(!q){hideStationSuggest(input);return}
   const list=globalStationSuggestions(q);
-  if(!list.length){
-   box.innerHTML='<div class="stationNoResult">일치하는 역이 없습니다.</div>';
-   box.classList.add('show');return;
-  }
-  box.innerHTML=list.map((name,i)=>`<button type="button" class="stationOption" data-i="${i}" data-station="${esc(name)}">${esc(name)}</button>`).join('');
-  box.classList.add('show');
-  box.querySelectorAll('.stationOption').forEach(btn=>btn.addEventListener('mousedown',e=>{
-   e.preventDefault();input.value=btn.dataset.station;hideStationSuggest(input);
-  }));
+  if(!list.length){box.innerHTML='<div class="stationNoResult">일치하는 역이 없습니다.</div>';box.classList.add('show');input.setAttribute('aria-expanded','true');return}
+  box.innerHTML=list.map((item,i)=>`<button type="button" class="stationOption" role="option" aria-selected="false" data-i="${i}" data-station="${esc(item.station)}" aria-label="${esc(item.station)} ${esc(item.lines.join(' '))}"><span class="suggestion-badges" aria-hidden="true">${item.lines.map(lineBadgeSvg).join('')}</span><span class="suggestion-station">${esc(item.station)}</span></button>`).join('');
+  box.classList.add('show');input.setAttribute('aria-expanded','true');
+  box.querySelectorAll('.stationOption').forEach(btn=>btn.addEventListener('mousedown',e=>{e.preventDefault();input.value=btn.dataset.station;hideStationSuggest(input);input.dispatchEvent(new Event('change',{bubbles:true}));}));
  };
- const sync=()=>{
-  const opts=[...box.querySelectorAll('.stationOption')];
-  opts.forEach((x,i)=>x.classList.toggle('active',i===active));
- };
- input.addEventListener('input',render);
- input.addEventListener('focus',()=>{if(input.value.trim())render()});
- input.addEventListener('blur',()=>setTimeout(()=>hideStationSuggest(input),120));
- input.addEventListener('keydown',e=>{
-  const opts=[...box.querySelectorAll('.stationOption')];
-  if(!box.classList.contains('show')||!opts.length)return;
-  if(e.key==='ArrowDown'){e.preventDefault();active=(active+1)%opts.length;sync()}
-  else if(e.key==='ArrowUp'){e.preventDefault();active=(active-1+opts.length)%opts.length;sync()}
-  else if(e.key==='Enter'&&active>=0){e.preventDefault();input.value=opts[active].dataset.station;hideStationSuggest(input)}
-  else if(e.key==='Escape')hideStationSuggest(input);
- });
+ const sync=()=>{const opts=[...box.querySelectorAll('.stationOption')];opts.forEach((x,i)=>{x.classList.toggle('active',i===active);x.setAttribute('aria-selected',String(i===active));});};
+ input.addEventListener('input',render);input.addEventListener('focus',()=>{if(input.value.trim())render()});input.addEventListener('blur',()=>setTimeout(()=>hideStationSuggest(input),140));
+ input.addEventListener('keydown',e=>{const opts=[...box.querySelectorAll('.stationOption')];if(!box.classList.contains('show')||!opts.length)return;if(e.key==='ArrowDown'){e.preventDefault();active=(active+1)%opts.length;sync()}else if(e.key==='ArrowUp'){e.preventDefault();active=(active-1+opts.length)%opts.length;sync()}else if(e.key==='Enter'&&active>=0){e.preventDefault();input.value=opts[active].dataset.station;hideStationSuggest(input)}else if(e.key==='Escape')hideStationSuggest(input);});
 }
 function hideStationSuggest(input){
  const box=input.closest('.stationInputWrap')?.querySelector('.stationSuggest');
- if(box){box.classList.remove('show');box.innerHTML='';}
+ if(box){box.classList.remove('show');box.innerHTML='';input?.setAttribute?.('aria-expanded','false');}
 }
 function setupStationAutocomplete(input,seg){
  const box=input.closest('.stationInputWrap').querySelector('.stationSuggest');
@@ -2225,9 +2072,8 @@ document.querySelectorAll('.stationClear').forEach(btn=>btn.onclick=()=>{
 });
 $('swapStations').onclick=()=>{const a=$('autoFrom').value;$('autoFrom').value=$('autoTo').value;$('autoTo').value=a;};
 $('showExpTools').addEventListener('change',()=>document.body.classList.toggle('showExperiment',$('showExpTools').checked));
-$('autoTo').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)setTimeout(()=>{if($('autoTo').value.trim())findAutoRoute()},0);});
 document.querySelectorAll('.timeChip').forEach(b=>b.onclick=()=>setRelativeTime(b.dataset.min));
-document.querySelectorAll('.liveReferenceAdjustBtn').forEach(b=>b.onclick=()=>adjustSearchTime(Number(b.dataset.adjust||0)));
+document.querySelectorAll('.searchTimeAdjust').forEach(b=>b.onclick=()=>adjustSearchTime(Number(b.dataset.adjust||0)));
 $('startTime').addEventListener('input',()=>{
  clearQuickSelection();
  const [h,m]=($('startTime').value||'').split(':').map(Number);
@@ -2242,7 +2088,7 @@ $('addBtn').onclick=()=>{
  addSegment(prev?{line:prev.querySelector('.line').value,from:prev.querySelector('.to').value,walk:3}:{});
 };
 $('calcBtn').onclick=calculate;
-$('autoRouteBtn').onclick=findAutoRoute;
+$('journeySearchForm').addEventListener('submit',e=>{e.preventDefault();findAutoRoute();});
 $('refreshRoute').onclick=refreshDisplayedRoute;
 setupGlobalStationAutocomplete($('autoFrom'));
 setupGlobalStationAutocomplete($('autoTo'));
@@ -2324,9 +2170,6 @@ setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
   trackGaEvent(filled?'route_search':'route_search_invalid');
   return origFindAutoRoute.apply(this,arguments);
  };
- // autoRouteBtn은 원본 참조를 이미 바인딩했으므로 다시 연결한다.
- // Enter 경로는 호출 시점에 전역을 참조하므로 재바인딩이 필요 없다.
- $('autoRouteBtn').onclick=findAutoRoute;
 })();
 </script>
 </body>

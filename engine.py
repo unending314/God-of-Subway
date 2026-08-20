@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.9.1 — 1호선 급행-완행 추월 운행 보정
+지금타 V14.9.2 — 1호선 급행-완행 추월 운행 보정
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.9.1"
+APP_VERSION = "V14.9.2"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
