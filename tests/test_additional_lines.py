@@ -192,15 +192,13 @@ def test_molit_fast_transfer_positions_for_new_lines():
     assert airport["seconds"] == 400
 
 
-def test_molit_direction_strict_does_not_leak_to_unpublished_direction():
-    # MOLIT file only resolves AREX -> Incheon Line 1 toward 귤현 at 계양.
-    # The opposite current extension direction (아라) must not reuse that car position.
-    unresolved = engine.best_transfer_detail(
+def test_user_supplied_araseo_extension_position_is_direction_strict():
+    resolved = engine.best_transfer_detail(
         "계양",
         {"line": "공항철도", "from": "검암", "to": "계양"},
         {"line": "인천1호선", "from": "계양", "to": "아라"},
         "DAY",
     )
-    assert unresolved["seconds"] == 130
-    assert unresolved["alight_position"] == ""
-    assert unresolved["matched"] == "fallback"
+    assert resolved["seconds"] == 130
+    assert resolved["alight_position"] == "5-4"
+    assert resolved["matched"] == "direction"

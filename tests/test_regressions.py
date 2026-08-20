@@ -601,3 +601,66 @@ class InputUiRegressionTest(unittest.TestCase):
         self.assertIn('let trackingStartedForCurrentRoute=false;', self.html)
         self.assertIn('trackingStartedForCurrentRoute=true;', self.html)
         self.assertIn("!liveTrip&&!trackingStartedForCurrentRoute&&!rerouteInProgress", self.html)
+
+    def test_launch_ui_removes_experiment_and_baseline_controls_from_settings(self):
+        self.assertNotIn('기존 앱 예상 총시간 · 실험용', self.html)
+        self.assertNotIn('기말 실험 자동 기록</label>', self.html)
+        self.assertNotIn('실험 도구 화면 표시</label>', self.html)
+        self.assertIn('id="baseline" type="hidden"', self.html)
+        self.assertIn('id="expEnabled" type="checkbox" hidden', self.html)
+
+class TransferDirectionNormalizationV1495Test(unittest.TestCase):
+    def test_yeonsinnae_line6_to_gtxa_uses_existing_6_2_position(self):
+        detail = engine.best_transfer_detail(
+            "연신내",
+            {"line":"6호선","from":"합정","to":"연신내"},
+            {"line":"GTX-A","from":"연신내","to":"운정중앙"},
+            "DAY",
+        )
+        self.assertEqual(detail["alight_position"], "6-2", detail)
+        self.assertEqual(detail["seconds"], 250, detail)
+
+    def test_terminal_arrival_direction_uses_approach_side_record(self):
+        cases = [
+            ("서울역", {"line":"GTX-A","from":"연신내","to":"서울역"}, {"line":"1호선","from":"서울역","to":"시청"}, "3-2"),
+            ("김포공항", {"line":"김포골드라인","from":"고촌","to":"김포공항"}, {"line":"9호선","from":"김포공항","to":"공항시장"}, "2-2"),
+            ("샛강", {"line":"신림선","from":"대방","to":"샛강"}, {"line":"9호선","from":"샛강","to":"여의도"}, "3-1"),
+        ]
+        for station, from_seg, to_seg, expected in cases:
+            detail = engine.best_transfer_detail(station, from_seg, to_seg, "DAY")
+            self.assertEqual(detail["alight_position"], expected, detail)
+
+    def test_incheon_city_hall_public_direction_matrix_is_complete(self):
+        cases = [
+            ({"line":"인천2호선","from":"석바위시장","to":"인천시청"}, {"line":"인천1호선","from":"인천시청","to":"간석오거리"}, "2-3"),
+            ({"line":"인천2호선","from":"석바위시장","to":"인천시청"}, {"line":"인천1호선","from":"인천시청","to":"예술회관"}, "2-3"),
+            ({"line":"인천2호선","from":"석천사거리","to":"인천시청"}, {"line":"인천1호선","from":"인천시청","to":"간석오거리"}, "1-1"),
+            ({"line":"인천2호선","from":"석천사거리","to":"인천시청"}, {"line":"인천1호선","from":"인천시청","to":"예술회관"}, "1-1"),
+        ]
+        # Note: source segment's previous station determines the movement; the resolver
+        # normalizes it to the public source-terminal direction before choosing a record.
+        for from_seg, to_seg, expected in cases:
+            detail = engine.best_transfer_detail("인천시청", from_seg, to_seg, "DAY")
+            self.assertEqual(detail["alight_position"], expected, detail)
+
+    def test_daemosanipgu_alias_matches_suin_timetable_daemosan(self):
+        detail = engine.best_transfer_detail(
+            "수서",
+            {"line":"GTX-A","from":"성남","to":"수서"},
+            {"line":"수인분당선","from":"수서","to":"대모산"},
+            "DAY",
+        )
+        self.assertEqual(detail["alight_position"], "2-2", detail)
+
+    def test_user_completed_last_six_fast_transfer_positions(self):
+        cases = [
+            ("계양", {"line":"공항철도","from":"검암","to":"계양"}, {"line":"인천1호선","from":"계양","to":"아라"}, "5-4"),
+            ("계양", {"line":"공항철도","from":"김포공항","to":"계양"}, {"line":"인천1호선","from":"계양","to":"아라"}, "1-4"),
+            ("부평구청", {"line":"인천1호선","from":"갈산","to":"부평구청"}, {"line":"7호선","from":"부평구청","to":"산곡"}, "1-1"),
+            ("부평구청", {"line":"인천1호선","from":"부평시장","to":"부평구청"}, {"line":"7호선","from":"부평구청","to":"산곡"}, "8-4"),
+            ("총신대입구(이수)", {"line":"4호선","from":"동작","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"남성"}, "1-1"),
+            ("총신대입구(이수)", {"line":"4호선","from":"동작","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"내방"}, "1-1"),
+        ]
+        for station, from_seg, to_seg, expected in cases:
+            detail = engine.best_transfer_detail(station, from_seg, to_seg, "DAY")
+            self.assertEqual(detail["alight_position"], expected, detail)

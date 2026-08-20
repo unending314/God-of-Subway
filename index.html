@@ -302,7 +302,7 @@ header{margin-bottom:30px}
 .swapBtn,.settingsBtn{border:1px solid #dbe2e9;background:#fff;border-radius:13px;cursor:pointer;font-weight:900;color:#5c6874}.swapBtn{font-size:16px}.settingsBtn{width:44px;font-size:17px}
 .searchBtn{border:0;background:var(--navy);color:#fff;border-radius:14px;padding:0 22px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap}.searchBtn:disabled{opacity:.55}
 .settingsPanel{display:none;text-align:left;margin-top:11px;padding:14px;border-top:1px solid #edf0f3;background:#fbfcfe;border-radius:0 0 16px 16px}.settingsPanel.open{display:block}
-.settingsGrid{display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:12px}.settingsSection label{font-size:8px}.settingsPanel .quickTime{margin:5px 0 8px}.settingsNote{font-size:8px;color:#7a8591;line-height:1.5;margin-top:9px}
+.settingsGrid{display:grid;grid-template-columns:1.4fr .8fr;gap:12px}.settingsSection label{font-size:8px}.settingsPanel .quickTime{margin:5px 0 8px}.settingsNote{font-size:8px;color:#7a8591;line-height:1.5;margin-top:9px}
 #autoRouteResult{margin-top:10px;text-align:left}.autoRouteResult.show{display:block}
 .legacyControls{display:none!important}
 .resultCol{display:none;flex-direction:column;gap:16px;margin-top:26px}.resultsReady .resultCol{display:flex}
@@ -476,7 +476,7 @@ header{margin-bottom:30px}
 
 
 
-/* V14.9.4 — input UI ported directly from God-of-Subway-dev-ts-bun.
+/* V14.9.6 — input UI ported directly from God-of-Subway-dev-ts-bun.
    Only the initial search surface is transplanted; route/result UI stays V14.8+. */
 .searchStage{width:min(1120px,calc(100vw - 36px));max-width:none;margin:22px auto 30px;position:relative;left:50%;transform:translateX(-50%);text-align:left}
 .search-card{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
@@ -556,7 +556,9 @@ header{margin-bottom:30px}
   <div class="settingsGrid">
    <div class="settingsSection"><label>추가 시간 선택</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button class="timeChip" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div></div>
    <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
-   <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
+   <input id="baseline" type="hidden" value="">
+   <input id="expEnabled" type="checkbox" hidden aria-hidden="true">
+   <input id="showExpTools" type="checkbox" hidden aria-hidden="true">
   </div>
  </div>
  <div id="autoRouteResult" class="autoRouteResult"></div>

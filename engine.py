@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.9.4 — 1호선 급행-완행 추월 운행 보정
+지금타 V14.9.6 — 환승방향 정규화 및 빠른환승 매칭 보강
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.9.4"
+APP_VERSION = "V14.9.6"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -189,6 +189,7 @@ STATION_ALIASES = {
     "인천논": "인천논현",
     "신인천": "인천",
     "신수원": "수원",
+    "대모산입구": "대모산",
     "세종릉": "세종대왕릉",
     "도예촌": "신둔도예촌",
     "경광주": "경기광주",
@@ -1255,6 +1256,95 @@ def _outgoing_direction_station(line, mode, start, end):
                 return st
     return ""
 
+def _ordered_station_subsequence(stops, names):
+    """Return True when canonical station names appear in order in a train's stop list.
+
+    This intentionally ignores call/pass status.  Fast-transfer direction keys describe the
+    physical side of a station, while an express train may skip the adjacent passenger stop.
+    """
+    wanted = [canon_station(x) for x in names if canon_station(x)]
+    if not wanted:
+        return False
+    idx = 0
+    for stop in stops or []:
+        if canon_station(stop.get("station")) == wanted[idx]:
+            idx += 1
+            if idx == len(wanted):
+                return True
+    return False
+
+
+@lru_cache(maxsize=4096)
+def _resolve_incoming_transfer_direction(line, mode, start, station, candidate_keys, fallback):
+    """Resolve the direction key used by a fast-transfer record for an arriving segment.
+
+    Normal through services are keyed by the side the train continues toward after the
+    interchange.  At a terminal or one-way-loop edge there may be no matching continuation
+    key in the pair data; in that case the published/user record can legitimately be keyed by
+    the approach side instead (e.g. GTX-A arriving at 서울역, 6호선 arriving at 연신내).
+    """
+    start = canon_station(start); station = canon_station(station)
+    candidates = [canon_station(x) for x in candidate_keys if canon_station(x)]
+    if not candidates:
+        return canon_station(fallback)
+
+    trains = tuple(route_trains(line, mode, start, station))
+    after = []
+    for cand in candidates:
+        if any(_ordered_station_subsequence(tr.get("stops", []), (start, station, cand)) for tr in trains):
+            after.append(cand)
+    if len(set(after)) == 1:
+        return after[0]
+    fb = canon_station(fallback)
+    if fb in after:
+        return fb
+
+    # Terminal / one-way-loop fallback: use the approach-side key only when no candidate
+    # record matches the continuation side.  This does not invent a position for a genuinely
+    # unlisted outgoing direction because it is used only for the arriving line.
+    before = []
+    for cand in candidates:
+        if cand == start:
+            if any(_ordered_station_subsequence(tr.get("stops", []), (start, station)) for tr in trains):
+                before.append(cand)
+            continue
+        if any(_ordered_station_subsequence(tr.get("stops", []), (start, cand, station)) for tr in trains):
+            before.append(cand)
+    if len(set(before)) == 1:
+        return before[0]
+    if fb in before:
+        return fb
+    return fb
+
+
+@lru_cache(maxsize=4096)
+def _resolve_outgoing_transfer_direction(line, mode, station, end, candidate_keys, fallback):
+    """Resolve a departing segment to a published fast-transfer direction key.
+
+    We require the candidate direction to lie between the interchange and destination on an
+    actual scheduled train.  There is deliberately no approach-side fallback here: if a new
+    branch/extension direction is absent from the fast-transfer source, the position remains
+    unsupported rather than leaking the opposite direction's car/door.
+    """
+    station = canon_station(station); end = canon_station(end)
+    candidates = [canon_station(x) for x in candidate_keys if canon_station(x)]
+    if not candidates:
+        return canon_station(fallback)
+    trains = tuple(route_trains(line, mode, station, end))
+    matched = []
+    for cand in candidates:
+        # candidate may itself be the destination/adjacent station
+        seq = (station, cand) if cand == end else (station, cand, end)
+        if any(_ordered_station_subsequence(tr.get("stops", []), seq) for tr in trains):
+            matched.append(cand)
+    if len(set(matched)) == 1:
+        return matched[0]
+    fb = canon_station(fallback)
+    if fb in matched:
+        return fb
+    return fb
+
+
 def best_transfer_detail(station, from_seg, to_seg, mode):
     p = transfer_pair_info(station, from_seg.get("line"), to_seg.get("line"))
     if not p:
@@ -1268,10 +1358,18 @@ def best_transfer_detail(station, from_seg, to_seg, mode):
             "to_direction": "",
             "matched": "fallback",
         }
-    in_dir = _direction_station(from_seg["line"], mode, from_seg["from"], from_seg["to"])
-    out_dir = _outgoing_direction_station(to_seg["line"], mode, to_seg["from"], to_seg["to"])
+    raw_in_dir = _direction_station(from_seg["line"], mode, from_seg["from"], from_seg["to"])
+    raw_out_dir = _outgoing_direction_station(to_seg["line"], mode, to_seg["from"], to_seg["to"])
     records = p.get("records") or []
     def canon_dir(x): return canon_station(str(x or "").replace(" 방면", "").strip())
+    in_candidates = [canon_dir(r.get("from_direction")) for r in records if canon_dir(r.get("from_direction"))]
+    out_candidates = [canon_dir(r.get("to_direction")) for r in records if canon_dir(r.get("to_direction"))]
+    in_dir = _resolve_incoming_transfer_direction(
+        from_seg["line"], mode, from_seg["from"], station, tuple(in_candidates), raw_in_dir
+    )
+    out_dir = _resolve_outgoing_transfer_direction(
+        to_seg["line"], mode, station, to_seg["to"], tuple(out_candidates), raw_out_dir
+    )
     both = [r for r in records if canon_dir(r.get("from_direction")) == canon_station(in_dir) and canon_dir(r.get("to_direction")) == canon_station(out_dir)]
     # direction_strict records come from public fast-transfer data that only covers
     # the explicitly published direction combination. Do not leak that position to
