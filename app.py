@@ -20,14 +20,14 @@ import observability
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V14.3.0-local"
+VERSION = "V14.4.0-local"
 
 
 def ensure_api_key():
     if engine.API_KEY:
         return
     print("=" * 70)
-    print("지금타 V14.3 — 로컬 실행")
+    print("지금타 V14.4 — 로컬 실행")
     print("서울 열린데이터광장 인증키를 입력하세요.")
     print("키는 파일에 저장되지 않고 현재 프로세스 메모리에만 유지됩니다.")
     print("=" * 70)

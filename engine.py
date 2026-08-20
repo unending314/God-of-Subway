@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.3.0 — 수도권 추가 8개 노선 시간표 + realtime/schedule-only capability
+지금타 V14.4.0 — 수도권 추가 8개 노선 시간표 + realtime/schedule-only capability
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -1218,10 +1218,14 @@ def best_transfer_detail(station, from_seg, to_seg, mode):
     records = p.get("records") or []
     def canon_dir(x): return canon_station(str(x or "").replace(" 방면", "").strip())
     both = [r for r in records if canon_dir(r.get("from_direction")) == canon_station(in_dir) and canon_dir(r.get("to_direction")) == canon_station(out_dir)]
-    one_out = [r for r in records if canon_dir(r.get("to_direction")) == canon_station(out_dir)]
-    one_in = [r for r in records if canon_dir(r.get("from_direction")) == canon_station(in_dir)]
-    chosen = (both or one_out or one_in or records or [None])[0]
-    matched = "direction" if both else "outgoing" if one_out else "incoming" if one_in else "pair"
+    # direction_strict records come from public fast-transfer data that only covers
+    # the explicitly published direction combination. Do not leak that position to
+    # an unlisted opposite direction through the historical one-side fallback.
+    fallback_records = [r for r in records if not bool(r.get("direction_strict"))]
+    one_out = [r for r in fallback_records if canon_dir(r.get("to_direction")) == canon_station(out_dir)]
+    one_in = [r for r in fallback_records if canon_dir(r.get("from_direction")) == canon_station(in_dir)]
+    chosen = (both or one_out or one_in or fallback_records or [None])[0]
+    matched = "direction" if both else "outgoing" if one_out else "incoming" if one_in else "pair" if chosen else "fallback"
     sec_raw = _first_not_none(
         (chosen or {}).get("seconds"),
         p.get("default_seconds"),
@@ -1806,7 +1810,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V14.3.0/1.0",
+            "User-Agent": "JigeumTa-V14.4.0/1.0",
             "Accept": "application/json",
         })
         try:

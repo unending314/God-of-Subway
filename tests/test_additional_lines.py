@@ -160,3 +160,47 @@ def test_auto_path_can_use_each_imported_line():
         assert path, (start, end)
         used = {node[0] for edge in path["edges"] for node in edge[:2]}
         assert expected_line in used, (start, end, used)
+
+
+def test_molit_fast_transfer_positions_for_new_lines():
+    # 6호선 보문 -> 우이신설선: target direction changes the published fast-transfer car.
+    north = engine.best_transfer_detail(
+        "보문",
+        {"line": "6호선", "from": "안암", "to": "보문"},
+        {"line": "우이신설선", "from": "보문", "to": "성신여대입구"},
+        "DAY",
+    )
+    south = engine.best_transfer_detail(
+        "보문",
+        {"line": "6호선", "from": "안암", "to": "보문"},
+        {"line": "우이신설선", "from": "보문", "to": "신설동"},
+        "DAY",
+    )
+    assert north["alight_position"] == "3-4"
+    assert south["alight_position"] == "5-4"
+    assert north["seconds"] == 130
+    assert south["seconds"] == 130
+
+    # 인천2호선 -> 공항철도 at 검암 is populated in both target directions.
+    airport = engine.best_transfer_detail(
+        "검암",
+        {"line": "인천2호선", "from": "독정", "to": "검암"},
+        {"line": "공항철도", "from": "검암", "to": "청라국제도시"},
+        "DAY",
+    )
+    assert airport["alight_position"] == "2-2"
+    assert airport["seconds"] == 400
+
+
+def test_molit_direction_strict_does_not_leak_to_unpublished_direction():
+    # MOLIT file only resolves AREX -> Incheon Line 1 toward 귤현 at 계양.
+    # The opposite current extension direction (아라) must not reuse that car position.
+    unresolved = engine.best_transfer_detail(
+        "계양",
+        {"line": "공항철도", "from": "검암", "to": "계양"},
+        {"line": "인천1호선", "from": "계양", "to": "아라"},
+        "DAY",
+    )
+    assert unresolved["seconds"] == 130
+    assert unresolved["alight_position"] == ""
+    assert unresolved["matched"] == "fallback"

@@ -412,5 +412,26 @@ class PreviousTrainRegressionTest(unittest.TestCase):
         self.assertEqual(public_previous[0].get("train_no"), "K5126")
 
 
+class IsuDirectionalTransferTimeRegressionTest(unittest.TestCase):
+    def test_all_eight_directional_transfer_times(self):
+        cases = [
+            ({"line":"4호선","from":"사당","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"남성"}, 190),
+            ({"line":"4호선","from":"사당","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"내방"}, 230),
+            ({"line":"4호선","from":"동작","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"남성"}, 190),
+            ({"line":"4호선","from":"동작","to":"총신대입구(이수)"}, {"line":"7호선","from":"총신대입구(이수)","to":"내방"}, 230),
+            ({"line":"7호선","from":"내방","to":"총신대입구(이수)"}, {"line":"4호선","from":"총신대입구(이수)","to":"동작"}, 230),
+            ({"line":"7호선","from":"내방","to":"총신대입구(이수)"}, {"line":"4호선","from":"총신대입구(이수)","to":"사당"}, 230),
+            ({"line":"7호선","from":"남성","to":"총신대입구(이수)"}, {"line":"4호선","from":"총신대입구(이수)","to":"사당"}, 190),
+            ({"line":"7호선","from":"남성","to":"총신대입구(이수)"}, {"line":"4호선","from":"총신대입구(이수)","to":"동작"}, 190),
+        ]
+        for from_seg, to_seg, expected in cases:
+            detail = engine.best_transfer_detail(
+                "총신대입구(이수)", from_seg, to_seg, "DAY"
+            )
+            self.assertEqual(detail["seconds"], expected, detail)
+            self.assertEqual(detail["matched"], "direction", detail)
+
+
+
 if __name__ == "__main__":
     unittest.main()
