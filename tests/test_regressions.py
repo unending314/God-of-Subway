@@ -590,3 +590,14 @@ class InputUiRegressionTest(unittest.TestCase):
         self.assertIn('function lineBadgeHtml(line)', self.html)
         self.assertIn('class="line-badge-ui ${spec.shape}"', self.html)
         self.assertIn("item.lines.map(lineBadgeHtml).join('')", self.html)
+
+    def test_route_header_has_now_reroute_action_separate_from_tracking_refresh(self):
+        self.assertIn('id="rerouteNow"', self.html)
+        self.assertIn("$('rerouteNow').onclick=rerouteFromNow;", self.html)
+        self.assertIn("$('refreshRoute').onclick=refreshDisplayedRoute;", self.html)
+        self.assertIn("resetSearchTimeNow();", self.html)
+
+    def test_now_reroute_is_hidden_once_tracking_starts(self):
+        self.assertIn('let trackingStartedForCurrentRoute=false;', self.html)
+        self.assertIn('trackingStartedForCurrentRoute=true;', self.html)
+        self.assertIn("!liveTrip&&!trackingStartedForCurrentRoute&&!rerouteInProgress", self.html)

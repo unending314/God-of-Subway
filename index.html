@@ -58,6 +58,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:16px;ma
 .refreshRoute:hover{background:#f5f9fd;border-color:#bfcddd}
 .refreshRoute:disabled{opacity:.48;cursor:default}
 .refreshRoute.refreshing{background:#f5f9fd}
+.rerouteNow{display:none;align-items:center;justify-content:center;border:1px solid #b8ccef;background:#eef5ff;color:#174f9c;border-radius:10px;padding:7px 10px;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}
+.rerouteNow.available{display:inline-flex}
+.rerouteNow:hover{background:#e4efff;border-color:#8fafe2}
+.rerouteNow:disabled{opacity:.55;cursor:default}
+.rerouteNow.loading{background:#edf2f8;color:#60758b;border-color:#d1dbe6}
 
 .sectionHead h3{font-size:14px;margin:0;letter-spacing:-.2px}
 .subtle{font-size:9px;color:var(--muted)}
@@ -310,7 +315,7 @@ header{margin-bottom:30px}
 .experimentCard{display:none}.showExperiment .experimentCard{display:block}
 .footNote{font-size:8px;color:#84909b}
 @media(max-width:760px){.wrap{padding:16px 11px 50px}.searchStage{margin-top:4vh}.searchStage h2{font-size:28px}.journeySearch{grid-template-columns:1fr 34px 1fr 44px}.searchBtn{grid-column:1/-1;padding:13px}.settingsBtn{grid-column:4}.settingsGrid{grid-template-columns:1fr}.legTop{grid-template-columns:auto 1fr}.clock{grid-column:2;text-align:left}.trainOverview,.sinbundangScheduleCard{grid-template-columns:1fr 1fr}.details{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:1fr 1fr 1fr}}
-@media(max-width:520px){.flowCard .sectionHead{align-items:flex-start;flex-direction:column}.routeHeadMeta{width:100%;justify-content:space-between}.routeStampLine{justify-content:flex-start}.refreshRoute{margin-left:auto}header .brand p{display:none}.logo{width:46px;height:46px}.searchStage{margin-top:3vh}.journeySearch{grid-template-columns:1fr 36px}.stationBig{grid-column:1/-1}.swapBtn{grid-column:1/-1;height:32px}.settingsBtn{grid-column:1}.searchBtn{grid-column:2;padding:12px}.summaryCard h3{font-size:21px}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{display:none}.lineBadge{min-width:52px}.leg h4{font-size:13px}.trainOverview,.sinbundangScheduleCard{grid-template-columns:1fr}.transferWrap{padding:15px 5px}}
+@media(max-width:520px){.flowCard .sectionHead{align-items:flex-start;flex-direction:column}.routeHeadMeta{width:100%;justify-content:flex-start;align-items:flex-start}.routeStampLine{justify-content:flex-start;flex:1 1 210px}.rerouteNow,.refreshRoute{margin-left:auto}header .brand p{display:none}.logo{width:46px;height:46px}.searchStage{margin-top:3vh}.journeySearch{grid-template-columns:1fr 36px}.stationBig{grid-column:1/-1}.swapBtn{grid-column:1/-1;height:32px}.settingsBtn{grid-column:1}.searchBtn{grid-column:2;padding:12px}.summaryCard h3{font-size:21px}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{display:none}.lineBadge{min-width:52px}.leg h4{font-size:13px}.trainOverview,.sinbundangScheduleCard{grid-template-columns:1fr}.transferWrap{padding:15px 5px}}
 
 
 /* V12.5 — mobile density / primary search action */
@@ -471,7 +476,7 @@ header{margin-bottom:30px}
 
 
 
-/* V14.9.3 — input UI ported directly from God-of-Subway-dev-ts-bun.
+/* V14.9.4 — input UI ported directly from God-of-Subway-dev-ts-bun.
    Only the initial search surface is transplanted; route/result UI stays V14.8+. */
 .searchStage{width:min(1120px,calc(100vw - 36px));max-width:none;margin:22px auto 30px;position:relative;left:50%;transform:translateX(-50%);text-align:left}
 .search-card{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
@@ -585,7 +590,7 @@ header{margin-bottom:30px}
   <div class="liveBody"><div class="liveStats"><div class="liveStat"><span>현재 열차</span><b id="liveTrain">-</b></div><div class="liveStat"><span>현재 위치</span><b id="liveStation">-</b></div><div class="liveStat"><span id="liveRemainLabel">다음 환승까지</span><b id="liveRemain">-</b></div></div><div id="progressNote" class="progressNote">20초마다 최신 운행정보로 자동 재계산합니다.</div></div>
  </section>
 
- <section class="card flowCard"><div class="sectionHead"><h3>이동 경로</h3><div class="routeHeadMeta"><div class="routeStampLine"><span id="stamp" class="subtle">아직 계산하지 않음</span><span id="platformStamp" class="subtle">플랫폼 도착시간 -</span></div><button id="refreshRoute" class="refreshRoute" type="button" disabled aria-label="실시간 운행정보 새로고침">↻ 새로고침</button></div></div><div id="flow" class="empty">출발역과 도착역을 입력하고 조회하세요.</div></section>
+ <section class="card flowCard"><div class="sectionHead"><h3>이동 경로</h3><div class="routeHeadMeta"><div class="routeStampLine"><span id="stamp" class="subtle">아직 계산하지 않음</span><span id="platformStamp" class="subtle">플랫폼 도착시간 -</span></div><button id="rerouteNow" class="rerouteNow" type="button" disabled>지금 기준으로 다시 찾기</button><button id="refreshRoute" class="refreshRoute" type="button" disabled aria-label="실시간 운행정보 새로고침">↻ 새로고침</button></div></div><div id="flow" class="empty">출발역과 도착역을 입력하고 조회하세요.</div></section>
 
  <section class="card experimentCard">
   <div class="expHead"><div><h3>기말 실험 기록</h3><p>검색 → 탑승 → ETA 갱신 → 실제 도착을 이 브라우저에 기록합니다.</p></div><span id="expCount" class="subtle">완료 0건</span></div>
@@ -618,6 +623,9 @@ let liveTrip=null;
 let liveTimer=null;
 let countdownTimer=null;
 let nextRefreshAt=0;
+// 현재 검색 결과에서 열차 추적이 시작된 적이 있으면 "지금 기준으로 다시 찾기"를 다시 노출하지 않는다.
+let trackingStartedForCurrentRoute=false;
+let rerouteInProgress=false;
 const TRIP_KEY='jigeumta_live_trip_v2';
 const EXP_KEY='jigeumta_experiments_v1';
 const ACTIVE_EXP_KEY='jigeumta_active_experiment_v1';
@@ -1671,6 +1679,7 @@ async function findAutoRoute(){
   lastAutoRouteResult=j;
   lastAutoRouteStartTime=queryStartTime;
   selectedAutoRouteIndex=0;
+  trackingStartedForCurrentRoute=false;
   loadRoute(j.segments);
   $('autoRouteResult').innerHTML=autoRouteSummary(j,0);
   bindAutoRouteChoiceButtons();
@@ -1702,6 +1711,34 @@ function updateRefreshAvailability(){
  const available=Boolean(liveTrip);
  btn.classList.toggle('available',available);
  btn.disabled=!available;
+
+ const rerouteBtn=$('rerouteNow');
+ const canReroute=Boolean(lastAutoRouteResult&&lastRouteResult&&!liveTrip&&!trackingStartedForCurrentRoute&&!rerouteInProgress);
+ rerouteBtn.classList.toggle('available',canReroute);
+ rerouteBtn.disabled=!canReroute;
+}
+async function rerouteFromNow(){
+ if(liveTrip||trackingStartedForCurrentRoute)return;
+ const route=collect();
+ const from=String(lastAutoRouteResult?.from||route[0]?.from||$('autoFrom').value||'').trim();
+ const to=String(lastAutoRouteResult?.to||route.at(-1)?.to||$('autoTo').value||'').trim();
+ if(!from||!to){toast('다시 찾을 출발역과 도착역을 확인할 수 없습니다.');return}
+
+ // 화면 위쪽 입력값을 사용자가 수정해 둔 경우에도 현재 표시 중인 이동 경로를 기준으로 다시 찾는다.
+ $('autoFrom').value=from;
+ $('autoTo').value=to;
+ resetSearchTimeNow();
+ const btn=$('rerouteNow');
+ rerouteInProgress=true;
+ btn.disabled=true;btn.classList.add('loading');btn.textContent='지금 기준 검색 중…';
+ try{
+  await findAutoRoute();
+  toast('현재 시각 기준 최적 경로로 다시 계산했습니다.');
+ }finally{
+  rerouteInProgress=false;
+  btn.classList.remove('loading');btn.textContent='지금 기준으로 다시 찾기';
+  updateRefreshAvailability();
+ }
 }
 async function refreshDisplayedRoute(){
  if(!liveTrip){
@@ -1833,6 +1870,7 @@ function startTracking(activeIndex,trainNo,selectedBoardDt=''){
   transferEndsAt:null,
   journeyStartedAt:previous?.journeyStartedAt||localDateTimeString(new Date())
  };
+ trackingStartedForCurrentRoute=true;
  saveTrip();
 
  // GA4: 실제 열차 추적 기능 사용 집계.
@@ -2081,6 +2119,7 @@ function restoreTrip(){
   const saved=JSON.parse(sessionStorage.getItem(TRIP_KEY)||'null');
   if(!saved||!saved.segments?.length)return;
   liveTrip=saved;
+  trackingStartedForCurrentRoute=true;
   if(!liveTrip.phase)liveTrip.phase='ride';
   if(!Array.isArray(liveTrip.displaySegments))liveTrip.displaySegments=(lastRouteResult?.segments||[]);
   fixedPlatformStart=saved.platformStart||null;
@@ -2152,6 +2191,7 @@ $('addBtn').onclick=()=>{
 $('calcBtn').onclick=calculate;
 $('journeySearchForm').addEventListener('submit',e=>{e.preventDefault();findAutoRoute();});
 $('refreshRoute').onclick=refreshDisplayedRoute;
+$('rerouteNow').onclick=rerouteFromNow;
 setupGlobalStationAutocomplete($('autoFrom'));
 setupGlobalStationAutocomplete($('autoTo'));
 $('stopTrack').onclick=()=>{
