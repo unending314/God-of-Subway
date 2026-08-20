@@ -234,6 +234,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .candidateTrain{font-size:9px;font-weight:900}
 .previousBadge{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:999px;background:#eef1f4;color:#66727e;font-size:7px;font-weight:900;vertical-align:1px}
 .candidateMeta{font-size:8px;color:#6e7984;line-height:1.35;min-width:0}
+.operationNotice{margin-top:4px;padding:5px 7px;border-radius:8px;background:#fff7e8;border:1px solid #f1d39b;color:#7b5412;font-size:8px;font-weight:800;line-height:1.35}
+.operationNotice strong{font-weight:950}
 .candidateMetaLine{display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;min-width:0}
 .metaSep{color:#a0a9b2}
 .sourceCompact,.serviceCompact{display:none}
@@ -456,9 +458,16 @@ header{margin-bottom:30px}
 
 
 .routeChoiceMeta{margin-top:6px;font-size:9px;font-weight:850;color:#315373}
-.routeAlternatives{margin-top:8px;border-top:1px solid #e8edf2;padding-top:6px}
+.routeAlternatives{margin-top:9px;border-top:1px solid #e8edf2;padding-top:7px}
 .routeAlternatives summary{cursor:pointer;font-size:8px;font-weight:900;color:#607080}
-.altRoute{padding:5px 2px;font-size:8px;color:#6a7580;line-height:1.35}
+.routeOptionList{display:grid;gap:6px;margin-top:7px}
+.altRoute{padding:8px;border:1px solid #e2e8ef;border-radius:10px;background:#fff;font-size:8px;color:#5f6b77;line-height:1.4}
+.altRoute.selected{border-color:#7fa9df;background:#f3f8ff;color:#244f82}
+.altRouteTop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.altRouteLabel{font-weight:950;color:#304e6d}
+.altRouteMeta{margin-top:4px;color:#6a7580}
+.altRouteBtn{border:1px solid #9ebae8;background:#fff;color:#245b9e;border-radius:8px;padding:5px 8px;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}
+.altRouteBtn:disabled{background:#eaf2fc;color:#315f94;cursor:default}
 
 </style>
 </head>
@@ -541,6 +550,9 @@ let lines=[
 const FAV_KEY='jigeumta_favorites_v1';
 let stations={},segId=0;
 let lastRouteResult=null;
+let lastAutoRouteResult=null;
+let lastAutoRouteStartTime=null;
+let selectedAutoRouteIndex=0;
 let liveTrip=null;
 let liveTimer=null;
 let countdownTimer=null;
@@ -1278,7 +1290,7 @@ async function init(){
    ...preferred.filter(x=>serverLines.includes(x)),
    ...serverLines.filter(x=>!preferred.includes(x))
   ];
-  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · V14.2.0`;
+  $('status').classList.add('ok');$('status').querySelector('span:last-child').textContent=`실시간 연결 · ${esc(h.version||'버전 확인 불가')}`;
   updateAutoDayInfo(h.today_service_mode,h.today_service_reason,h.today_is_holiday);
   document.querySelectorAll('.segment').forEach(refreshDatalist);
  }catch(e){$('status').querySelector('span:last-child').textContent='서버 연결 실패';reportClientLog('initialization_failed',e.message||'서버 연결 실패',{}, {error_type:e.name||'InitializationError'})}
@@ -1324,6 +1336,14 @@ function trainLocationHtml(s){
  const prefix=kind==='live'?'실시간 소재':'예상 소재';
  return `<div class="locationLine ${kind}"><span class="locationDot"></span>${prefix} · ${esc(trainLocationText(s))}</div>`;
 }
+function operationNoticesHtml(s){
+ const notices=Array.isArray(s?.operation_notices)?s.operation_notices:[];
+ if(!notices.length)return '';
+ return notices.map(n=>{
+  const role=n?.role==='overtake'?'급행 추월 예정':(n?.role==='yield_uncertain'?'추월 계획 변동 가능':'급행 추월 대기');
+  return `<div class="operationNotice"><strong>${role}</strong> · ${esc(n?.text||'계획 추월 운행 반영')}</div>`;
+ }).join('');
+}
 function trainRunText(s){
  const destination=s?.destination||'종착역 미상';
  if(s?.line==='신분당선')return `${destination} 방면`;
@@ -1354,6 +1374,7 @@ function candidateRows(s,routeIndex){
    <div class="candidateMeta">
     <div class="candidateMetaLine"><span class="trainRun">${esc(trainRunText(c))}</span><span class="metaSep">·</span><span class="serviceFull">${serviceFull}</span><span class="serviceCompact">${serviceCompact}</span><span class="metaSep">·</span><span>${delayDisplay(c)}</span><span class="metaSep">·</span>${source}</div>
     ${trainLocationHtml(c)}
+    ${operationNoticesHtml(c)}
    </div>
    <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
    <div class="candidateAction">${btn}</div>
@@ -1409,6 +1430,7 @@ function legHtml(s,walk,routeIndex,transferInfo,state=''){
    <div class="clock">${boardButton(s,routeIndex)}</div>
   </div>
   ${overview}
+  ${operationNoticesHtml(s)}
   ${candidateRows(s,routeIndex)}
  </div>${transferHtml(transferInfo,walk,journeyTransferState(routeIndex))}`;
 }
@@ -1484,24 +1506,57 @@ function renderRouteSegments(result,baseIndex=0){
  if(result.warnings?.length)$('flow').innerHTML+=`<div class="notice"><b>계산 기준</b><br>${result.warnings.map(esc).join('<br>')}</div>`;
  bindBoardButtons();
 }
-function autoRouteSummary(j){
- const pills=j.segments.map(s=>`<span class="routePill">${esc(s.line)} ${esc(s.from)} → ${esc(s.to)}</span>`).join('');
- const via=j.interchanges?.length?` · 환승 ${j.interchanges.map(esc).join(' → ')}`:' · 무환승';
- const eta=j.estimated_total_seconds!=null
-  ?`예상 ${fmtDur(j.estimated_total_seconds)} · ${fmtClock(j.estimated_arrival_time)} 도착`
-  :`정적 그래프 약 ${fmtDur(j.route_seconds)}`;
- const compare=j.candidate_count>1
-  ?` · 후보 ${j.candidate_count}개 비교`
-  :'';
- const alternatives=(j.alternatives||[]).length
-  ?`<details class="routeAlternatives"><summary>다른 경로 ${j.alternatives.length}개 보기</summary>${
-    j.alternatives.map((a,i)=>{
+function autoRouteOption(j,index){
+ if(index===0){
+  return {
+   segments:j.segments||[], interchanges:j.interchanges||[],
+   transfer_count:Number(j.transfer_count)||0, route_seconds:Number(j.route_seconds)||0,
+   total_seconds:j.estimated_total_seconds, arrival_time:j.estimated_arrival_time,
+   confidence:j.estimated_confidence||'', recommended:true
+  };
+ }
+ return (j.alternatives||[])[index-1]||null;
+}
+function autoRouteSummary(j,selectedIndex=0){
+ const selected=autoRouteOption(j,selectedIndex)||autoRouteOption(j,0);
+ const pills=(selected.segments||[]).map(s=>`<span class="routePill">${esc(s.line)} ${esc(s.from)} → ${esc(s.to)}</span>`).join('');
+ const via=selected.interchanges?.length?` · 환승 ${selected.interchanges.map(esc).join(' → ')}`:' · 무환승';
+ const eta=selected.total_seconds!=null
+  ?`예상 ${fmtDur(selected.total_seconds)} · ${fmtClock(selected.arrival_time)} 도착`
+  :`정적 그래프 약 ${fmtDur(selected.route_seconds)}`;
+ const compare=j.candidate_count>1?` · 후보 ${j.candidate_count}개 비교`:'';
+ const options=[autoRouteOption(j,0),...(j.alternatives||[])].filter(Boolean);
+ const chooser=options.length>1
+  ?`<details class="routeAlternatives" open><summary>경로 직접 선택 · ${options.length}개</summary><div class="routeOptionList">${
+    options.map((a,i)=>{
       const v=a.interchanges?.length?a.interchanges.map(esc).join(' → '):'무환승';
-      return `<div class="altRoute"><b>${i+2}안</b> · ${v} · ${fmtDur(a.total_seconds)} · ${fmtClock(a.arrival_time)} 도착</div>`;
+      const label=i===0?'추천 경로':`${i+1}안`;
+      const meta=`${v} · ${fmtDur(a.total_seconds??a.route_seconds)}${a.arrival_time?` · ${fmtClock(a.arrival_time)} 도착`:''}`;
+      const selectedClass=i===selectedIndex?' selected':'';
+      const button=i===selectedIndex
+       ?`<button class="altRouteBtn" disabled>선택됨</button>`
+       :`<button class="altRouteBtn" data-auto-route-index="${i}">이 경로 선택</button>`;
+      return `<div class="altRoute${selectedClass}"><div class="altRouteTop"><span class="altRouteLabel">${label}</span>${button}</div><div class="altRouteMeta">${meta}</div></div>`;
     }).join('')
-   }</details>`
+   }</div></details>`
   :'';
- return `<b>${esc(j.from)} → ${esc(j.to)}</b>${via}<div class="routePills">${pills}</div><div class="routeChoiceMeta">${eta}${compare} · 배차·환승·가용 실시간 정보 반영</div>${alternatives}`;
+ return `<b>${esc(j.from)} → ${esc(j.to)}</b>${via}<div class="routePills">${pills}</div><div class="routeChoiceMeta">${eta}${compare} · 배차·환승·가용 실시간 정보 반영</div>${chooser}`;
+}
+function bindAutoRouteChoiceButtons(){
+ document.querySelectorAll('[data-auto-route-index]').forEach(btn=>{
+  btn.onclick=()=>selectAutoRouteOption(Number(btn.dataset.autoRouteIndex));
+ });
+}
+async function selectAutoRouteOption(index){
+ if(!lastAutoRouteResult)return;
+ const option=autoRouteOption(lastAutoRouteResult,index);
+ if(!option)return;
+ selectedAutoRouteIndex=index;
+ loadRoute(option.segments||[]);
+ $('autoRouteResult').innerHTML=autoRouteSummary(lastAutoRouteResult,index);
+ bindAutoRouteChoiceButtons();
+ toast(index===0?'추천 경로를 선택했습니다.':`${index+1}안으로 경로를 변경했습니다.`);
+ await calculate({startValue:lastAutoRouteStartTime||resolvedSearchTime()});
 }
 async function findAutoRoute(){
  const from=$('autoFrom').value.trim(),to=$('autoTo').value.trim();
@@ -1515,11 +1570,15 @@ async function findAutoRoute(){
    start_time:queryStartTime,
    day:$('day').value,
   });
+  lastAutoRouteResult=j;
+  lastAutoRouteStartTime=queryStartTime;
+  selectedAutoRouteIndex=0;
   loadRoute(j.segments);
-  $('autoRouteResult').innerHTML=autoRouteSummary(j);
+  $('autoRouteResult').innerHTML=autoRouteSummary(j,0);
+  bindAutoRouteChoiceButtons();
   $('autoRouteResult').classList.add('show');
   $('settingsPanel').classList.remove('open');$('settingsBtn').setAttribute('aria-expanded','false');
-  toast(`현재 최적 경로 · 후보 ${j.candidate_count||1}개 비교 · ${j.transfer_count}회 환승`);
+  toast(`현재 추천 경로 · 후보 ${j.candidate_count||1}개 비교 · ${j.transfer_count}회 환승`);
   await calculate({startValue:queryStartTime});
  }catch(e){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message+errorRef(e))}</span>`;

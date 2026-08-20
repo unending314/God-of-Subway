@@ -433,5 +433,140 @@ class IsuDirectionalTransferTimeRegressionTest(unittest.TestCase):
 
 
 
+class SharedTrackTransferRegressionTest(unittest.TestCase):
+    def test_line4_suin_same_direction_has_zero_walk(self):
+        detail = engine.best_transfer_detail(
+            "고잔",
+            {"line":"4호선","from":"중앙","to":"고잔"},
+            {"line":"수인분당선","from":"고잔","to":"안산"},
+            "DAY",
+        )
+        self.assertEqual(detail["seconds"], 0, detail)
+        self.assertEqual(detail["matched"], "shared_track_same_direction", detail)
+        self.assertTrue(detail.get("shared_track"), detail)
+
+    def test_line4_suin_opposite_direction_keeps_existing_transfer_time(self):
+        detail = engine.best_transfer_detail(
+            "고잔",
+            {"line":"4호선","from":"중앙","to":"고잔"},
+            {"line":"수인분당선","from":"고잔","to":"중앙"},
+            "DAY",
+        )
+        self.assertGreater(detail["seconds"], 0, detail)
+        self.assertFalse(detail.get("shared_track"), detail)
+
+    def test_seohae_gyeongui_same_direction_has_zero_walk(self):
+        detail = engine.best_transfer_detail(
+            "백마",
+            {"line":"서해선","from":"풍산","to":"백마"},
+            {"line":"경의중앙선","from":"백마","to":"대곡"},
+            "DAY",
+        )
+        self.assertEqual(detail["seconds"], 0, detail)
+        self.assertTrue(detail.get("shared_track"), detail)
+
+    def test_geumjeong_remains_short_transfer(self):
+        detail = engine.best_transfer_detail(
+            "금정",
+            {"line":"1호선","from":"명학","to":"금정"},
+            {"line":"4호선","from":"금정","to":"산본"},
+            "DAY",
+        )
+        self.assertEqual(detail["seconds"], 64, detail)
+
+    def test_shared_track_static_candidate_penalty_is_zero(self):
+        self.assertEqual(engine.transfer_seconds("고잔", "4호선", "수인분당선"), 0)
+        self.assertEqual(engine.transfer_seconds("백마", "서해선", "경의중앙선"), 0)
+
+    def test_shared_track_branch_endpoints_keep_same_direction_zero(self):
+        cases = [
+            ("한대앞", {"line":"4호선","from":"상록수","to":"한대앞"}, {"line":"수인분당선","from":"한대앞","to":"중앙"}),
+            ("오이도", {"line":"4호선","from":"정왕","to":"오이도"}, {"line":"수인분당선","from":"오이도","to":"달월"}),
+            ("일산", {"line":"서해선","from":"풍산","to":"일산"}, {"line":"경의중앙선","from":"일산","to":"탄현"}),
+            ("능곡", {"line":"서해선","from":"대곡","to":"능곡"}, {"line":"경의중앙선","from":"능곡","to":"행신"}),
+        ]
+        for station, from_seg, to_seg in cases:
+            detail = engine.best_transfer_detail(station, from_seg, to_seg, "DAY")
+            self.assertEqual(detail["seconds"], 0, detail)
+            self.assertTrue(detail.get("shared_track"), detail)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+class Line1PlannedOvertakeRegressionTest(unittest.TestCase):
+    def test_k693_k1951_overtake_is_detected_at_gunpo(self):
+        events = [
+            e for e in engine.line1_overtake_events("DAY")
+            if e.get("local_train_no") == "K693" and e.get("express_train_no") == "K1951"
+        ]
+        self.assertEqual(len(events), 1, events)
+        self.assertEqual(events[0]["station"], "군포")
+        self.assertEqual(events[0]["upstream_station"], "금정")
+
+    def test_delayed_express_still_beats_local_after_planned_overtake(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 20, 20, 8, 30)
+        try:
+            cache = {
+                "1호선": {"rows": [], "error": "test cache", "available": False},
+                "__train_delay_cache__": [
+                    {
+                        "line": "1호선", "train_no": "K693", "delay_seconds": 60,
+                        "observed_at": "2026-08-20 20:08:00",
+                        "current_station": "종각", "status": "도착",
+                    },
+                    {
+                        "line": "1호선", "train_no": "K1951", "delay_seconds": 300,
+                        "observed_at": "2026-08-20 20:08:00",
+                        "current_station": "제기동", "status": "도착",
+                    },
+                ],
+            }
+            result = engine.calculate_segment(
+                "1호선", "DAY", "신도림", "성균관대",
+                datetime(2026, 8, 20, 20, 30, 0), cache,
+            )
+            self.assertTrue(result.get("ok"), result)
+            by_no = {c["train_no"]: c for c in result["candidates"]}
+            local = by_no["K693"]
+            express = by_no["K1951"]
+
+            # 단순 지연 덧셈이면 K693 21:14:30, K1951 21:15:00으로 완행을 잘못 추천한다.
+            # 계획 추월 반영 후에는 K693이 군포에서 대기하고 K1951이 먼저 도착해야 한다.
+            self.assertLess(express["alight_dt"], local["alight_dt"])
+            self.assertEqual(result["chosen"]["train_no"], "K1951")
+            self.assertGreater(local.get("operational_hold_seconds", 0), 0)
+            self.assertEqual(local["operation_notices"][0]["station"], "군포")
+            self.assertEqual(local["operation_notices"][0]["counterpart_train_no"], "K1951")
+            self.assertEqual(express["operation_notices"][0]["counterpart_train_no"], "K693")
+        finally:
+            engine.now_kst = original_now
+
+    def test_overtake_does_not_affect_destination_before_overtake_station(self):
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 20, 20, 8, 30)
+        try:
+            observations = []
+            for train_no, delay, station in (("K693", 60, "종각"), ("K1951", 300, "제기동")):
+                tr = engine.get_train("1호선", "DAY", train_no)
+                observations.append({
+                    "train_no": train_no,
+                    "direction": tr["direction"],
+                    "service": tr["service"],
+                    "delay": delay,
+                    "current_station": station,
+                    "status": "도착",
+                    "observed": datetime(2026, 8, 20, 20, 8, 0),
+                    "train": tr,
+                    "source_kind": "live",
+                })
+            candidates = engine.static_projected_candidates(
+                "1호선", "DAY", "신도림", "금정",
+                datetime(2026, 8, 20, 20, 30, 0), observations,
+            )
+            local = next(c for c in candidates if c["train_no"] == "K693")
+            self.assertEqual(local.get("operational_hold_seconds", 0), 0)
+            self.assertEqual(local.get("operation_notices", []), [])
+        finally:
+            engine.now_kst = original_now

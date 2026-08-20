@@ -13,7 +13,7 @@ import observability
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V14.3.0-vercel"
+VERSION = engine.APP_VERSION
 
 app = FastAPI(
     title="지금타",

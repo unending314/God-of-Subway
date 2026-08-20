@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.4.0 — 수도권 추가 8개 노선 시간표 + realtime/schedule-only capability
+지금타 V14.8.0 — 1호선 급행-완행 추월 운행 보정
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,6 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
+APP_VERSION = "V14.8.0"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -1126,6 +1127,54 @@ def timetable_integrity_report():
 
 
 # ---------- Transfer data ----------
+# 서로 다른 노선명이지만 동일 선로/승강장을 공유하는 구간.
+# 같은 진행방향으로 갈아타는 경우에는 별도의 환승 보행시간이 없다고 본다.
+# (다음 열차 대기시간은 각 노선 시간표 계산에서 별도로 반영된다.)
+SHARED_TRACK_CORRIDORS = {
+    frozenset(("서해선", "경의중앙선")): ("일산", "풍산", "백마", "곡산", "대곡", "능곡"),
+    frozenset(("4호선", "수인분당선")): ("한대앞", "중앙", "고잔", "초지", "안산", "능길", "정왕", "오이도"),
+}
+
+def _shared_track_corridor(station, from_line, to_line):
+    corridor = SHARED_TRACK_CORRIDORS.get(frozenset((from_line, to_line)))
+    if not corridor:
+        return None
+    canonical = tuple(canon_station(x) for x in corridor)
+    return canonical if canon_station(station) in canonical else None
+
+def _shared_track_pair(station, from_line, to_line):
+    return _shared_track_corridor(station, from_line, to_line) is not None
+
+def _corridor_motion(corridor, station, other_station, incoming):
+    """공유선로의 물리적 진행방향을 -1/+1로 반환한다.
+
+    incoming=True이면 other_station→station, False이면 station→other_station 이동이다.
+    공유구간 끝역에서 타 노선 가지선으로 이어지는 경우도 같은 축의 연장으로 취급한다.
+    """
+    st = canon_station(station); other = canon_station(other_station)
+    try:
+        i = corridor.index(st)
+    except ValueError:
+        return 0
+    if other in corridor:
+        j = corridor.index(other)
+        delta = (i - j) if incoming else (j - i)
+        return 1 if delta > 0 else -1 if delta < 0 else 0
+    # 공유구간 바깥 역은 끝역에서 이어지는 가지선으로만 해석한다.
+    if i == 0:
+        return 1 if incoming else -1
+    if i == len(corridor) - 1:
+        return -1 if incoming else 1
+    return 0
+
+def _shared_track_same_direction(station, from_seg, to_seg):
+    corridor = _shared_track_corridor(station, from_seg.get("line"), to_seg.get("line"))
+    if not corridor:
+        return False
+    incoming = _corridor_motion(corridor, station, from_seg.get("from"), incoming=True)
+    outgoing = _corridor_motion(corridor, station, to_seg.get("to"), incoming=False)
+    return bool(incoming and outgoing and incoming == outgoing)
+
 def _transfer_key(station, from_line, to_line):
     return f"{canon_station(station)}|{from_line}|{to_line}"
 
@@ -1153,6 +1202,12 @@ def _segment_transfer_seconds(seg):
     return max(0, int(round(float(seg.get("transfer_walk") or 0) * 60)))
 
 def transfer_seconds(station, from_line, to_line):
+    # 자동 경로 후보 생성 단계에는 진행방향이 아직 확정되지 않는다.
+    # 공유선로 구간은 같은 방향 환승이 0초일 수 있으므로 대표 penalty를 0으로 둬
+    # 후보 자체가 과도한 환승비용 때문에 탈락하지 않게 한다. 실제 ETA 재계산 때
+    # best_transfer_detail()이 방향을 보고 정확한 값을 적용한다.
+    if _shared_track_pair(station, from_line, to_line):
+        return 0
     p = transfer_pair_info(station, from_line, to_line)
     if p:
         raw = _first_not_none(
@@ -1232,6 +1287,10 @@ def best_transfer_detail(station, from_seg, to_seg, mode):
         DEFAULT_TRANSFER_SECONDS,
     )
     sec = max(0, int(sec_raw))
+    shared_same_direction = _shared_track_same_direction(station, from_seg, to_seg)
+    if shared_same_direction:
+        sec = 0
+        matched = "shared_track_same_direction"
     def pos(car, door):
         car=str(car or "").strip(); door=str(door or "").strip()
         return f"{car}-{door}" if car and door else car or door
@@ -1239,11 +1298,12 @@ def best_transfer_detail(station, from_seg, to_seg, mode):
         "station": canon_station(station),
         "seconds": sec,
         "distance_m": p.get("distance_m"),
-        "alight_position": pos((chosen or {}).get("alight_car"), (chosen or {}).get("alight_door")),
-        "board_position": pos((chosen or {}).get("board_car"), (chosen or {}).get("board_door")),
+        "alight_position": "" if shared_same_direction else pos((chosen or {}).get("alight_car"), (chosen or {}).get("alight_door")),
+        "board_position": "" if shared_same_direction else pos((chosen or {}).get("board_car"), (chosen or {}).get("board_door")),
         "from_direction": (chosen or {}).get("from_direction") or in_dir,
         "to_direction": (chosen or {}).get("to_direction") or out_dir,
         "matched": matched,
+        "shared_track": bool(shared_same_direction),
     }
 
 def enrich_transfer_segments(segments, mode):
@@ -1810,7 +1870,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V14.4.0/1.0",
+            "User-Agent": f"JigeumTa-{APP_VERSION}/1.0",
             "Accept": "application/json",
         })
         try:
@@ -2711,6 +2771,239 @@ def delay_for_train(tr, observations):
     delay = median_delay(observations, tr.get("direction"), tr.get("service"))
     return delay, ("live_median" if any(_is_live_source(o.get("source_kind")) for o in observations) else "schedule_only"), None
 
+
+# ---------- 1호선 급행-완행 계획 추월 ----------
+# 코레일 1호선 시간표에는 완행이 대피역에 수분간 정차하고 그 사이 급행이 통과하는
+# 계획 추월이 명시돼 있다. 두 열차의 실시간 지연을 독립적으로 더하면 급행이 조금
+# 지연됐을 때 이 운행 순서를 뒤집는 오류가 생기므로, 대피역 이후 ETA에 운행 순서
+# 제약을 적용한다.
+LINE1_OVERTAKE_CLEARANCE_SECONDS = 0
+LINE1_OVERTAKE_MAX_EXTRA_HOLD_SECONDS = 10 * 60
+
+def _direction_key(tr):
+    return str(tr.get("direction") or "").strip().lower()
+
+def _timed_stop_map(tr):
+    return {
+        canon_station(stop.get("station")): (i, stop)
+        for i, stop in enumerate(tr.get("stops", []))
+        if stop_time_sec(stop) is not None
+    }
+
+def _detect_line1_overtake_events(mode):
+    """
+    공식 시간표에서 고신뢰 계획 추월만 자동 검출한다.
+
+    조건:
+      1) 완행과 급행이 같은 방향으로 운행
+      2) 완행이 한 역에 90초 이상 정차
+      3) 그 정차시간 안에 급행이 해당 역을 통과/정차
+      4) 직전 공통 지점에서는 완행이 앞서고, 이후 공통 지점에서는 급행이 앞섬
+
+    이렇게 하면 분기 합류처럼 단순히 시간 순서가 바뀌는 경우를 추월로 오인하지 않는다.
+    """
+    trains = all_trains("1호선", mode)
+    locals_ = [tr for tr in trains if tr.get("service") == "local"]
+    expresses = [tr for tr in trains if tr.get("service") == "express"]
+    events = []
+
+    express_maps = [(ex, _timed_stop_map(ex)) for ex in expresses]
+    for local in locals_:
+        lmap = _timed_stop_map(local)
+        for express, emap in express_maps:
+            if _direction_key(local) != _direction_key(express):
+                continue
+            common = set(lmap).intersection(emap)
+            if len(common) < 3:
+                continue
+            for station in common:
+                li, ls = lmap[station]
+                ei, es = emap[station]
+                larr = ls.get("arr")
+                ldep = ls.get("dep")
+                epass = stop_time_sec(es)
+                if larr is None or ldep is None or epass is None:
+                    continue
+                if ldep - larr < 90 or not (larr <= epass <= ldep):
+                    continue
+
+                upstream = []
+                downstream = []
+                for other in common:
+                    oli, ols = lmap[other]
+                    oei, oes = emap[other]
+                    lt = stop_time_sec(ols)
+                    et = stop_time_sec(oes)
+                    if lt is None or et is None:
+                        continue
+                    if oli < li and oei < ei:
+                        upstream.append((oli, other, lt, et))
+                    elif oli > li and oei > ei:
+                        downstream.append((oli, other, lt, et))
+                if not upstream or not downstream:
+                    continue
+                upstream.sort(reverse=True)
+                downstream.sort()
+                # 추월 직전에는 완행이 먼저, 이후에는 급행이 먼저여야 한다.
+                _, upstream_station, local_before, express_before = upstream[0]
+                if not (local_before < express_before):
+                    continue
+                first_downstream = next(
+                    ((idx, st, lt, et) for idx, st, lt, et in downstream if et < lt),
+                    None,
+                )
+                if first_downstream is None:
+                    continue
+                _, downstream_station, _, _ = first_downstream
+                events.append({
+                    "local_train_no": local.get("train_no"),
+                    "express_train_no": express.get("train_no"),
+                    "direction": local.get("direction", ""),
+                    "station": station,
+                    "local_index": li,
+                    "express_index": ei,
+                    "local_arrival_sec": int(larr),
+                    "local_departure_sec": int(ldep),
+                    "express_pass_sec": int(epass),
+                    "upstream_station": upstream_station,
+                    "downstream_station": downstream_station,
+                })
+
+    events.sort(key=lambda x: (norm_train(x["local_train_no"]), x["local_index"], x["express_pass_sec"]))
+    return tuple(events)
+
+@lru_cache(maxsize=None)
+def line1_overtake_events(mode):
+    korail_day, _ = choose_modes(mode)
+    precomputed = ROUTE_GRAPH.get("line1_overtakes", {}).get(korail_day)
+    if isinstance(precomputed, list):
+        return tuple(precomputed)
+    return _detect_line1_overtake_events(mode)
+
+def _line1_overtake_events_for_local(mode, train_no):
+    key = norm_train(train_no)
+    return [e for e in line1_overtake_events(mode) if norm_train(e.get("local_train_no")) == key]
+
+def _line1_overtake_events_for_express(mode, train_no):
+    key = norm_train(train_no)
+    return [e for e in line1_overtake_events(mode) if norm_train(e.get("express_train_no")) == key]
+
+def _line1_observation_baseline(tr, exact_obs):
+    if not exact_obs:
+        return None, ""
+    station = canon_station(exact_obs.get("current_station"))
+    idx = first_current_index(tr.get("stops", []), station) if station else None
+    return idx, str(exact_obs.get("status") or "").strip()
+
+def line1_operational_overtake_adjustment(tr, mode, start_idx, end_idx, base_delay, observations, exact_obs=None):
+    """
+    완행의 구간별 지연을 계획 추월 순서에 맞게 보정한다.
+
+    반환값의 board_delay/end_delay는 각각 승차역 출발과 하차역 도착에 적용할 지연이다.
+    현재 열차가 이미 대피역을 출발한 실시간 관측이 있으면 해당 추월은 다시 적용하지 않는다.
+    """
+    base_delay = float(base_delay or 0)
+    result = {
+        "board_delay": base_delay,
+        "end_delay": base_delay,
+        "extra_hold_seconds": 0,
+        "notices": [],
+    }
+    if tr.get("service") != "local":
+        return result
+
+    baseline_idx, baseline_status = _line1_observation_baseline(tr, exact_obs)
+    current_delay = base_delay
+    board_delay = base_delay
+
+    for event in _line1_overtake_events_for_local(mode, tr.get("train_no")):
+        idx = int(event["local_index"])
+        # 목적지에 도착한 뒤의 추월, 또는 목적지에서 하차한 뒤 발생하는 대피는 무관하다.
+        if idx >= end_idx:
+            continue
+        if baseline_idx is not None:
+            if idx < baseline_idx:
+                continue
+            if idx == baseline_idx and baseline_status == "출발":
+                continue
+
+        express = get_train("1호선", mode, event["express_train_no"])
+        if not express:
+            continue
+        express_delay, express_delay_source, _ = delay_for_train(express, observations)
+        naive_departure = event["local_departure_sec"] + current_delay
+        required_departure = (
+            event["express_pass_sec"]
+            + float(express_delay or 0)
+            + LINE1_OVERTAKE_CLEARANCE_SECONDS
+        )
+        extra = max(0.0, required_departure - naive_departure)
+        applied = 0.0
+        # 급행이 매우 크게 무너진 경우 실제 운전정리가 바뀔 수 있으므로 무한정 완행을 묶지 않는다.
+        if 0 < extra <= LINE1_OVERTAKE_MAX_EXTRA_HOLD_SECONDS:
+            current_delay += extra
+            applied = extra
+
+        if idx <= start_idx:
+            board_delay = current_delay
+
+        if extra > LINE1_OVERTAKE_MAX_EXTRA_HOLD_SECONDS:
+            notice_text = (
+                f"{event['station']}에서 {event['express_train_no']} 급행 추월 계획"
+                " · 급행 지연이 커 실제 운전정리 변동 가능"
+            )
+            role = "yield_uncertain"
+        else:
+            if applied >= 60:
+                mins, secs = divmod(round(applied), 60)
+                hold_text = f"{mins}분" + (f" {secs}초" if secs else "")
+            elif applied > 0:
+                hold_text = f"{round(applied)}초"
+            else:
+                hold_text = ""
+            notice_text = (
+                f"{event['station']}에서 {event['express_train_no']} 급행 추월 대기 예상"
+                + (f" · {hold_text} 추가 대기 반영" if hold_text else "")
+            )
+            role = "yield"
+        notice = {
+            "type": "planned_overtake",
+            "role": role,
+            "station": event["station"],
+            "counterpart_train_no": event["express_train_no"],
+            "counterpart_service": "express",
+            "extra_hold_seconds": round(applied),
+            "counterpart_delay_seconds": round(float(express_delay or 0)),
+            "counterpart_delay_source": express_delay_source,
+            "text": notice_text,
+        }
+        result["notices"].append(notice)
+
+    result["board_delay"] = board_delay
+    result["end_delay"] = current_delay
+    result["extra_hold_seconds"] = max(0, round(current_delay - base_delay))
+    return result
+
+def line1_express_overtake_notices(tr, mode, start_idx, end_idx):
+    if tr.get("service") != "express":
+        return []
+    notices = []
+    for event in _line1_overtake_events_for_express(mode, tr.get("train_no")):
+        # 추월 지점이 사용자의 승차~하차 구간 안에 있을 때만 노출한다.
+        ex_idx = int(event["express_index"])
+        if not (start_idx <= ex_idx < end_idx):
+            continue
+        notices.append({
+            "type": "planned_overtake",
+            "role": "overtake",
+            "station": event["station"],
+            "counterpart_train_no": event["local_train_no"],
+            "counterpart_service": "local",
+            "extra_hold_seconds": 0,
+            "text": f"{event['station']}에서 {event['local_train_no']} 일반열차 추월 예정",
+        })
+    return notices
+
 # ---------- Segment ETA ----------
 def direct_live_candidates(line, mode, start, end, ready_dt, observations):
     now = now_kst()
@@ -2752,6 +3045,24 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
         board_dt = now + timedelta(seconds=(bsec - ref - age))
         alight_dt = now + timedelta(seconds=(asec - ref - age))
 
+        operation_notices = []
+        operational_hold_seconds = 0
+        projected_delay_seconds = round(o["delay"])
+        if line == "1호선":
+            if tr.get("service") == "local":
+                adj = line1_operational_overtake_adjustment(
+                    tr, mode, si, ei, o["delay"], observations, exact_obs=o
+                )
+                board_extra = max(0, adj["board_delay"] - float(o["delay"] or 0))
+                end_extra = max(0, adj["end_delay"] - float(o["delay"] or 0))
+                board_dt += timedelta(seconds=board_extra)
+                alight_dt += timedelta(seconds=end_extra)
+                operation_notices = adj["notices"]
+                operational_hold_seconds = adj["extra_hold_seconds"]
+                projected_delay_seconds = round(adj["end_delay"])
+            elif tr.get("service") == "express":
+                operation_notices = line1_express_overtake_notices(tr, mode, si, ei)
+
         if board_dt < ready_dt - timedelta(seconds=5):
             continue
 
@@ -2771,6 +3082,9 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "wait_seconds": round((board_dt - ready_dt).total_seconds()),
             "ride_seconds": round((alight_dt - board_dt).total_seconds()),
             "delay_seconds": round(o["delay"]),
+            "projected_delay_seconds": projected_delay_seconds,
+            "operational_hold_seconds": operational_hold_seconds,
+            "operation_notices": operation_notices,
             "delay_source": "live_exact",
             "observed_at": o["observed"].strftime("%Y-%m-%d %H:%M:%S"),
             "data_age_seconds": max(0, round((now - o["observed"]).total_seconds())),
@@ -2779,15 +3093,14 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "location_kind": "live",
             "location_label": f"{o['current_station']} {o['status']}",
             "confidence": "높음",
-            "method": "실시간 열차 위치 + 열차별 공식 시간표",
+            "method": "실시간 열차 위치 + 열차별 공식 시간표" + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": False,
         })
     out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
     return out
 
 def static_projected_candidates(line, mode, start, end, ready_dt, observations):
-    # V13.2.2: 모든 열차에 예상 소재를 계산한 뒤 자르는 대신,
-    # 먼저 시간표상 탑승 가능한 후보를 추린 뒤 상위 30개만 소재를 계산한다.
+    # V14.8: 1호선은 급행-완행 계획 추월까지 반영해 승차/하차 지연을 구간별로 계산한다.
     raw = []
     now = now_kst()
     for tr in route_trains(line, mode, start, end):
@@ -2802,17 +3115,41 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
         while asec < bsec:
             asec += 86400
         delay, delay_source, exact_obs = delay_for_train(tr, observations)
-        board_dt = schedule_dt_after(bsec, ready_dt, delay)
+
+        board_delay = float(delay or 0)
+        end_delay = float(delay or 0)
+        operation_notices = []
+        operational_hold_seconds = 0
+        if line == "1호선":
+            if tr.get("service") == "local":
+                adj = line1_operational_overtake_adjustment(
+                    tr, mode, si, ei, delay, observations, exact_obs=exact_obs
+                )
+                board_delay = adj["board_delay"]
+                end_delay = adj["end_delay"]
+                operation_notices = adj["notices"]
+                operational_hold_seconds = adj["extra_hold_seconds"]
+            elif tr.get("service") == "express":
+                operation_notices = line1_express_overtake_notices(tr, mode, si, ei)
+
+        board_dt = schedule_dt_after(bsec, ready_dt, board_delay)
         if not board_dt:
             continue
         if (board_dt - ready_dt).total_seconds() > 4 * 3600:
             continue
-        alight_dt = board_dt + timedelta(seconds=asec - bsec)
-        raw.append((alight_dt, board_dt, tr, delay, delay_source, exact_obs))
+        # 승차역 이전 추월은 board_delay에, 승차 후 추월은 end_delay에만 반영한다.
+        alight_dt = board_dt + timedelta(seconds=(asec - bsec) + (end_delay - board_delay))
+        raw.append((
+            alight_dt, board_dt, tr, delay, delay_source, exact_obs,
+            round(end_delay), operational_hold_seconds, operation_notices,
+        ))
 
     raw.sort(key=lambda x: (x[0], x[1]))
     out = []
-    for alight_dt, board_dt, tr, delay, delay_source, exact_obs in raw[:30]:
+    for (
+        alight_dt, board_dt, tr, delay, delay_source, exact_obs,
+        projected_delay_seconds, operational_hold_seconds, operation_notices,
+    ) in raw[:30]:
         expected_location = estimated_train_location(tr, now, delay)
         out.append({
             "line": line,
@@ -2830,6 +3167,9 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
             "wait_seconds": round((board_dt - ready_dt).total_seconds()),
             "ride_seconds": round((alight_dt - board_dt).total_seconds()),
             "delay_seconds": round(delay),
+            "projected_delay_seconds": projected_delay_seconds,
+            "operational_hold_seconds": operational_hold_seconds,
+            "operation_notices": operation_notices,
             "delay_source": delay_source,
             "observed_at": exact_obs["observed"].strftime("%Y-%m-%d %H:%M:%S") if exact_obs else "",
             "data_age_seconds": exact_obs.get("cache_age_seconds", 0) if exact_obs else 0,
@@ -2843,7 +3183,7 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
                 "실시간 위치 + 시간표 문맥 매칭" if delay_source == "live_context" else
                 "공식 시간표 + 현재 동일방향 지연 중앙값" if delay_source == "live_median" else
                 "공식 시간표만 사용"
-            ),
+            ) + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": True,
         })
     return out
@@ -2867,10 +3207,25 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
             asec += 86400
 
         delay, delay_source, exact_obs = delay_for_train(tr, observations)
-        board_dt = schedule_dt_before(bsec, ready_dt, delay)
+        board_delay = float(delay or 0)
+        end_delay = float(delay or 0)
+        operation_notices = []
+        operational_hold_seconds = 0
+        if line == "1호선":
+            if tr.get("service") == "local":
+                adj = line1_operational_overtake_adjustment(
+                    tr, mode, si, ei, delay, observations, exact_obs=exact_obs
+                )
+                board_delay = adj["board_delay"]
+                end_delay = adj["end_delay"]
+                operation_notices = adj["notices"]
+                operational_hold_seconds = adj["extra_hold_seconds"]
+            elif tr.get("service") == "express":
+                operation_notices = line1_express_overtake_notices(tr, mode, si, ei)
+        board_dt = schedule_dt_before(bsec, ready_dt, board_delay)
         if not board_dt:
             continue
-        alight_dt = board_dt + timedelta(seconds=asec - bsec)
+        alight_dt = board_dt + timedelta(seconds=(asec - bsec) + (end_delay - board_delay))
 
         # 직전 열차는 '현재도 운행 중인가'가 아니라 ready_dt 직전에 실제로
         # 출발했던 열차인가가 기준이다. 짧은 구간에서는 이미 목적지에 도착한
@@ -2892,6 +3247,9 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
             "wait_seconds": round((board_dt - ready_dt).total_seconds()),
             "ride_seconds": round((alight_dt - board_dt).total_seconds()),
             "delay_seconds": round(delay),
+            "projected_delay_seconds": round(end_delay),
+            "operational_hold_seconds": operational_hold_seconds,
+            "operation_notices": operation_notices,
             "delay_source": delay_source,
             "observed_at": exact_obs["observed"].strftime("%Y-%m-%d %H:%M:%S") if exact_obs else "",
             "data_age_seconds": exact_obs.get("cache_age_seconds", 0) if exact_obs else 0,
@@ -2900,7 +3258,7 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
             "location_kind": "expected",
             "location_label": expected_location.get("label", "예상 소재 계산 중"),
             "confidence": "중간" if observations else "낮음",
-            "method": "직전 열차 추정 · 공식 시간표 + 현재 지연" if observations else "직전 열차 추정 · 공식 시간표",
+            "method": ("직전 열차 추정 · 공식 시간표 + 현재 지연" if observations else "직전 열차 추정 · 공식 시간표") + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": True,
         }
         if best is None or c["board_dt"] > best["board_dt"]:
@@ -2933,6 +3291,9 @@ def public_candidate(c, selected=False):
         "wait_seconds": c.get("wait_seconds", 0),
         "ride_seconds": c.get("ride_seconds", 0),
         "delay_seconds": c.get("delay_seconds"),
+        "projected_delay_seconds": c.get("projected_delay_seconds", c.get("delay_seconds")),
+        "operational_hold_seconds": c.get("operational_hold_seconds", 0),
+        "operation_notices": c.get("operation_notices", []),
         "delay_source": c.get("delay_source", ""),
         "delay_available": c.get("delay_available", line not in SCHEDULE_ONLY_LINES),
         "observed_at": c.get("observed_at", ""),
@@ -3363,6 +3724,21 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                     asec += 86400
                 age = max(0, (now - live["observed"]).total_seconds())
                 remaining = asec - ref - age
+                operation_notices = []
+                operational_hold_seconds = 0
+                projected_delay_seconds = round(live["delay"])
+                if line == "1호선":
+                    if tr.get("service") == "local":
+                        adj = line1_operational_overtake_adjustment(
+                            tr, mode, si, ei, live["delay"], observations, exact_obs=live
+                        )
+                        extra_after_observation = max(0, adj["end_delay"] - float(live["delay"] or 0))
+                        remaining += extra_after_observation
+                        operation_notices = adj["notices"]
+                        operational_hold_seconds = round(extra_after_observation)
+                        projected_delay_seconds = round(adj["end_delay"])
+                    elif tr.get("service") == "express":
+                        operation_notices = line1_express_overtake_notices(tr, mode, si, ei)
 
                 # 24시간 wrap/비정상 상태에 대한 마지막 안전장치.
                 if remaining > 6 * 3600:
@@ -3391,13 +3767,16 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                         "ride_seconds": max(0, round((alight_dt - shown_board).total_seconds())),
                         "remaining_seconds": max(0, round((alight_dt - now).total_seconds())),
                         "delay_seconds": round(live["delay"]),
+                        "projected_delay_seconds": projected_delay_seconds,
+                        "operational_hold_seconds": operational_hold_seconds,
+                        "operation_notices": operation_notices,
                         "delay_source": "live_exact",
                         "observed_at": live["observed"].strftime("%Y-%m-%d %H:%M:%S"),
                         "current_station": live["current_station"],
                         "location_kind": "live",
                         "location_label": f"{live['current_station']} {live['status']}",
                         "confidence": "높음",
-                        "method": "탑승 열차 연속운행 추적" if tr.get("physical_continuation") else "탑승 열차 실시간 고정 추적",
+                        "method": ("탑승 열차 연속운행 추적" if tr.get("physical_continuation") else "탑승 열차 실시간 고정 추적") + (" + 계획 추월 운행 반영" if operation_notices else ""),
                         "projected": False, "tracking": True, "arrived": False,
                         "status": live["status"],
                         "data_age_seconds": max(0, round((now - live["observed"]).total_seconds())),
@@ -3414,8 +3793,21 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     # 연속운행 가상열차에서는 fallback 방향을 유지하되 exact 열번 캐시는 우선한다.
     if delay_source not in ("cached_exact", "live_exact"):
         delay = median_delay(observations, fallback_direction, tr["service"])
+    operation_notices = []
+    operational_hold_seconds = 0
+    projected_delay = float(delay or 0)
+    if line == "1호선":
+        if tr.get("service") == "local":
+            adj = line1_operational_overtake_adjustment(
+                tr, mode, si, ei, delay, observations, exact_obs=exact_obs
+            )
+            projected_delay = adj["end_delay"]
+            operational_hold_seconds = adj["extra_hold_seconds"]
+            operation_notices = adj["notices"]
+        elif tr.get("service") == "express":
+            operation_notices = line1_express_overtake_notices(tr, mode, si, ei)
     expected_location = estimated_train_location(tr, now, delay)
-    target_dt = nearest_schedule_dt(target_sec, now, delay)
+    target_dt = nearest_schedule_dt(target_sec, now, projected_delay)
     if target_dt < now - timedelta(minutes=5):
         target_dt = now
     if target_dt > now + timedelta(hours=6):
@@ -3436,6 +3828,9 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
             "ride_seconds": max(0, round((target_dt - (board_dt or now)).total_seconds())),
             "remaining_seconds": max(0, round((target_dt - now).total_seconds())),
             "delay_seconds": round(delay),
+            "projected_delay_seconds": round(projected_delay),
+            "operational_hold_seconds": operational_hold_seconds,
+            "operation_notices": operation_notices,
             "delay_source": delay_source,
             "observed_at": exact_obs["observed"].strftime("%Y-%m-%d %H:%M:%S") if exact_obs else "",
             "data_age_seconds": exact_obs.get("cache_age_seconds", 0) if exact_obs else 0,
@@ -3447,7 +3842,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
                 "최근 실시간 지연 캐시로 추적 유지" if delay_source == "cached_exact" else
                 (("연속운행 열차 잠금 · 실시간 위치 재포착 대기" if tr.get("physical_continuation") else "탑승 열차 잠금 · 실시간 위치 재포착 대기")
                  if realtime_available else ("공식 시간표 기반 추적 · 실시간 위치 API 미연동" if line in SCHEDULE_ONLY_LINES else "공식 시간표 기반 임시 추적 · 실시간 위치 조회 실패"))
-            ),
+            ) + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": True, "tracking": True, "arrived": False,
             "status": expected_location.get("status", "위치 재포착 대기"),
         },

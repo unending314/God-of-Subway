@@ -46,7 +46,7 @@ def main():
     old = json.loads(path.read_text(encoding="utf-8"))
     meta = dict(old.get("meta", {}))
     meta.update({
-        "version": "V14.4.0",
+        "version": "V14.8.0",
         "weight": "minimum scheduled running time between consecutive callable passenger stops",
         "normalization": "Passenger-stop structural inference; Shinbundang edges use DX LINE official interstation runtime; GTX-A northern/southern segments remain disconnected",
     })
@@ -55,7 +55,11 @@ def main():
         preserved = [row for row in old.get("modes", {}).get(mode, []) if row[0] not in REBUILD_LINES]
         rebuilt = build_mode(mode)
         modes[mode] = sorted(preserved + rebuilt, key=lambda row: (row[0], row[1], row[2], row[3]))
-    data = {"meta": meta, "modes": modes}
+    line1_overtakes = {
+        "weekday": list(engine._detect_line1_overtake_events("DAY")),
+        "holiday": list(engine._detect_line1_overtake_events("END")),
+    }
+    data = {"meta": meta, "modes": modes, "line1_overtakes": line1_overtakes}
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     for mode, rows in data["modes"].items():
         print(mode, len(rows))
