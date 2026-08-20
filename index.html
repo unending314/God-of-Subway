@@ -471,7 +471,7 @@ header{margin-bottom:30px}
 
 
 
-/* V14.9.2 — input UI ported directly from God-of-Subway-dev-ts-bun.
+/* V14.9.3 — input UI ported directly from God-of-Subway-dev-ts-bun.
    Only the initial search surface is transplanted; route/result UI stays V14.8+. */
 .searchStage{width:min(1120px,calc(100vw - 36px));max-width:none;margin:22px auto 30px;position:relative;left:50%;transform:translateX(-50%);text-align:left}
 .search-card{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
@@ -489,7 +489,7 @@ header{margin-bottom:30px}
 .suggestions.show{display:block}
 .suggestions button{display:flex;align-items:center;gap:10px;min-height:46px;width:100%;border:0;border-bottom:1px solid var(--line);background:var(--surface);color:var(--text);text-align:left;padding:12px 13px;font-size:14px;cursor:pointer}
 .suggestions button:last-child{border-bottom:0}.suggestions button:hover,.suggestions button.active{background:var(--bluebg);color:#174f9c}
-.suggestion-badges{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;min-width:24px}.line-badge-svg{display:block;overflow:visible;flex:0 0 auto}.line-badge-svg text{font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif;pointer-events:none}.suggestion-station{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:750;color:inherit}.stationNoResult{padding:12px 13px;font-size:13px;color:#8a949e}
+.suggestion-badges{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;min-width:24px;visibility:visible;opacity:1}.line-badge-ui{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;height:24px;box-sizing:border-box;color:#fff;font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif;font-weight:850;line-height:1;white-space:nowrap}.line-badge-ui.circle{border-radius:50%;font-size:12px}.line-badge-ui.pill{border-radius:999px;font-size:10px;padding:0 5px}.suggestion-station{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:750;color:inherit}.stationNoResult{padding:12px 13px;font-size:13px;color:#8a949e}
 .swap-button{align-self:center;justify-self:center;width:46px;height:46px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface2);color:var(--muted);font-size:22px;font-weight:700;line-height:1;box-shadow:0 5px 15px rgba(20,32,48,.08);cursor:pointer}.swap-button:hover{border-color:#9eb8dc;background:var(--bluebg);color:var(--text)}
 .primary-button,.search-button{border:0;background:#3e6f9f;color:#fff;font-weight:900;cursor:pointer}.search-button{align-self:stretch;height:auto;min-height:46px;border-radius:14px;padding:0 14px;font-size:14px;white-space:nowrap}.search-button:hover{background:#315f8d}.search-button:disabled{opacity:.55;cursor:default}
 .time-strip{position:relative;z-index:1;display:grid;grid-template-columns:auto auto minmax(126px,1fr) auto;gap:8px;align-items:center;justify-content:stretch;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
@@ -509,6 +509,12 @@ header{margin-bottom:30px}
  .time-strip>button:first-child,.time-strip .selected-time,.time-picker{grid-column:auto!important;grid-row:auto!important;height:40px!important;min-height:40px;min-width:0!important;width:100%!important}.time-strip button{width:100%;height:40px;min-width:0;padding:0 2px;border-radius:9px;font-size:10.5px;line-height:1;white-space:nowrap}.time-strip .selected-time{padding:0 2px;font-size:11.5px;line-height:1;white-space:nowrap}
 }
 @media(max-width:360px){.search-card{padding:10px}.station-control{min-height:96px;padding:13px 16px 10px;border-radius:21px}.station-control .input-wrap input{font-size:25px!important}.swap-button{width:50px;height:50px;margin:9px 0;font-size:22px!important}.time-strip{grid-template-columns:.68fr .9fr .9fr 1.45fr .9fr .9fr;gap:2px}.time-strip button{font-size:9.2px}.time-strip .selected-time{font-size:10px}}
+
+/* V14.9.3 — platform-independent mobile time picker. */
+.mobile-time-overlay{position:fixed;inset:0;z-index:5000;display:none;align-items:flex-end;justify-content:center;background:rgba(15,23,34,.38);padding:14px;box-sizing:border-box}
+.mobile-time-overlay.show{display:flex}.mobile-time-sheet{width:min(100%,430px);background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 70px rgba(15,23,34,.28);padding:16px;box-sizing:border-box}.mobile-time-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.mobile-time-head strong{font-size:16px;letter-spacing:-.3px}.mobile-time-head button{border:0;background:transparent;color:#77828d;font-size:13px;font-weight:800;padding:6px;cursor:pointer}.mobile-time-columns{display:grid;grid-template-columns:.8fr 1fr 1fr;gap:8px;height:230px}.mobile-time-col{overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:14px;background:var(--surface2);padding:84px 4px;scrollbar-width:none;scroll-snap-type:y mandatory}.mobile-time-col::-webkit-scrollbar{display:none}.mobile-time-col button{display:flex;align-items:center;justify-content:center;width:100%;height:42px;border:0;border-radius:10px;background:transparent;color:#46515d;font-size:18px;font-weight:750;cursor:pointer;scroll-snap-align:center}.mobile-time-col button.selected{background:#dce8f7;color:#173f70;font-weight:950}.mobile-time-actions{display:grid;grid-template-columns:1fr 1.5fr;gap:8px;margin-top:12px}.mobile-time-actions button{height:46px;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer}.mobile-time-cancel{border:1px solid var(--line);background:var(--surface2);color:var(--text)}.mobile-time-confirm{border:0;background:#3e6f9f;color:#fff}.mobile-time-confirm:hover{background:#315f8d}body.mobile-time-open{overflow:hidden}
+@media(min-width:621px){.mobile-time-overlay{display:none!important}}
+@media(max-width:620px){.time-picker>input{pointer-events:none!important}.mobile-time-overlay{padding:max(12px,env(safe-area-inset-bottom)) 10px 10px}.mobile-time-sheet{border-radius:22px 22px 16px 16px}}
 
 </style>
 </head>
@@ -550,6 +556,18 @@ header{margin-bottom:30px}
  </div>
  <div id="autoRouteResult" class="autoRouteResult"></div>
 </section>
+
+<div id="mobileTimeOverlay" class="mobile-time-overlay" aria-hidden="true">
+ <div class="mobile-time-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileTimeTitle">
+  <div class="mobile-time-head"><strong id="mobileTimeTitle">시간 선택</strong><button id="mobileTimeClose" type="button" aria-label="시간 선택 닫기">닫기</button></div>
+  <div class="mobile-time-columns">
+   <div id="mobilePeriodCol" class="mobile-time-col" aria-label="오전 오후"></div>
+   <div id="mobileHourCol" class="mobile-time-col" aria-label="시"></div>
+   <div id="mobileMinuteCol" class="mobile-time-col" aria-label="분"></div>
+  </div>
+  <div class="mobile-time-actions"><button id="mobileTimeCancel" class="mobile-time-cancel" type="button">취소</button><button id="mobileTimeConfirm" class="mobile-time-confirm" type="button">확인</button></div>
+ </div>
+</div>
 
 <div class="legacyControls">
  <div id="segments"></div><button id="addBtn"></button><button id="calcBtn"></button>
@@ -745,6 +763,45 @@ function clearQuickSelection(){
  document.querySelectorAll('.timeChip').forEach(x=>x.classList.remove('active'));
 }
 
+function useMobileTimePicker(){
+ return window.matchMedia('(max-width:620px)').matches;
+}
+let mobileTimePending={period:'오전',hour:12,minute:0};
+function mobilePendingFromCursor(){
+ const h=searchTimeCursor.getHours(),m=searchTimeCursor.getMinutes();
+ mobileTimePending={period:h>=12?'오후':'오전',hour:(h%12)||12,minute:m};
+}
+function mobileTimeButton(part,value,label){
+ const selected=String(mobileTimePending[part])===String(value);
+ return `<button type="button" data-time-part="${part}" data-time-value="${value}" class="${selected?'selected':''}">${label}</button>`;
+}
+function renderMobileTimePicker(){
+ $('mobilePeriodCol').innerHTML=[['오전','오전'],['오후','오후']].map(([v,l])=>mobileTimeButton('period',v,l)).join('');
+ $('mobileHourCol').innerHTML=Array.from({length:12},(_,i)=>i+1).map(v=>mobileTimeButton('hour',v,String(v).padStart(2,'0'))).join('');
+ $('mobileMinuteCol').innerHTML=Array.from({length:60},(_,i)=>i).map(v=>mobileTimeButton('minute',v,String(v).padStart(2,'0'))).join('');
+ document.querySelectorAll('#mobileTimeOverlay [data-time-part]').forEach(btn=>btn.onclick=()=>{
+  const part=btn.dataset.timePart;mobileTimePending[part]=part==='period'?btn.dataset.timeValue:Number(btn.dataset.timeValue);
+  const col=btn.closest('.mobile-time-col');col.querySelectorAll('[data-time-part]').forEach(x=>x.classList.toggle('selected',x===btn));
+  btn.scrollIntoView({block:'center',behavior:'smooth'});
+ });
+ requestAnimationFrame(()=>document.querySelectorAll('#mobileTimeOverlay .selected').forEach(x=>x.scrollIntoView({block:'center'})));
+}
+function openMobileTimePicker(){
+ if(!useMobileTimePicker())return false;
+ mobilePendingFromCursor();renderMobileTimePicker();
+ $('mobileTimeOverlay').classList.add('show');$('mobileTimeOverlay').setAttribute('aria-hidden','false');document.body.classList.add('mobile-time-open');
+ return true;
+}
+function closeMobileTimePicker(){
+ $('mobileTimeOverlay').classList.remove('show');$('mobileTimeOverlay').setAttribute('aria-hidden','true');document.body.classList.remove('mobile-time-open');
+}
+function confirmMobileTimePicker(){
+ let h=Number(mobileTimePending.hour)%12;if(mobileTimePending.period==='오후')h+=12;
+ const d=new Date();d.setHours(h,Number(mobileTimePending.minute)||0,0,0);
+ searchTimeCursor=d;searchTimeMode='manual';syncSearchTimeUI();clearQuickSelection();closeMobileTimePicker();
+ $('startTime').dispatchEvent(new Event('change',{bubbles:true}));
+}
+
 const CHOSEONG=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 
 function stationInitials(text){
@@ -780,11 +837,10 @@ const LINE_BADGES={
 };
 const LINE_BADGE_ORDER=Object.keys(LINE_BADGES);
 function lineOrder(a,b){const ai=LINE_BADGE_ORDER.indexOf(a),bi=LINE_BADGE_ORDER.indexOf(b);if(ai>=0||bi>=0)return (ai<0?9999:ai)-(bi<0?9999:bi);return a.localeCompare(b,'ko')}
-function lineBadgeSvg(line){
+function lineBadgeHtml(line){
  const spec=LINE_BADGES[line]||{text:String(line||'?').slice(0,4),color:'#65717E',shape:'pill',width:48};
  const width=spec.shape==='circle'?24:spec.width;
- const shape=spec.shape==='circle'?`<circle cx="12" cy="12" r="11" fill="${spec.color}"></circle>`:`<rect x="1" y="1" width="${width-2}" height="22" rx="11" fill="${spec.color}"></rect>`;
- return `<svg class="line-badge-svg ${spec.shape}" width="${width}" height="24" viewBox="0 0 ${width} 24" role="img" aria-label="${esc(line)}">${shape}<text x="${width/2}" y="12.5" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="${spec.shape==='circle'?12:10}" font-weight="800">${esc(spec.text)}</text></svg>`;
+ return `<span class="line-badge-ui ${spec.shape}" style="width:${width}px;background:${spec.color}" title="${esc(line)}">${esc(spec.text)}</span>`;
 }
 function globalStationSuggestions(query){
  const byStation=new Map();
@@ -806,7 +862,7 @@ function setupGlobalStationAutocomplete(input){
   if(!q){hideStationSuggest(input);return}
   const list=globalStationSuggestions(q);
   if(!list.length){box.innerHTML='<div class="stationNoResult">일치하는 역이 없습니다.</div>';box.classList.add('show');input.setAttribute('aria-expanded','true');return}
-  box.innerHTML=list.map((item,i)=>`<button type="button" class="stationOption" role="option" aria-selected="false" data-i="${i}" data-station="${esc(item.station)}" aria-label="${esc(item.station)} ${esc(item.lines.join(' '))}"><span class="suggestion-badges" aria-hidden="true">${item.lines.map(lineBadgeSvg).join('')}</span><span class="suggestion-station">${esc(item.station)}</span></button>`).join('');
+  box.innerHTML=list.map((item,i)=>`<button type="button" class="stationOption" role="option" aria-selected="false" data-i="${i}" data-station="${esc(item.station)}" aria-label="${esc(item.station)} ${esc(item.lines.join(' '))}"><span class="suggestion-badges" aria-hidden="true">${item.lines.map(lineBadgeHtml).join('')}</span><span class="suggestion-station">${esc(item.station)}</span></button>`).join('');
   box.classList.add('show');input.setAttribute('aria-expanded','true');
   box.querySelectorAll('.stationOption').forEach(btn=>btn.addEventListener('mousedown',e=>{e.preventDefault();input.value=btn.dataset.station;hideStationSuggest(input);input.dispatchEvent(new Event('change',{bubbles:true}));}));
  };
@@ -1626,7 +1682,7 @@ async function findAutoRoute(){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message+errorRef(e))}</span>`;
   $('autoRouteResult').classList.add('show');
  }finally{
-  btn.disabled=false;btn.innerHTML='<span>조회</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 7 5 5-5 5"></path></svg>';
+  btn.disabled=false;btn.textContent='경로 조회';
  }
 }
 
@@ -2082,6 +2138,12 @@ $('startTime').addEventListener('input',()=>{
   searchTimeCursor=d;searchTimeMode='manual';syncSearchTimeUI();
  }
 });
+$('searchTimeDisplay').addEventListener('click',e=>{if(useMobileTimePicker()){e.preventDefault();e.stopPropagation();openMobileTimePicker();}});
+$('mobileTimeClose').onclick=closeMobileTimePicker;
+$('mobileTimeCancel').onclick=closeMobileTimePicker;
+$('mobileTimeConfirm').onclick=confirmMobileTimePicker;
+$('mobileTimeOverlay').addEventListener('click',e=>{if(e.target===$('mobileTimeOverlay'))closeMobileTimePicker();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('mobileTimeOverlay').classList.contains('show'))closeMobileTimePicker();});
 $('day').addEventListener('change',()=>{if($('day').value!=='AUTO')updateAutoDayInfo($('day').value,'수동 선택',false);else init();});
 $('addBtn').onclick=()=>{
  const prev=[...document.querySelectorAll('.segment')].at(-1);

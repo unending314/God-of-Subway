@@ -570,3 +570,23 @@ class Line1PlannedOvertakeRegressionTest(unittest.TestCase):
             self.assertEqual(local.get("operation_notices", []), [])
         finally:
             engine.now_kst = original_now
+
+class InputUiRegressionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        cls.html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+
+    def test_mobile_uses_custom_time_picker_instead_of_native_click(self):
+        self.assertIn('id="mobileTimeOverlay"', self.html)
+        self.assertIn("return window.matchMedia('(max-width:620px)').matches;", self.html)
+        self.assertIn('.time-picker>input{pointer-events:none!important}', self.html)
+
+    def test_search_button_does_not_restore_unstyled_svg_triangle(self):
+        self.assertIn("btn.disabled=false;btn.textContent='경로 조회';", self.html)
+        self.assertNotIn("btn.innerHTML='<span>조회</span><svg", self.html)
+
+    def test_station_suggestions_render_browser_safe_line_badges(self):
+        self.assertIn('function lineBadgeHtml(line)', self.html)
+        self.assertIn('class="line-badge-ui ${spec.shape}"', self.html)
+        self.assertIn("item.lines.map(lineBadgeHtml).join('')", self.html)
