@@ -469,6 +469,99 @@ header{margin-bottom:30px}
 .altRouteBtn{border:1px solid #9ebae8;background:#fff;color:#245b9e;border-radius:8px;padding:5px 8px;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}
 .altRouteBtn:disabled{background:#eaf2fc;color:#315f94;cursor:default}
 
+
+/* V14.9 — God-of-Subway input surface transplant only. Result UI stays on V14.8. */
+.searchStage{max-width:980px;margin:22px auto 30px;text-align:left}
+.upstreamInputCard{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
+.upstreamSearchPanel{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr) 122px;gap:10px;align-items:center;position:relative;z-index:2;overflow:visible}
+.upstreamStationControl{position:relative;z-index:1;overflow:visible;display:flex;min-width:0;min-height:80px;flex-direction:column;justify-content:center;margin:0;padding:11px 15px 9px;border:1px solid var(--line);border-radius:18px;background:var(--surface);text-align:left;transition:border-color .16s ease,box-shadow .16s ease}
+.upstreamStationControl:focus-within{z-index:100;border-color:#9eb8dc;box-shadow:0 0 0 3px var(--bluebg)}
+.upstreamStationControl>label{display:block;margin:0 0 2px;font-size:11px;font-weight:900;line-height:1.25;color:var(--muted)}
+.upstreamInputWrap{position:relative;min-width:0;overflow:visible}
+.upstreamStationControl .upstreamInputWrap input{width:100%;min-height:38px;padding:0 64px 0 0;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:22px;font-weight:850;line-height:1.2;letter-spacing:-.45px;color:var(--text)}
+.upstreamStationControl .upstreamInputWrap input:focus{border:0;box-shadow:none;outline:0}
+.upstreamStationControl .upstreamInputWrap input::placeholder{color:#9aa5b1;font-weight:700}
+.stationClear{position:absolute;right:30px;top:50%;transform:translateY(-50%);width:26px;height:30px;padding:0;border:0;background:transparent;color:#87929e;font-size:22px;line-height:1;cursor:pointer}
+.stationSearchIcon{position:absolute;right:0;top:50%;transform:translateY(-50%);width:22px;height:22px;fill:none;stroke:#26313d;stroke-width:1.8;stroke-linecap:round;pointer-events:none}
+.upstreamStationControl .stationSuggest{top:calc(100% + 6px);z-index:1000;max-height:min(360px,52vh)}
+.upstreamSwapBtn{align-self:center;justify-self:center;width:46px;height:46px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface2);color:var(--muted);font-size:22px;font-weight:700;line-height:1;box-shadow:0 5px 15px rgba(20,32,48,.08)}
+.upstreamSwapBtn:hover{border-color:#9eb8dc;background:var(--bluebg);color:var(--text)}
+.upstreamSearchBtn{align-self:stretch;height:auto;min-height:46px;border:0;border-radius:14px;background:#3e6f9f;color:#fff;padding:0 14px;font-size:14px;font-weight:900;cursor:pointer;white-space:nowrap}
+.upstreamSearchBtn:hover{background:#315f8d;filter:none}.upstreamSearchBtn:disabled{opacity:.55}
+.upstreamTimeStrip{display:grid;grid-template-columns:auto auto minmax(126px,1fr) auto;gap:8px;align-items:center;justify-content:stretch;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button{border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:10px;min-height:42px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+.upstreamTimeStrip>button:hover,.upstreamTimeStrip .timeStepGroup button:hover{border-color:#9eb8dc;background:#f5f8fb}
+.timeStepGroup{display:flex;gap:5px;min-width:0}.timeStepGroup button{flex:1 1 auto}
+.upstreamTimeStrip .selectedTime{position:relative;display:flex;align-items:center;justify-content:center;min-width:126px;min-height:42px;overflow:hidden;border:1px solid #3e6f9f;border-radius:10px;background:#3e6f9f;color:#fff;font-size:16px;font-weight:900;letter-spacing:-.2px;cursor:pointer;user-select:none}
+.upstreamTimeStrip .selectedTime:hover{background:#315f8d;border-color:#315f8d}
+.upstreamTimeStrip .selectedTime>span{pointer-events:none}.upstreamTimeStrip .selectedTime>input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:.001;cursor:pointer;background:transparent;color:transparent;color-scheme:light}
+.upstreamTimeStrip .selectedTime>input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0}
+.searchAuxActions{display:flex;justify-content:flex-end;margin-top:8px}.upstreamSettingsBtn{width:auto;height:auto;padding:5px 3px;border:0;background:transparent;color:#7b8793;font-size:11px;font-weight:800;border-radius:7px;cursor:pointer}.upstreamSettingsBtn:hover{color:#3e6f9f;background:transparent}
+.upstreamInputCard .settingsPanel{margin-top:8px}
+@media(max-width:850px){
+ .upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}
+ .upstreamSearchBtn{grid-column:1/-1;min-height:48px}
+}
+@media(max-width:620px){
+ .searchStage{margin-top:14px}.upstreamInputCard{padding:14px;border-radius:20px}
+ .upstreamSearchPanel{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"from" "swap" "to" "submit";gap:0;align-items:stretch}
+ .upstreamStationControl:first-child{grid-area:from}.upstreamStationControl:nth-of-type(2){grid-area:to}
+ .upstreamStationControl{min-height:106px;padding:15px 20px 12px;border-radius:24px}
+ .upstreamStationControl>label{margin-bottom:7px;font-size:12px}.upstreamStationControl .upstreamInputWrap input{min-height:42px;font-size:28px;font-weight:900;letter-spacing:-.9px}
+ .upstreamSwapBtn{grid-area:swap;justify-self:center;width:54px;height:54px;margin:11px 0;font-size:24px;z-index:2}
+ .upstreamSearchBtn{grid-area:submit;width:100%;height:46px;margin-top:12px}
+ .upstreamTimeStrip{grid-template-columns:.72fr .9fr .9fr 1.55fr .9fr .9fr;gap:4px;overflow:hidden}
+ .upstreamTimeStrip .timeStepGroup{display:contents}
+ .upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button,.upstreamTimeStrip .selectedTime{height:40px;min-height:40px;min-width:0;width:100%;padding:0 2px;border-radius:9px;font-size:10.5px;line-height:1;white-space:nowrap}
+ .upstreamTimeStrip .selectedTime{font-size:11.5px}
+ .searchAuxActions{margin-top:5px}
+}
+@media(max-width:360px){
+ .upstreamInputCard{padding:10px}.upstreamStationControl{min-height:96px;padding:13px 16px 10px;border-radius:21px}.upstreamStationControl .upstreamInputWrap input{font-size:25px}
+ .upstreamTimeStrip{grid-template-columns:.68fr .9fr .9fr 1.45fr .9fr .9fr;gap:2px}.upstreamTimeStrip>button,.upstreamTimeStrip .timeStepGroup button{font-size:9.2px}.upstreamTimeStrip .selectedTime{font-size:10px}
+}
+
+
+/* V14.9 reference-fidelity pass: only the initial input card follows God-of-Subway-dev-ts-bun design-reference. */
+.upstreamInputCard{padding:24px 28px 18px;border-radius:11px;border-color:#d5dde7;box-shadow:none}
+.upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 82px minmax(0,1fr) 154px 172px;gap:20px;align-items:end}
+.upstreamStationControl{display:block;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none!important}
+.upstreamStationControl>label,.upstreamTimeControl>span{display:block;margin:0 0 9px 5px;color:#344155;font-size:13px;font-weight:700;line-height:1}
+.upstreamInputWrap{height:64px;border:1px solid #9daabd;border-radius:10px;background:#fff;transition:border-color .15s ease,box-shadow .15s ease}
+.upstreamStationControl:focus-within .upstreamInputWrap{border-color:#6d85aa;box-shadow:0 0 0 2px rgba(70,96,135,.08)}
+.upstreamStationControl .upstreamInputWrap input{height:62px;min-height:62px;padding:0 74px 0 20px;border:0;background:transparent;font-size:20px;font-weight:800;letter-spacing:-.35px;color:#10151d}
+.upstreamStationControl .upstreamInputWrap input::placeholder{color:#98a3b2;font-weight:700}
+.stationClear{right:42px;width:27px;height:62px;font-size:22px;color:#536176}.stationSearchIcon{right:15px;width:25px;height:25px;stroke:#060b12;stroke-width:1.8}
+.upstreamStationControl .stationSuggest{top:calc(100% + 5px)}
+.upstreamSwapBtn{width:82px;height:64px;margin:0;border:1px solid #d5dde7;border-radius:10px;background:#fff;color:#17212d;font-size:28px;box-shadow:none}
+.upstreamSwapBtn:hover{background:#f7f9fb;border-color:#aebbc9;color:#111923}
+.upstreamTimeControl{min-width:0}
+.upstreamTimePicker{position:relative;display:flex!important;align-items:center;justify-content:space-between;width:100%;height:64px!important;min-width:0!important;padding:0 17px!important;border:1px solid #9daabd!important;border-radius:10px!important;background:#fff!important;color:#111923!important;overflow:hidden;cursor:pointer}
+.upstreamTimePicker strong{font-size:18px;font-weight:700}.upstreamTimePicker svg{width:18px;height:18px;fill:none;stroke:#314158;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.upstreamTimePicker input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:.001;cursor:pointer;background:transparent;color:transparent}
+.upstreamTimePicker input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;cursor:pointer;opacity:0}
+.upstreamSearchBtn{display:flex;align-items:center;justify-content:center;gap:13px;height:64px;min-height:64px;padding:0 22px;border-radius:10px;background:#0c55e8;font-size:18px;box-shadow:0 5px 14px rgba(12,85,232,.16)}
+.upstreamSearchBtn:hover{background:#084ad1}.upstreamSearchBtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.searchAuxActions{margin-top:10px}.upstreamSettingsBtn{font-size:11px}
+@media(max-width:850px){
+ .upstreamSearchPanel{grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);gap:12px}
+ .upstreamTimeControl{grid-column:1/3}.upstreamSearchBtn{grid-column:3;height:56px;min-height:56px;align-self:end}.upstreamSwapBtn{width:62px}
+}
+@media(max-width:620px){
+ .searchStage{margin-top:12px}.upstreamInputCard{padding:19px 20px 14px;border-radius:9px}
+ .upstreamSearchPanel{display:grid;grid-template-columns:1fr 1.28fr;grid-template-areas:"from from" "swap swap" "to to" "time submit";gap:0 12px;align-items:end}
+ .upstreamFromControl{grid-area:from}.upstreamToControl{grid-area:to}.upstreamTimeControl{grid-area:time;grid-column:auto}.upstreamSearchBtn{grid-area:submit;grid-column:auto}
+ .upstreamStationControl>label,.upstreamTimeControl>span{margin:0 0 8px 4px;font-size:12px}
+ .upstreamInputWrap{height:64px}.upstreamStationControl .upstreamInputWrap input{height:62px;min-height:62px;padding-left:18px;font-size:22px}
+ .upstreamSwapBtn{grid-area:swap;width:64px;height:58px;justify-self:center;margin:12px 0;border-radius:9px;font-size:27px}
+ .upstreamTimeControl{margin-top:20px}.upstreamTimePicker{height:64px!important}.upstreamTimePicker strong{font-size:20px}
+ .upstreamSearchBtn{height:64px;min-height:64px;margin-top:20px;font-size:18px}
+ .searchAuxActions{margin-top:8px}
+}
+@media(max-width:360px){
+ .upstreamInputCard{padding:16px 14px 12px}.upstreamSearchPanel{gap:0 8px}.upstreamStationControl .upstreamInputWrap input{font-size:20px}.upstreamTimePicker strong{font-size:17px}.upstreamSearchBtn{font-size:16px;gap:8px;padding:0 14px}
+}
+
 </style>
 </head>
 <body>
@@ -478,28 +571,27 @@ header{margin-bottom:30px}
  <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
 </header>
 
-<section class="searchStage">
- <h2>어디로 갈까요?</h2>
- <p class="searchLead">출발역과 도착역만 입력하세요. 현재 열차 위치와 실제 환승시간까지 반영합니다.</p>
- <div class="searchCard">
-  <div class="journeySearch">
-   <div class="stationBig stationInputWrap"><label>출발역</label><input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off"><div class="stationSuggest"></div></div>
-   <button id="swapStations" class="swapBtn" type="button" aria-label="출발역과 도착역 바꾸기">⇄</button>
-   <div class="stationBig stationInputWrap"><label>도착역</label><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off"><div class="stationSuggest"></div></div>
-   <button id="settingsBtn" class="settingsBtn" type="button" aria-label="상세 설정" aria-expanded="false">⚙</button>
-   <button id="autoRouteBtn" class="searchBtn" type="button">조회</button>
+<section class="searchStage" aria-label="경로 입력">
+ <div class="searchCard upstreamInputCard">
+  <div class="journeySearch upstreamSearchPanel">
+   <div class="stationBig stationInputWrap upstreamStationControl upstreamFromControl">
+    <label for="autoFrom">출발역</label>
+    <div class="upstreamInputWrap"><input id="autoFrom" class="stationInput globalStationInput" placeholder="출발역" autocomplete="off"><button class="stationClear" type="button" data-target="autoFrom" aria-label="출발역 지우기">×</button><svg class="stationSearchIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg></div>
+    <div class="stationSuggest"></div>
+   </div>
+   <button id="swapStations" class="swapBtn upstreamSwapBtn" type="button" aria-label="출발역과 도착역 바꾸기">⇄</button>
+   <div class="stationBig stationInputWrap upstreamStationControl upstreamToControl">
+    <label for="autoTo">도착역</label>
+    <div class="upstreamInputWrap"><input id="autoTo" class="stationInput globalStationInput" placeholder="도착역" autocomplete="off"><button class="stationClear" type="button" data-target="autoTo" aria-label="도착역 지우기">×</button><svg class="stationSearchIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg></div>
+    <div class="stationSuggest"></div>
+   </div>
+   <div class="upstreamTimeControl"><span>시간</span><label id="searchTimeDisplay" class="searchTimeDisplay upstreamTimePicker" aria-label="플랫폼 도착시간 직접 선택"><strong id="searchTimeLabel">지금</strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg><input id="startTime" type="time"></label></div>
+   <button id="autoRouteBtn" class="searchBtn upstreamSearchBtn" type="button"><span>조회</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 7 5 5-5 5"></path></svg></button>
   </div>
-  <div class="searchQuickTime" aria-label="플랫폼 도착시간 빠른 조절">
-   <button id="searchNowBtn" class="searchNowBtn" type="button">지금</button>
-   <button class="searchTimeStep" data-time-step="-5" type="button">-5분</button>
-   <button class="searchTimeStep" data-time-step="-1" type="button">-1분</button>
-   <button id="searchTimeDisplay" class="searchTimeDisplay" type="button" aria-label="선택된 플랫폼 도착시간"></button>
-   <button class="searchTimeStep" data-time-step="1" type="button">+1분</button>
-   <button class="searchTimeStep" data-time-step="5" type="button">+5분</button>
-  </div>
+  <div class="searchAuxActions"><button id="settingsBtn" class="settingsBtn upstreamSettingsBtn" type="button" aria-label="상세 설정" aria-expanded="false">상세 설정</button></div>
   <div id="settingsPanel" class="settingsPanel">
    <div class="settingsGrid">
-    <div class="settingsSection"><label>플랫폼 도착 예정</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button class="timeChip active" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div><input id="startTime" type="time"></div>
+    <div class="settingsSection"><label>시간 빠른 선택</label><div class="quickTime" id="quickTime"><button class="timeChip" data-min="-5">-5분</button><button id="searchNowBtn" class="timeChip active" data-min="0">지금</button><button class="timeChip" data-min="5">+5분</button><button class="timeChip" data-min="10">+10분</button><button class="timeChip" data-min="15">+15분</button><button class="timeChip" data-min="20">+20분</button><button class="timeChip" data-min="30">+30분</button></div></div>
     <div class="settingsSection"><label>운행일</label><select id="day"><option value="AUTO">자동</option><option value="DAY">평일</option><option value="SAT">토요일</option><option value="END">일요일·공휴일</option></select><div id="autoDayInfo" class="autoDayInfo">자동 운행일 확인 중…</div></div>
     <div class="settingsSection"><label>기존 앱 예상 총시간 · 실험용</label><input id="baseline" type="number" min="1" placeholder="예: 62"><label class="expToggle" style="margin-top:9px"><input id="expEnabled" type="checkbox" checked> 기말 실험 자동 기록</label><label class="expToggle" style="margin-top:7px"><input id="showExpTools" type="checkbox"> 실험 도구 화면 표시</label></div>
    </div>
@@ -658,7 +750,7 @@ function koShortTime(d){
  return d.toLocaleTimeString('ko-KR',{hour:'numeric',minute:'2-digit',hour12:true});
 }
 function syncSearchTimeUI(){
- $('searchTimeDisplay').textContent=koShortTime(searchTimeCursor);
+ $('searchTimeLabel').textContent=(searchTimeMode==='initial-now'||searchTimeMode==='armed-now')?'지금':koShortTime(searchTimeCursor);
  $('startTime').value=hhmmFromDate(searchTimeCursor);
  $('searchNowBtn').classList.toggle('active',searchTimeMode==='armed-now');
 }
@@ -1584,7 +1676,7 @@ async function findAutoRoute(){
   $('autoRouteResult').innerHTML=`<span style="color:#a33">${esc(e.message+errorRef(e))}</span>`;
   $('autoRouteResult').classList.add('show');
  }finally{
-  btn.disabled=false;btn.textContent='조회';
+  btn.disabled=false;btn.innerHTML='<span>조회</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 7 5 5-5 5"></path></svg>';
  }
 }
 
@@ -2018,12 +2110,16 @@ function restoreTrip(){
 
 $('searchNowBtn').onclick=resetSearchTimeNow;
 document.querySelectorAll('[data-time-step]').forEach(btn=>btn.onclick=()=>adjustSearchTime(Number(btn.dataset.timeStep)));
-$('searchTimeDisplay').onclick=()=>{$('settingsBtn').click();$('startTime').focus()};
 
 $('settingsBtn').onclick=()=>{
  const panel=$('settingsPanel'),open=!panel.classList.contains('open');
  panel.classList.toggle('open',open);$('settingsBtn').setAttribute('aria-expanded',String(open));
 };
+document.querySelectorAll('.stationClear').forEach(btn=>btn.onclick=()=>{
+ const target=$(btn.dataset.target);if(!target)return;
+ target.value='';target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();
+ const box=target.closest('.stationInputWrap')?.querySelector('.stationSuggest');if(box){box.classList.remove('show');box.innerHTML='';}
+});
 $('swapStations').onclick=()=>{const a=$('autoFrom').value;$('autoFrom').value=$('autoTo').value;$('autoTo').value=a;};
 $('showExpTools').addEventListener('change',()=>document.body.classList.toggle('showExperiment',$('showExpTools').checked));
 $('autoTo').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)setTimeout(()=>{if($('autoTo').value.trim())findAutoRoute()},0);});

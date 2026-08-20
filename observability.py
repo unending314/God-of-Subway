@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.8.0"
+APP_VERSION = "V14.9.0"
 _DB_LOCK = threading.Lock()
 _DB_SCHEMA_READY = False
 _LOCAL_LOCK = threading.Lock()
