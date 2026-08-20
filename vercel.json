@@ -1,8 +1,1 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "server.py": {
-      "excludeFiles": "{run.bat,README.txt,__pycache__/**}"
-    }
-  }
-}
+{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"server.py":{"excludeFiles":"{run.bat,README.txt,__pycache__/**}"}}}

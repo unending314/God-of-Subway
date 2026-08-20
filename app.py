@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""지금타 V13.5.4 로컬 실행 서버.
+"""지금타 V14.2 로컬 실행 서버.
 
 비즈니스 로직은 engine.py 하나만 사용한다. 배포(server.py)와 로컬(app.py)이
 서로 다른 ETA/급행 판정 코드를 갖지 않게 하여 회귀를 방지한다.
@@ -17,16 +17,17 @@ from pathlib import Path
 
 import engine
 import observability
+import realtime_store
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.5.4.0-local"
+VERSION = "V14.3.0-local"
 
 
 def ensure_api_key():
     if engine.API_KEY:
         return
     print("=" * 70)
-    print("지금타 V13.5.4 — 로컬 실행")
+    print("지금타 V14.3 — 로컬 실행")
     print("서울 열린데이터광장 인증키를 입력하세요.")
     print("키는 파일에 저장되지 않고 현재 프로세스 메모리에만 유지됩니다.")
     print("=" * 70)
@@ -148,6 +149,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._run_engine(endpoint, engine.calculate_route, payload, request_id)
         if endpoint == "/api/trip_update":
             return self._run_engine(endpoint, engine.calculate_live_trip, payload, request_id)
+        if endpoint == "/api/v1/auto-route":
+            return self._run_engine(endpoint, engine.calculate_auto_route, payload, request_id)
+        if endpoint == "/api/v1/route":
+            return self._run_engine(endpoint, engine.calculate_route, payload, request_id)
+        if endpoint == "/api/v1/trip-update":
+            return self._run_engine(endpoint, engine.calculate_live_trip, payload, request_id)
         if endpoint == "/api/client_log":
             event_id = observability.record_event(
                 event_type=str(payload.get("event_type") or "client_error")[:100],
@@ -174,6 +181,13 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(health_payload())
         if endpoint == "/api/stations":
             return self.send_json({"ok": True, "stations": engine.STATIONS_BY_LINE})
+        if endpoint == "/api/v1/stations":
+            return self.send_json({"ok": True, "stations": engine.STATIONS_BY_LINE})
+        if endpoint == "/api/v1/realtime/status":
+            return self.send_json({
+                "ok": True,
+                "store": realtime_store.status_for_lines(engine.REALTIME_STORE_IDS, now=engine.now_kst()),
+            })
         if endpoint.startswith("/api/"):
             return self.send_json({"ok": False, "error": f"알 수 없는 API 경로: {endpoint}"}, 404)
         return super().do_GET()

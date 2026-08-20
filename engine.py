@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V13.5.4.0 — 신분당선 익명 가상 운행편 + 예상 소재/탑승 추적
+지금타 V14.3.0 — 수도권 추가 8개 노선 시간표 + realtime/schedule-only capability
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -15,6 +15,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from collections import defaultdict
+
+import realtime_store
 
 BASE = Path(__file__).resolve().parent
 KST = ZoneInfo("Asia/Seoul")
@@ -45,17 +47,59 @@ EXTRA = load_json("korail_extra_lines_schedule.json")
 SINBUNDANG = load_json("sinbundang_public_timetable.json")
 SINBUNDANG_RUNTIME = load_json("sinbundang_runtime.json")
 SINBUNDANG_VIRTUAL = load_json("sinbundang_virtual_runs.json")
+ADDITIONAL = load_json("additional_lines_schedule.json")
 KR_HOLIDAYS = load_json("kr_holidays_2026_2035.json")
 ROUTE_GRAPH = load_json("route_graph.json")
 TRANSFER_DATA = load_json("transfer_data.json")
-KORAIL_EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도")
-EXTRA_LINES = KORAIL_EXTRA_LINES + ("신분당선",)
-SCHEDULE_ONLY_LINES = set()
 
-LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(EXTRA_LINES)
+KORAIL_EXTRA_LINES = ("경의중앙선", "수인분당선", "경춘선", "경강선", "서해선", "공항철도")
+TIMETABLE_ADDITIONAL_LINES = tuple(ADDITIONAL.get("lines", {}).keys())
+REALTIME_ADDITIONAL_LINES = tuple(
+    line for line in TIMETABLE_ADDITIONAL_LINES
+    if bool(ADDITIONAL["lines"][line].get("capabilities", {}).get("realtime"))
+)
+SCHEDULE_ONLY_LINES = {
+    line for line in TIMETABLE_ADDITIONAL_LINES
+    if not bool(ADDITIONAL["lines"][line].get("capabilities", {}).get("realtime"))
+}
+EXTRA_LINES = KORAIL_EXTRA_LINES + ("신분당선",) + TIMETABLE_ADDITIONAL_LINES
+
+LINE_ALIASES = {
+    "김포도시철도": "김포골드라인",
+    "김포경전철": "김포골드라인",
+    "용인에버라인": "용인경전철",
+    "에버라인": "용인경전철",
+}
+def canon_line(v):
+    raw = str(v or "").strip()
+    return LINE_ALIASES.get(raw, raw)
+
+LINE_NAMES = [f"{i}호선" for i in range(1, 10)] + list(dict.fromkeys(EXTRA_LINES))
 LINE_NUM = {f"{i}호선": str(i) for i in range(1, 10)}
 LINE_IDS = {f"{i}호선": f"100{i}" for i in range(1, 10)}
-LINE_IDS.update({"경의중앙선": "1063", "수인분당선": "1075", "경춘선": "1067", "경강선": "1081", "서해선": "1093", "공항철도": "1065", "신분당선": "1077"})
+LINE_IDS.update({
+    "경의중앙선": "1063", "수인분당선": "1075", "경춘선": "1067",
+    "경강선": "1081", "서해선": "1093", "공항철도": "1065", "신분당선": "1077",
+    "우이신설선": "1092", "GTX-A": "1032",
+})
+# 서울시 문서에는 신림선 subwayId가 아직 명시되지 않은 경우가 있으므로
+# direct 조회는 노선명으로 하고, Redis key는 별도의 내부 stable id를 사용한다.
+REALTIME_STORE_IDS = dict(LINE_IDS)
+REALTIME_STORE_IDS["신림선"] = "SILLIM"
+
+def line_capabilities(line):
+    line = canon_line(line)
+    if line == "신분당선":
+        return {"realtime": True, "public_train_no": False, "data_status": "complete"}
+    if line in ADDITIONAL.get("lines", {}):
+        return dict(ADDITIONAL["lines"][line].get("capabilities", {}))
+    return {"realtime": line not in SCHEDULE_ONLY_LINES, "public_train_no": True, "data_status": "complete"}
+
+def public_train_no_supported(line):
+    return bool(line_capabilities(line).get("public_train_no", True))
+
+def realtime_supported(line):
+    return bool(line_capabilities(line).get("realtime", line not in SCHEDULE_ONLY_LINES))
 
 # 서울시 realtimePosition의 노선 요청 문자열.
 # 신분당선은 운영 중인 API에서 `1077:신분당선` 식별 문자열로 조회되는 경우가 있어
@@ -67,7 +111,10 @@ REALTIME_QUERY_ALIASES = {
 # API 수신 간격이 긴 코레일 계열에서, 한 번 확인된 열차 지연이
 # 다음 조회에서 열차 미포착만으로 0분으로 리셋되는 것을 막는다.
 # 브라우저가 최근 exact-train 관측을 전달하면 최대 35분까지만 보조 신호로 사용한다.
-STALE_DELAY_CACHE_LINES = {"1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선"}
+STALE_DELAY_CACHE_LINES = {
+    "1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선",
+    *REALTIME_ADDITIONAL_LINES,
+}
 STALE_DELAY_HOLD_SECONDS = 20 * 60
 STALE_DELAY_MAX_SECONDS = 35 * 60
 
@@ -75,12 +122,29 @@ def _client_delay_rows(payload):
     rows = payload.get("train_delay_cache") if isinstance(payload, dict) else None
     return rows if isinstance(rows, list) else []
 
+def _merge_delay_cache_rows(*groups):
+    """서버 Redis/클라이언트 캐시를 열차별 최신 관측 하나로 병합한다."""
+    merged = {}
+    for rows in groups:
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            key = (str(row.get("line") or ""), norm_train(row.get("train_no")))
+            if not all(key):
+                continue
+            old = merged.get(key)
+            if old is None or str(row.get("observed_at") or "") >= str(old.get("observed_at") or ""):
+                merged[key] = row
+    return sorted(merged.values(), key=lambda x: str(x.get("observed_at") or ""), reverse=True)[:160]
+
 def attach_client_delay_cache(position_cache, payload):
     if not isinstance(position_cache, dict):
         return position_cache
-    rows = _client_delay_rows(payload)
-    if rows:
-        position_cache["__train_delay_cache__"] = rows[:160]
+    client_rows = _client_delay_rows(payload)
+    if client_rows:
+        position_cache["__train_delay_cache__"] = _merge_delay_cache_rows(
+            position_cache.get("__train_delay_cache__", []), client_rows
+        )
     return position_cache
 
 def cached_delay_rows(position_cache):
@@ -146,6 +210,12 @@ STATION_ALIASES = {
     "미금(분당서울대병원)": "미금",
     "광교중앙(아주대)": "광교중앙",
     "광교(경기대)": "광교",
+    # 추가 노선 Rail.Blue/API 표기 호환
+    "SR동탄": "동탄",
+    "SR구성": "구성",
+    "SR성남": "성남",
+    # 2026 인천 행정구역/역명 변경 전 호환
+    "서구청": "서해구청",
 }
 
 def canon_station(v):
@@ -513,6 +583,43 @@ def normalize_metro_train(tn, raw):
         } for s in compact_stops],
     }
 
+
+def normalize_additional_train(line, tn, tr):
+    """Rail.Blue 추가 노선을 기존 공통 열차 모델로 변환한다."""
+    source_no = str(tr.get("source_train_no") or tn)
+    stops = [{
+        "station": canon_station(stop.get("station")),
+        "arr": stop.get("arr"),
+        "dep": stop.get("dep"),
+        "call": bool(stop.get("call", True)),
+        **({"estimated": True} if stop.get("estimated") else {}),
+        **({"source_resolution_seconds": stop.get("source_resolution_seconds")} if stop.get("source_resolution_seconds") else {}),
+    } for stop in tr.get("stops", [])]
+    passenger_stations = {
+        canon_station(x)
+        for x in ADDITIONAL.get("lines", {}).get(line, {}).get("stations", [])
+    }
+    service = str(tr.get("service") or "local")
+    # 추가 노선 자료의 pass 행은 arr/dep에 통과시각을 같이 넣어 보존하므로
+    # call=false인 실제 여객역이 중간에 있으면 급행/통과 운행으로 분류한다.
+    if service != "express":
+        for stop in stops[1:-1]:
+            if stop.get("station") in passenger_stations and not stop.get("call", True):
+                service = "express"
+                break
+    return {
+        "train_no": source_no,
+        "internal_train_no": str(tn),
+        "direction": str(tr.get("direction") or ""),
+        "service": service,
+        "start": canon_station(tr.get("start", "")),
+        "dest": canon_station(tr.get("dest", "")),
+        "segment": str(tr.get("segment") or ""),
+        "railblue_train_id": str(tr.get("railblue_train_id") or ""),
+        "stops": stops,
+    }
+
+
 # Train indexes: exact + digits fallback.
 S1_NUM = {}
 for day, trains in S1.items():
@@ -547,8 +654,28 @@ for line, source in EXTRA.items():
         EXTRA_ALIAS[(line, day)] = aliases
         EXTRA_ALIAS_NUM[(line, day)] = alias_nums
 
+ADDITIONAL_EXACT = {}
+ADDITIONAL_NUM = {}
+for line, source in ADDITIONAL.get("lines", {}).items():
+    for day, trains in source.get("trains", {}).items():
+        exact = defaultdict(list)
+        nums = defaultdict(list)
+        for tn, tr in trains.items():
+            identifiers = {
+                norm_train(tn),
+                norm_train(tr.get("source_train_no", "")),
+                norm_train(tr.get("railblue_train_id", "")),
+            }
+            identifiers.discard("")
+            for identifier in identifiers:
+                exact[identifier].append(tn)
+                nums[train_digits(identifier)].append(tn)
+        ADDITIONAL_EXACT[(line, day)] = exact
+        ADDITIONAL_NUM[(line, day)] = nums
+
 
 def get_train(line, mode, raw_train_no):
+    line = canon_line(line)
     korail_day, metro_week = choose_modes(mode)
     n = norm_train(raw_train_no)
     digits = train_digits(raw_train_no)
@@ -591,6 +718,19 @@ def get_train(line, mode, raw_train_no):
             return normalize_extra_train(line, c[0], trains[c[0]])
         return None
 
+    if line in TIMETABLE_ADDITIONAL_LINES:
+        trains = ADDITIONAL["lines"][line]["trains"][korail_day]
+        exact = ADDITIONAL_EXACT.get((line, korail_day), {}).get(n, [])
+        if len(set(exact)) == 1:
+            key = exact[0]
+            return normalize_additional_train(line, key, trains[key])
+        c = ADDITIONAL_NUM.get((line, korail_day), {}).get(digits, [])
+        unique = list(dict.fromkeys(c))
+        if len(unique) == 1:
+            key = unique[0]
+            return normalize_additional_train(line, key, trains[key])
+        return None
+
     num = LINE_NUM[line]
     trains = OFF["days"].get(metro_week, {}).get(num, {})
     if n in trains:
@@ -629,6 +769,7 @@ def _sinbundang_route_templates():
 @lru_cache(maxsize=None)
 def all_trains(line, mode):
     """정규화된 노선별 전체 시간표는 프로세스 생명주기 동안 재사용한다."""
+    line = canon_line(line)
     korail_day, metro_week = choose_modes(mode)
     if line == "1호선":
         return tuple(normalize_s1_train(tn, tr) for tn, tr in S1[korail_day].items())
@@ -638,6 +779,11 @@ def all_trains(line, mode):
         return tuple(
             normalize_extra_train(line, tn, tr)
             for tn, tr in EXTRA[line]["trains"][korail_day].items()
+        )
+    if line in TIMETABLE_ADDITIONAL_LINES:
+        return tuple(
+            normalize_additional_train(line, tn, tr)
+            for tn, tr in ADDITIONAL["lines"][line]["trains"][korail_day].items()
         )
     num = LINE_NUM[line]
     return tuple(
@@ -890,6 +1036,11 @@ def station_options():
     for line in KORAIL_EXTRA_LINES:
         out[line] = sorted({canon_station(x) for x in EXTRA[line].get("stations", [])})
     out["신분당선"] = list(SINBUNDANG.get("stations", []))
+    for line in TIMETABLE_ADDITIONAL_LINES:
+        out[line] = sorted({
+            canon_station(x)
+            for x in ADDITIONAL["lines"][line].get("stations", [])
+        })
     return out
 
 
@@ -1655,7 +1806,7 @@ def fetch_position(line, timeout=5):
         q = urllib.parse.quote(query_value, safe="")
         url = f"http://swopenAPI.seoul.go.kr/api/subway/{API_KEY}/json/realtimePosition/0/300/{q}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "JigeumTa-V13.5.4.0/1.0",
+            "User-Agent": "JigeumTa-V14.3.0/1.0",
             "Accept": "application/json",
         })
         try:
@@ -2144,19 +2295,80 @@ def position_rows(data, line=None):
     ]
 
 def prefetch_position_cache(lines, timeout=5):
-    """여러 노선 realtimePosition을 병렬 조회. 한 노선 장애가 전체 요청을 직렬로 지연시키지 않는다."""
-    unique = sorted({str(x) for x in lines if x in LINE_NAMES})
+    """여러 노선의 실시간 상태를 공유 cache로 구성한다.
+
+    V14 migration mode:
+      direct     - 기존처럼 사용자 요청에서 서울시 API 직접 조회
+      hybrid     - Redis fresh snapshot 우선, miss/stale이면 직접 조회
+      cache_only - Redis만 사용; miss/stale이면 rows=[] + 최근 exact delay로 시간표 예측
+    """
+    unique = sorted({canon_line(x) for x in lines if canon_line(x) in LINE_NAMES})
     if not unique:
         return {}
+
     cache = {}
-    workers = min(6, len(unique))
-    def one(line):
+    mode = realtime_store.store_mode()
+    redis_enabled = mode in {"hybrid", "cache_only"} and realtime_store.is_configured()
+
+    # 서버 공용 exact-delay memory. stale raw 위치 자체는 live로 재사용하지 않는다.
+    server_delay_rows = []
+    if redis_enabled:
+        for line in unique:
+            line_id = REALTIME_STORE_IDS.get(line)
+            if not line_id:
+                continue
+            try:
+                server_delay_rows.extend(realtime_store.get_delay_rows(line_id))
+            except Exception:
+                pass
+    if server_delay_rows:
+        cache["__train_delay_cache__"] = _merge_delay_cache_rows(server_delay_rows)
+
+    pending = []
+    for line in unique:
         if line in SCHEDULE_ONLY_LINES:
-            return line, {
+            cache[line] = {
                 "rows": [],
                 "error": "실시간 위치 API 미연동 · 공식 시간표만 사용",
                 "available": False,
+                "cache_state": "schedule_only",
+                "realtime_source": "schedule",
             }
+            continue
+
+        redis_entry = None
+        if redis_enabled and REALTIME_STORE_IDS.get(line):
+            try:
+                redis_entry = realtime_store.position_cache_entry(
+                    line_id=REALTIME_STORE_IDS[line], line_name=line, now=now_kst()
+                )
+                cache[line] = redis_entry
+            except Exception as e:
+                redis_entry = {
+                    "rows": [], "available": False,
+                    "error": f"Redis {type(e).__name__}: {e}",
+                    "cache_state": "error", "realtime_source": "redis",
+                }
+                cache[line] = redis_entry
+
+        if mode == "cache_only":
+            if not redis_enabled and line not in cache:
+                cache[line] = {
+                    "rows": [], "available": False,
+                    "error": "REALTIME_STORE_MODE=cache_only 이지만 REDIS_URL/redis 설정이 없습니다.",
+                    "cache_state": "miss", "realtime_source": "redis",
+                }
+            continue
+
+        # direct 또는 hybrid의 Redis miss/stale만 원본 API로 보충한다.
+        if mode == "direct" or not redis_entry or not redis_entry.get("available"):
+            pending.append(line)
+
+    if not pending:
+        return cache
+
+    workers = min(6, len(pending))
+    def one(line):
         try:
             ok, err, data = fetch_position(line, timeout=timeout)
             if ok:
@@ -2165,16 +2377,33 @@ def prefetch_position_cache(lines, timeout=5):
                     "error": "",
                     "available": True,
                     "query": data.get("_jigeumta_query", "") if isinstance(data, dict) else "",
+                    "cache_state": "fresh",
+                    "cache_age_seconds": 0,
+                    "realtime_source": "direct",
                 }
             message = (err or {}).get("message", err) if isinstance(err, dict) else err
-            return line, {"rows": [], "error": str(message or "실시간 위치 조회 실패"), "available": False}
+            return line, {
+                "rows": [], "error": str(message or "실시간 위치 조회 실패"),
+                "available": False, "cache_state": "miss", "realtime_source": "direct",
+            }
         except Exception as e:
-            return line, {"rows": [], "error": f"{type(e).__name__}: {e}", "available": False}
+            return line, {
+                "rows": [], "error": f"{type(e).__name__}: {e}",
+                "available": False, "cache_state": "error", "realtime_source": "direct",
+            }
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(one, line) for line in unique]
+        futures = [pool.submit(one, line) for line in pending]
         for fut in as_completed(futures):
             line, value = fut.result()
-            cache[line] = value
+            # hybrid에서 direct 실패 시 Redis stale metadata를 보존하되 raw rows는 계속 비운다.
+            previous = cache.get(line)
+            if not value.get("available") and isinstance(previous, dict) and previous.get("realtime_source") == "redis":
+                previous = dict(previous)
+                previous["direct_error"] = value.get("error", "")
+                cache[line] = previous
+            else:
+                cache[line] = value
     return cache
 
 def cached_position_rows(line, position_cache):
@@ -2194,21 +2423,16 @@ def cached_position_rows(line, position_cache):
         return cached.get("rows", []), cached.get("error", ""), False
 
     if line not in position_cache:
-        ok, err, data = fetch_position(line)
-        if ok:
-            position_cache[line] = {
-                "rows": position_rows(data, line),
-                "error": "",
-                "available": True,
-                "query": data.get("_jigeumta_query", "") if isinstance(data, dict) else "",
-            }
-        else:
-            message = (err or {}).get("message", err) if isinstance(err, dict) else err
-            position_cache[line] = {
-                "rows": [],
-                "error": str(message or "실시간 위치 조회 실패"),
-                "available": False,
-            }
+        fetched = prefetch_position_cache([line], timeout=5)
+        # 서버 delay cache도 함께 전달한다.
+        if isinstance(fetched, dict) and fetched.get("__train_delay_cache__"):
+            position_cache["__train_delay_cache__"] = _merge_delay_cache_rows(
+                position_cache.get("__train_delay_cache__", []),
+                fetched.get("__train_delay_cache__", []),
+            )
+        position_cache[line] = fetched.get(line, {
+            "rows": [], "error": "실시간 위치 조회 실패", "available": False
+        })
 
     cached = position_cache[line]
     # 이전 코드/테스트에서 list를 직접 넣는 경우도 허용.
@@ -2681,9 +2905,17 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
 
 
 def public_candidate(c, selected=False):
+    line = canon_line(c.get("line", ""))
+    train_no = c.get("train_no", "")
+    visible = public_train_no_supported(line)
+    realtime_ok = realtime_supported(line)
     return {
-        "line": c.get("line", ""),
-        "train_no": c.get("train_no", ""),
+        "line": line,
+        "train_no": train_no,
+        "display_train_no": train_no if visible else "",
+        "train_no_visible": bool(visible),
+        "realtime_supported": bool(realtime_ok),
+        "data_status": str(line_capabilities(line).get("data_status") or "complete"),
         "vehicle_id": c.get("vehicle_id", ""),
         "external_train_no": c.get("external_train_no", ""),
         "continuation_train_no": c.get("continuation_train_no", ""),
@@ -2698,7 +2930,7 @@ def public_candidate(c, selected=False):
         "ride_seconds": c.get("ride_seconds", 0),
         "delay_seconds": c.get("delay_seconds"),
         "delay_source": c.get("delay_source", ""),
-        "delay_available": c.get("delay_available", True),
+        "delay_available": c.get("delay_available", line not in SCHEDULE_ONLY_LINES),
         "observed_at": c.get("observed_at", ""),
         "data_age_seconds": c.get("data_age_seconds", 0),
         "is_previous": bool(c.get("is_previous")),
@@ -2721,6 +2953,7 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
     - 해당 시간대 공식 시간표 후보 열차
     를 항상 함께 구성한다.
     """
+    line = canon_line(line)
     if line not in LINE_NAMES:
         return {"ok": False, "error": f"지원하지 않는 노선: {line}"}
     if canon_station(start) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
@@ -3022,6 +3255,7 @@ def tracked_train_segment(line, mode, start, end, train_no, position_cache, boar
     사용자가 실제 탑승했다고 표시한 열차를 잠금 추적한다.
     다른 후보 열차로 절대 교체하지 않고 지정 train_no만 따라간다.
     """
+    line = canon_line(line)
     now = now_kst()
     if line == "신분당선":
         return tracked_sinbundang_vehicle_segment(mode, start, end, train_no, position_cache, boarded_at)
@@ -3257,7 +3491,7 @@ def calculate_live_trip(payload):
 
     # 1) 현재 실제 탑승 중인 열차는 무조건 이 번호로 고정.
     active = segments[active_index]
-    line = str(active.get("line") or "").strip()
+    line = canon_line(active.get("line"))
     fr = canon_station(active.get("from"))
     to = canon_station(active.get("to"))
 
@@ -3287,7 +3521,7 @@ def calculate_live_trip(payload):
     # 3) 이후 모든 구간을 지금 시점에서 다시 탐색.
     for idx in range(active_index + 1, len(segments)):
         s = segments[idx]
-        line = str(s.get("line") or "").strip()
+        line = canon_line(s.get("line"))
         fr = canon_station(s.get("from"))
         to = canon_station(s.get("to"))
 
@@ -3346,6 +3580,16 @@ def serialize_seg(x):
     d = {}
     for k, v in x.items():
         d[k] = v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
+    line = canon_line(d.get("line", ""))
+    if line:
+        visible = public_train_no_supported(line)
+        d["line"] = line
+        d["display_train_no"] = d.get("train_no", "") if visible else ""
+        d["train_no_visible"] = bool(visible)
+        d["realtime_supported"] = bool(realtime_supported(line))
+        d["data_status"] = str(line_capabilities(line).get("data_status") or "complete")
+        if line in SCHEDULE_ONLY_LINES:
+            d["delay_available"] = False
     return d
 
 def calculate_route(payload, position_cache=None):
@@ -3379,7 +3623,7 @@ def calculate_route(payload, position_cache=None):
     warnings = []
 
     for idx, s in enumerate(segments):
-        line = str(s.get("line") or "").strip()
+        line = canon_line(s.get("line"))
         fr = canon_station(s.get("from"))
         to = canon_station(s.get("to"))
         if not fr or not to:

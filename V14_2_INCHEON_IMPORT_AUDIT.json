@@ -1,0 +1,18 @@
+{
+  "version": "V14.2.0",
+  "incheon1": {
+    "stations": 33,
+    "weekday_trains": 312,
+    "holiday_trains": 262,
+    "first_station": "송도달빛축제공원",
+    "last_station": "검단호수공원"
+  },
+  "incheon2": {
+    "stations": 27,
+    "weekday_trains": 468,
+    "holiday_trains": 372,
+    "contains_seohaegu_office": true,
+    "contains_old_name": false,
+    "interpolated_stop_count": 928
+  }
+}

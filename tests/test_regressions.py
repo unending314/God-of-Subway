@@ -342,14 +342,21 @@ class ShinbundangVehicleEtaRegressionTest(unittest.TestCase):
         self.assertEqual([x.get("trainNo") for x in rows], ["16", "legacy-without-id"])
 
     def test_after_midnight_auto_uses_previous_weekday_station_timetable(self):
-        result = engine.calculate_route({
-            "start_time": "2026-08-20 00:10:00", "day": "AUTO",
-            "segments": [{"line": "신분당선", "from": "신사", "to": "강남", "transfer_walk": 0}],
-        }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
-        self.assertTrue(result.get("ok"), result)
-        self.assertEqual(result.get("service_mode"), "DAY")
-        self.assertTrue(result["segments"][0]["train_no"].startswith("SBV-"))
-        self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
+        # 기준 시각을 고정해 실제 테스트 실행 날짜/시각에 따라 다음 날로
+        # rollover되는 비결정적 실패를 막는다.
+        original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 19, 23, 58, 0)
+        try:
+            result = engine.calculate_route({
+                "start_time": "2026-08-20 00:10:00", "day": "AUTO",
+                "segments": [{"line": "신분당선", "from": "신사", "to": "강남", "transfer_walk": 0}],
+            }, position_cache={"신분당선": {"rows": [], "error": "schedule only", "available": False}})
+            self.assertTrue(result.get("ok"), result)
+            self.assertEqual(result.get("service_mode"), "DAY")
+            self.assertTrue(result["segments"][0]["train_no"].startswith("SBV-"))
+            self.assertEqual(result["segments"][0]["board_dt"], "2026-08-20 00:10:00")
+        finally:
+            engine.now_kst = original_now
 
     def test_route_graph_contains_shinbundang_and_auto_transfer(self):
         edges = [row for row in engine.ROUTE_GRAPH["modes"]["DAY"] if row[0] == "신분당선"]

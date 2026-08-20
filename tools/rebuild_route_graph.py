@@ -46,9 +46,9 @@ def main():
     old = json.loads(path.read_text(encoding="utf-8"))
     meta = dict(old.get("meta", {}))
     meta.update({
-        "version": "V13.5.4",
+        "version": "V14.3.0",
         "weight": "minimum scheduled running time between consecutive callable passenger stops",
-        "normalization": "Passenger-stop structural inference; Shinbundang edges use DX LINE official interstation runtime and no public train numbers",
+        "normalization": "Passenger-stop structural inference; Shinbundang edges use DX LINE official interstation runtime; GTX-A northern/southern segments remain disconnected",
     })
     modes = {}
     for mode in ("DAY", "SAT", "END"):

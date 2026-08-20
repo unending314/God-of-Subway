@@ -10,9 +10,10 @@ from starlette.concurrency import run_in_threadpool
 
 import engine
 import observability
+import realtime_store
 
 BASE = Path(__file__).resolve().parent
-VERSION = "V13.5.4.0-vercel"
+VERSION = "V14.3.0-vercel"
 
 app = FastAPI(
     title="지금타",
@@ -224,6 +225,7 @@ def health():
         },
         "api_key_configured": bool(engine.API_KEY),
         "persistent_error_log_configured": bool(os.environ.get("DATABASE_URL", "").strip()),
+        "realtime_store": realtime_store.config_summary(),
         "timetable_integrity": TIMETABLE_INTEGRITY,
         "route_graph_version": engine.ROUTE_GRAPH.get("meta", {}).get("version"),
     }
@@ -232,6 +234,19 @@ def health():
 @app.get("/api/stations")
 def stations():
     return {"ok": True, "stations": engine.STATIONS_BY_LINE}
+
+
+@app.get("/api/v1/stations")
+def stations_v1():
+    return stations()
+
+
+@app.get("/api/v1/realtime/status")
+def realtime_status_v1():
+    return {
+        "ok": True,
+        "store": realtime_store.status_for_lines(engine.REALTIME_STORE_IDS, now=engine.now_kst()),
+    }
 
 
 @app.post("/api/auto_route")
@@ -247,6 +262,21 @@ async def route(request: Request):
 @app.post("/api/trip_update")
 async def trip_update(request: Request):
     return await _run_engine_endpoint(request, "/api/trip_update", engine.calculate_live_trip)
+
+
+@app.post("/api/v1/auto-route")
+async def auto_route_v1(request: Request):
+    return await _run_engine_endpoint(request, "/api/v1/auto-route", engine.calculate_auto_route)
+
+
+@app.post("/api/v1/route")
+async def route_v1(request: Request):
+    return await _run_engine_endpoint(request, "/api/v1/route", engine.calculate_route)
+
+
+@app.post("/api/v1/trip-update")
+async def trip_update_v1(request: Request):
+    return await _run_engine_endpoint(request, "/api/v1/trip-update", engine.calculate_live_trip)
 
 
 

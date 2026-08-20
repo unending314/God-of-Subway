@@ -1,0 +1,192 @@
+{
+  "source_folders": [
+    "신림선",
+    "우이신설선",
+    "GTX-A 북측",
+    "GTX-A 남측",
+    "김포골드라인",
+    "의정부경전철",
+    "용인경전철",
+    "인천2호선"
+  ],
+  "lines": {
+    "신림선": {
+      "segments": [
+        "신림선"
+      ],
+      "weekday_trains": 384,
+      "holiday_trains": 312,
+      "stations": [
+        "관악산",
+        "당곡",
+        "대방",
+        "보라매",
+        "보라매공원",
+        "보라매병원",
+        "샛강",
+        "서울대벤처타운",
+        "서울지방병무청",
+        "서원",
+        "신림"
+      ],
+      "excluded_deadhead": 4,
+      "excluded_nonservice": 0
+    },
+    "우이신설선": {
+      "segments": [
+        "우이신설선"
+      ],
+      "weekday_trains": 516,
+      "holiday_trains": 424,
+      "stations": [
+        "4.19민주묘지",
+        "가오리",
+        "보문",
+        "북한산보국문",
+        "북한산우이",
+        "삼양",
+        "삼양사거리",
+        "성신여대입구",
+        "솔밭공원",
+        "솔샘",
+        "신설동",
+        "정릉",
+        "화계"
+      ],
+      "excluded_deadhead": 4,
+      "excluded_nonservice": 62
+    },
+    "GTX-A": {
+      "segments": [
+        "GTX-A 북측",
+        "GTX-A 남측"
+      ],
+      "weekday_trains": 404,
+      "holiday_trains": 402,
+      "stations": [
+        "구성",
+        "대곡",
+        "동탄",
+        "서울역",
+        "성남",
+        "수서",
+        "연신내",
+        "운정중앙",
+        "킨텍스"
+      ],
+      "excluded_deadhead": 0,
+      "excluded_nonservice": 61
+    },
+    "김포골드라인": {
+      "segments": [
+        "김포골드라인"
+      ],
+      "weekday_trains": 518,
+      "holiday_trains": 348,
+      "stations": [
+        "걸포북변",
+        "고촌",
+        "구래",
+        "김포공항",
+        "마산",
+        "사우",
+        "양촌",
+        "운양",
+        "장기",
+        "풍무"
+      ],
+      "excluded_deadhead": 4,
+      "excluded_nonservice": 0
+    },
+    "의정부경전철": {
+      "segments": [
+        "의정부경전철"
+      ],
+      "weekday_trains": 440,
+      "holiday_trains": 358,
+      "stations": [
+        "경기도청북부청사",
+        "경전철의정부",
+        "곤제",
+        "동오",
+        "발곡",
+        "범골",
+        "새말",
+        "송산",
+        "어룡",
+        "의정부시청",
+        "의정부중앙",
+        "탑석",
+        "회룡",
+        "효자",
+        "흥선"
+      ],
+      "excluded_deadhead": 0,
+      "excluded_nonservice": 0
+    },
+    "용인경전철": {
+      "segments": [
+        "용인경전철"
+      ],
+      "weekday_trains": 410,
+      "holiday_trains": 332,
+      "stations": [
+        "강남대",
+        "고진",
+        "기흥",
+        "김량장",
+        "동백",
+        "둔전",
+        "명지대",
+        "보평",
+        "삼가",
+        "시청·용인대",
+        "어정",
+        "용인중앙시장",
+        "전대·에버랜드",
+        "지석",
+        "초당"
+      ],
+      "excluded_deadhead": 0,
+      "excluded_nonservice": 0
+    },
+    "인천2호선": {
+      "segments": [
+        "인천2호선"
+      ],
+      "weekday_trains": 457,
+      "holiday_trains": 366,
+      "stations": [
+        "가재울",
+        "가정",
+        "가정중앙시장",
+        "검단사거리",
+        "검단오류",
+        "검바위",
+        "검암",
+        "독정",
+        "마전",
+        "서부여성회관",
+        "석남",
+        "시민공원",
+        "아시아드경기장",
+        "완정",
+        "왕길",
+        "인천가좌",
+        "주안",
+        "주안국가산단"
+      ],
+      "excluded_deadhead": 0,
+      "excluded_nonservice": 0
+    }
+  },
+  "missing_expected_lines": [
+    "인천1호선"
+  ],
+  "warnings": [
+    "인천1호선 timetable is not present in the uploaded ZIP.",
+    "인천2호선 capture is partial: station-level events cover 시민공원~검단오류 only; 운연-side stations are missing.",
+    "인천2호선 서구청 has no operated event in timetable_db.json (all-grid source marks it not_served).",
+    "GTX-A source contains explicit pass-stop services (for example X0812/X0811/X0802/X0801); pass stations are intentionally non-callable, not treated as missing data."
+  ]
+}
