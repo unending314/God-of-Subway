@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.9.7 — 환승방향 정규화 및 빠른환승 매칭 보강
+지금타 V14.9.8 — 2호선 방향 후보 및 실시간 매칭 복구 보강
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.9.7"
+APP_VERSION = "V14.9.8"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -2704,6 +2704,14 @@ def estimated_train_location(tr, ref_dt=None, delay=0):
 
 def _api_direction_to_schedule(line, raw):
     text = str(raw or "").strip().upper()
+    # 2호선 본선은 서울교통공사 시간표가 IN/OUT(내선/외선)으로 분리된다.
+    # realtimePosition의 내선/외선 표기를 먼저 해석하지 않으면 상행/하행 fallback으로
+    # 잘못 떨어져 문맥 매칭 시 반대 방향 열차가 섞일 수 있다.
+    if canon_line(line) == "2호선":
+        if "내선" in text or text in {"IN", "INNER"}:
+            return "IN"
+        if "외선" in text or text in {"OUT", "OUTER"}:
+            return "OUT"
     if text in {"0", "UP", "상행", "상행/내선", "상행선"}:
         return "UP"
     if text in {"1", "DN", "DOWN", "하행", "하행/외선", "하행선"}:
@@ -2711,8 +2719,73 @@ def _api_direction_to_schedule(line, raw):
     return ""
 
 def infer_live_train_by_context(line, mode, position):
-    """폐기된 호환 함수. 신분당선 차량번호를 공개 시간표 열번으로 매칭하지 않는다."""
-    return None
+    """
+    실시간 API 열차번호가 시간표 열번과 직접 매칭되지 않을 때의 보수적 문맥 복구.
+
+    현재는 문제 재현이 확인된 2호선에만 적용한다. 같은 역/같은 방향의 시간표 열차 중
+    관측시각과 가장 가까운 후보를 찾되, 20분을 넘는 후보는 버리고 2위와 최소 45초
+    이상 차이가 나는 경우만 채택한다. API 열번이 239처럼 일부 자릿수만 온 경우에는
+    2239 같은 suffix 일치 후보에 강한 우선권을 준다.
+
+    API가 해당 차량 행 자체를 보내지 않은 경우에는 이 함수도 복구할 수 없다. 그때는
+    기존처럼 공식 시간표 + 최근/동일방향 지연 기반 예상 소재로 강등된다.
+    """
+    line = canon_line(line)
+    if line != "2호선":
+        return None
+
+    current = canon_station(position.get("statnNm"))
+    if not current:
+        return None
+    observed = parse_dt(position.get("recptnDt") or position.get("lastRecptnDt"))
+    raw_status = position.get("trainSttus")
+    api_direction = _api_direction_to_schedule(line, position.get("updnLine"))
+    raw_digits = train_digits(position.get("trainNo") or position.get("btrainNo"))
+
+    scored = []
+    for tr in all_trains(line, mode):
+        if api_direction and tr.get("direction") != api_direction:
+            continue
+        for ci in indices(tr.get("stops", []), current):
+            ref = scheduled_reference_at(tr["stops"], ci, raw_status)
+            if ref is None:
+                continue
+            scheduled_dt = nearest_schedule_dt(ref, observed)
+            delay_seconds = (observed - scheduled_dt).total_seconds()
+            if abs(delay_seconds) > 20 * 60:
+                continue
+            score = abs(delay_seconds)
+            candidate_digits = train_digits(tr.get("train_no"))
+            suffix_match = (
+                raw_digits and raw_digits != "0" and len(raw_digits) >= 2
+                and (candidate_digits.endswith(raw_digits) or raw_digits.endswith(candidate_digits))
+            )
+            # 3자리 이상 suffix가 맞으면 '2' prefix 누락(예: 239 -> 2239)처럼
+            # 형식 차이일 가능성이 높으므로 최대 15분 지연까지 인접 열차보다 우선할 수 있게 한다.
+            if suffix_match:
+                score -= 900 if len(raw_digits) >= 3 else 180
+            scored.append((score, abs(delay_seconds), tr, ci, ref, delay_seconds, suffix_match))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda x: (x[0], x[1], norm_train(x[2].get("train_no"))))
+    best = scored[0]
+    if len(scored) > 1:
+        margin = scored[1][0] - best[0]
+        # 번호 suffix가 맞지 않는 순수 문맥 추론은 충분한 간격이 있을 때만 채택한다.
+        if not best[6] and margin < 45:
+            return None
+    else:
+        margin = 9999
+
+    return {
+        "train": best[2],
+        "current_index": best[3],
+        "ref": best[4],
+        "observed": observed,
+        "delay": best[5],
+        "match_margin_seconds": round(max(0, margin)),
+    }
 
 
 def _is_live_source(kind):
@@ -2732,6 +2805,21 @@ def observe_delays(line, mode, positions, client_cache=None):
         tr = get_train(line, mode, raw_tn)
         inferred = None
         source_kind = "live"
+        cur = canon_station(p.get("statnNm"))
+
+        # 2호선은 순환선이라 API 열번이 잘못/축약 표기되거나 성수 열번 전환 직후
+        # 시간표 열번과 어긋날 수 있다. 명시된 내/외선 방향이 시간표와 반대이거나
+        # 해당 열번 시간표에서 현재역을 찾지 못하면 문맥 매칭을 한 번 시도한다.
+        if tr and line == "2호선":
+            api_direction = _api_direction_to_schedule(line, p.get("updnLine"))
+            exact_ci = first_current_index(tr["stops"], cur)
+            if (api_direction and tr.get("direction") in {"IN", "OUT"} and tr.get("direction") != api_direction) or exact_ci is None:
+                inferred = infer_live_train_by_context(line, mode, p)
+                if inferred:
+                    tr = inferred["train"]
+                    source_kind = "live_context"
+                    context_matched += 1
+
         if not tr:
             inferred = infer_live_train_by_context(line, mode, p)
             if inferred:
@@ -2742,7 +2830,6 @@ def observe_delays(line, mode, positions, client_cache=None):
                 if raw_tn and len(unmatched_train) < 10:
                     unmatched_train.append(str(raw_tn))
                 continue
-        cur = canon_station(p.get("statnNm"))
         ci = inferred["current_index"] if inferred else first_current_index(tr["stops"], cur)
         if ci is None:
             if cur and len(unmatched_station) < 10:
@@ -2753,6 +2840,20 @@ def observe_delays(line, mode, positions, client_cache=None):
             continue
         observed = inferred["observed"] if inferred else parse_dt(p.get("recptnDt") or p.get("lastRecptnDt"))
         delay = inferred["delay"] if inferred else align_clock(observed, ref) - ref
+
+        # 정확 열번으로 들어왔더라도 2호선 순환 시간표에서 30분 이상 어긋나면
+        # 성수 열번 전환/잘못된 열번 표기 가능성이 있으므로 보수적으로 문맥 복구를 재시도한다.
+        if line == "2호선" and source_kind == "live" and abs(delay) > 30 * 60:
+            retry = infer_live_train_by_context(line, mode, p)
+            if retry and norm_train(retry["train"].get("train_no")) != norm_train(tr.get("train_no")):
+                inferred = retry
+                tr = retry["train"]
+                ci = retry["current_index"]
+                ref = retry["ref"]
+                observed = retry["observed"]
+                delay = retry["delay"]
+                source_kind = "live_context"
+                context_matched += 1
         item = {
             "train_no": tr["train_no"],
             "raw_train_no": str(raw_tn or ""),
@@ -3107,7 +3208,7 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
     now = now_kst()
     out = []
     for o in observations:
-        if o.get("source_kind") != "live":
+        if o.get("source_kind") not in {"live", "live_context"}:
             continue
         tr = o["train"]
         stops = tr["stops"]
@@ -3183,15 +3284,18 @@ def direct_live_candidates(line, mode, start, end, ready_dt, observations):
             "projected_delay_seconds": projected_delay_seconds,
             "operational_hold_seconds": operational_hold_seconds,
             "operation_notices": operation_notices,
-            "delay_source": "live_exact",
+            "delay_source": "live_context" if o.get("source_kind") == "live_context" else "live_exact",
             "observed_at": o["observed"].strftime("%Y-%m-%d %H:%M:%S"),
             "data_age_seconds": max(0, round((now - o["observed"]).total_seconds())),
             "current_station": o["current_station"],
             "status": o["status"],
             "location_kind": "live",
             "location_label": f"{o['current_station']} {o['status']}",
-            "confidence": "높음",
-            "method": "실시간 열차 위치 + 열차별 공식 시간표" + (" + 계획 추월 운행 반영" if operation_notices else ""),
+            "confidence": "중간" if o.get("source_kind") == "live_context" else "높음",
+            "method": (
+                "실시간 위치 + 시간표 문맥 매칭" if o.get("source_kind") == "live_context"
+                else "실시간 열차 위치 + 열차별 공식 시간표"
+            ) + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": False,
         })
     out.sort(key=lambda x: (x["alight_dt"], x["board_dt"]))
@@ -3286,13 +3390,15 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
         })
     return out
 
-def previous_schedule_candidate(line, mode, start, end, ready_dt, observations):
+def previous_schedule_candidate(line, mode, start, end, ready_dt, observations, required_direction=None):
     """
     기본 추천보다 바로 앞선 시간표 열차 1대를 반환한다.
     '앞 열차를 탄 것 같아요' 기능용이며 기본 추천 선정에는 참여하지 않는다.
     """
     best = None
     for tr in route_trains(line, mode, start, end):
+        if required_direction and tr.get("direction") != required_direction:
+            continue
         pair = route_pair(tr["stops"], start, end)
         if not pair:
             continue
@@ -3469,13 +3575,26 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
         }
 
     chosen = near[0]
-    previous = previous_schedule_candidate(line, mode, start, end, ready_dt, observations)
+
+    # 2호선 순환 본선은 반대 방향 열차도 한 바퀴 돌아 같은 목적지에 도달할 수 있다.
+    # 따라서 '다른 열차/직전 열차' 후보군은 실제 추천 열차와 같은 내선/외선 방향만
+    # 노출한다. 그렇지 않으면 내선 추천에 외선 직전열차가 붙는 중대 UI 오류가 생긴다.
+    public_pool = near
+    required_previous_direction = None
+    if line == "2호선" and chosen.get("direction"):
+        public_pool = [c for c in near if c.get("direction") == chosen.get("direction")]
+        required_previous_direction = chosen.get("direction")
+
+    previous = previous_schedule_candidate(
+        line, mode, start, end, ready_dt, observations,
+        required_direction=required_previous_direction,
+    )
     public = [
         public_candidate(
             c,
             selected=(str(c.get("train_no")) == str(chosen.get("train_no")))
         )
-        for c in near[:6]
+        for c in public_pool[:6]
     ]
     # 후보 열차군 맨 앞에 추천 열차의 직전 열차 1대를 항상 추가.
     # 기본 추천 선정에는 참여하지 않고, 사용자가 예상보다 빨리 도착했을 때 선택할 수 있게만 한다.

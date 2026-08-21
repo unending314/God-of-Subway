@@ -430,11 +430,11 @@ header{margin-bottom:30px}
 .refreshRoute.available{display:inline-flex}
 
 .boardActions{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
-.previousBoardBtn{
+.otherTrainBtn{
  border:1px solid #d7dde5;background:#fff;color:#586675;border-radius:9px;
  padding:6px 8px;font-size:7px;font-weight:850;cursor:pointer;white-space:nowrap;
 }
-.previousBoardBtn:hover{background:#f5f7f9}
+.otherTrainBtn:hover{background:#f5f7f9}
 
 .leg.sequence-active{
  position:relative;border-color:#75a8ec!important;
@@ -461,7 +461,7 @@ header{margin-bottom:30px}
  .searchQuickTime button{padding:0 7px;min-height:32px;font-size:8px;flex:0 0 auto}
  .searchTimeDisplay{min-width:82px!important;padding:0 6px!important}
  .boardActions{align-items:stretch;width:100%}
- .previousBoardBtn{width:100%;padding:7px 8px}
+ .otherTrainBtn{width:100%;padding:7px 8px}
  .legTop .clock{width:100%}
 }
 
@@ -482,7 +482,7 @@ header{margin-bottom:30px}
 
 
 
-/* V14.9.7 — result UI density/mobile polish; input UI remains ported from God-of-Subway-dev-ts-bun.
+/* V14.9.8 — 2호선 후보 방향/열차 후보 UI 보강; input UI remains ported from God-of-Subway-dev-ts-bun.
    Only the initial search surface is transplanted; route/result UI stays V14.8+. */
 .searchStage{width:min(1120px,calc(100vw - 36px));max-width:none;margin:22px auto 30px;position:relative;left:50%;transform:translateX(-50%);text-align:left}
 .search-card{position:relative;z-index:30;overflow:visible;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}
@@ -527,6 +527,12 @@ header{margin-bottom:30px}
 @media(min-width:621px){.mobile-time-overlay{display:none!important}}
 @media(max-width:620px){.time-picker>input{pointer-events:none!important}.mobile-time-overlay{padding:max(12px,env(safe-area-inset-bottom)) 10px 10px}.mobile-time-sheet{border-radius:22px 22px 16px 16px}}
 
+
+/* V14.9.8 — alternate train candidate time visibility */
+.candidateTime{display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:12px!important;font-weight:950!important;color:#1f5fae!important;letter-spacing:-.15px}
+.candidateClock{display:inline-block;padding:2px 4px;border-radius:6px;background:#edf5ff;color:#174f9c;font-variant-numeric:tabular-nums}
+.candidateArrow{color:#7b91aa;font-size:9px;font-weight:900}
+@media(max-width:520px){.candidateTime{font-size:11px!important;gap:4px}.candidateClock{padding:2px 4px}}
 </style>
 </head>
 <body>
@@ -1416,12 +1422,11 @@ function canBoard(s){
 function boardButton(s,routeIndex){
  if(!canBoard(s))return '';
  const active=liveTrip && liveTrip.phase==='ride' && liveTrip.activeIndex===routeIndex && String(liveTrip.boardedTrainNo)===String(s.train_no);
- const previous=s?.previous_candidate;
- const previousAllowed=previous&&canBoard(previous)&&(!liveTrip||routeIndex>=liveTrip.activeIndex);
- const prevBtn=previousAllowed
-   ?`<button class="previousBoardBtn" data-board="${routeIndex}" data-train="${esc(previous.train_no)}" data-board-dt="${esc(previous.board_dt||'')}">앞 열차를 탄 것 같아요</button>`
+ const otherCandidates=(s?.nearby_candidates||[]).filter(c=>!c?.selected&&String(c?.train_no||'')!==String(s?.train_no||''));
+ const otherBtn=otherCandidates.length&&(!liveTrip||routeIndex>=liveTrip.activeIndex)
+   ?`<button class="otherTrainBtn" data-candidate-toggle="${routeIndex}" type="button">다른 열차를 탄 것 같아요</button>`
    :'';
- return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" data-board-dt="${esc(s.board_dt||'')}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${prevBtn}</div>`;
+ return `<div class="boardActions"><button class="boardBtn ${active?'active':''}" data-board="${routeIndex}" data-train="${esc(s.train_no)}" data-board-dt="${esc(s.board_dt||'')}" ${active?'disabled':''}>${active?'탑승 중':'이 열차를 탔어요'}</button>${otherBtn}</div>`;
 }
 function trainServiceText(s){if(s?.line==='신분당선')return '무인운전 차량';return s?.service==='express'?'급행열차':'일반열차'}
 function cleanStatusText(value){
@@ -1465,7 +1470,7 @@ function trainRunText(s){
  return `${origin} → ${destination}`;
 }
 function candidateRows(s,routeIndex){
- const list=s.nearby_candidates||[];
+ const list=(s.nearby_candidates||[]).filter(c=>!c?.selected&&String(c?.train_no||'')!==String(s?.train_no||''));
  if(!list.length)return '';
  const rows=list.map(c=>{
   const source=c?.realtime_supported===false
@@ -1490,7 +1495,7 @@ function candidateRows(s,routeIndex){
     ${trainLocationHtml(c)}
     ${operationNoticesHtml(c)}
    </div>
-   <div class="candidateTime">${fmtClock(c.board_dt)} → ${fmtClock(c.alight_dt)}</div>
+   <div class="candidateTime"><span class="candidateClock">${fmtClock(c.board_dt)}</span><span class="candidateArrow">→</span><span class="candidateClock">${fmtClock(c.alight_dt)}</span></div>
    <div class="candidateAction">${btn}</div>
   </div>`;
  }).join('');
@@ -1504,7 +1509,7 @@ function candidateRows(s,routeIndex){
         : '공식 시간표상 운행 예정이지만 실시간 위치에는 아직 잡히지 않은 열차입니다. 실제 탑승한 열차를 알고 있다면 ‘이 열차를 탔어요’를 눌러 추적할 수 있습니다.')
     : '');
  return `<details class="candidateBox">
-  <summary><span>근처 열차 후보 ${list.length}개</span><span>${scheduleOnly?'시간표 기반':(hasUnseen?'미포착 열차 포함':'')}</span></summary>
+  <summary><span>다른 열차 후보 ${list.length}개</span><span>${scheduleOnly?'시간표 기반':''}</span></summary>
   ${hint?`<div class="startHint">${hint}</div>`:''}
   <div class="candidateList">${rows}</div>
  </details>`;
@@ -1552,6 +1557,14 @@ function bindBoardButtons(){
  document.querySelectorAll('[data-board]').forEach(btn=>btn.onclick=()=>{
   const idx=Number(btn.dataset.board),train=btn.dataset.train,boardDt=btn.dataset.boardDt||'';
   startTracking(idx,train,boardDt);
+ });
+ document.querySelectorAll('[data-candidate-toggle]').forEach(btn=>btn.onclick=()=>{
+  const leg=btn.closest('.leg');
+  const details=leg?.querySelector('.candidateBox');
+  if(!details)return;
+  details.open=true;
+  const summary=details.querySelector('summary');
+  if(summary){summary.setAttribute('tabindex','-1');summary.focus({preventScroll:true});}
  });
 }
 function journeyLegState(index){

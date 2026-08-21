@@ -664,3 +664,49 @@ class TransferDirectionNormalizationV1495Test(unittest.TestCase):
         for station, from_seg, to_seg, expected in cases:
             detail = engine.best_transfer_detail(station, from_seg, to_seg, "DAY")
             self.assertEqual(detail["alight_position"], expected, detail)
+
+
+class Line2DirectionAndRealtimeRegressionTest(unittest.TestCase):
+    def test_line2_previous_candidate_stays_on_selected_direction(self):
+        ready = datetime(2026, 8, 21, 8, 0, 0)
+        cache = {"2호선": {"rows": [], "error": "test schedule only", "available": False}}
+        result = engine.calculate_segment("2호선", "DAY", "합정", "신도림", ready, cache)
+        self.assertTrue(result.get("ok"), result)
+        chosen = result["chosen"]
+        previous = result.get("previous_candidate")
+        self.assertIsNotNone(previous, result)
+        self.assertEqual(chosen.get("direction"), "IN")
+        self.assertEqual(previous.get("direction"), chosen.get("direction"), result)
+        self.assertTrue(
+            all(c.get("direction") == chosen.get("direction") for c in result.get("public_candidates", [])),
+            result.get("public_candidates"),
+        )
+
+    def test_line2_context_recovery_handles_truncated_live_train_number(self):
+        tr = engine.get_train("2호선", "DAY", "2239")
+        self.assertIsNotNone(tr)
+        stop = next(x for x in tr["stops"] if x["station"] == "홍대입구")
+        observed = datetime(2026, 8, 21) + __import__("datetime").timedelta(seconds=stop["arr"] + 60)
+        row = {
+            "trainNo": "239",  # timetable 2239와 직접 매칭되지 않는 축약형을 가정
+            "statnNm": "홍대입구",
+            "trainSttus": "1",
+            "recptnDt": observed.strftime("%Y-%m-%d %H:%M:%S"),
+            "updnLine": "내선",
+            "subwayId": engine.LINE_IDS["2호선"],
+        }
+        self.assertIsNone(engine.get_train("2호선", "DAY", "239"))
+        observations, diag = engine.observe_delays("2호선", "DAY", [row], [])
+        self.assertEqual(diag.get("matched_context"), 1, diag)
+        self.assertEqual(len(observations), 1, observations)
+        self.assertEqual(observations[0].get("train_no"), "2239")
+        self.assertEqual(observations[0].get("direction"), "IN")
+        self.assertEqual(observations[0].get("source_kind"), "live_context")
+        direct = engine.direct_live_candidates(
+            "2호선", "DAY", "홍대입구", "신도림", observed, observations
+        )
+        self.assertTrue(any(x.get("train_no") == "2239" for x in direct), direct)
+        recovered = next(x for x in direct if x.get("train_no") == "2239")
+        self.assertEqual(recovered.get("location_kind"), "live")
+        self.assertEqual(recovered.get("delay_source"), "live_context")
+        self.assertEqual(recovered.get("confidence"), "중간")
