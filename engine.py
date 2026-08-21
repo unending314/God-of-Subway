@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.9.6 — 환승방향 정규화 및 빠른환승 매칭 보강
+지금타 V14.9.7 — 환승방향 정규화 및 빠른환승 매칭 보강
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.9.6"
+APP_VERSION = "V14.9.7"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
