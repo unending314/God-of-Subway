@@ -1,3 +1,14 @@
+# V14.10.0 — 2026-08-21
+
+- 중앙 realtime collector 기본 주기를 5초로 전환하고 최대 24개 병렬 수집을 지원.
+- 5초 polling은 유지하되 서울시 원천 snapshot이 동일하면 health만 갱신하고 snapshot/train-state/delay Redis write는 생략.
+- Redis에 raw API train state를 추가하여 successful snapshot에서 사라진 열차를 즉시 삭제하지 않고 `missing_recent`으로 보존.
+- 2호선 본선 API 열번 3xxx~8xxx를 2xxx로 정규화하고 raw trainNo는 별도 보존.
+- 2호선 9xxx 임시/특발, 99xx 시운전 후보를 정규 시간표와 분리.
+- 2호선 대규모 조발을 허용해 30분 이상 시간표 차이만으로 context 재매칭하지 않도록 수정.
+- 2호선도 Redis exact-delay fallback 대상에 포함하고 큰 조발 지연값을 보존.
+- realtime status에 cache/source age 및 live/missing/special train-state 통계를 추가.
+
 # V14.9.8 — 2026-08-21
 
 - 2호선 순환선에서 추천 방향과 반대 방향의 `직전` 열차가 표시되던 오류 수정

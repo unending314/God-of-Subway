@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.9.8 — 2호선 방향 후보 및 실시간 매칭 복구 보강
+지금타 V14.10.0 — 중앙 실시간 수집/Redis 캐시 서버 베타
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.9.8"
+APP_VERSION = "V14.10.0"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -113,11 +113,16 @@ REALTIME_QUERY_ALIASES = {
 # 다음 조회에서 열차 미포착만으로 0분으로 리셋되는 것을 막는다.
 # 브라우저가 최근 exact-train 관측을 전달하면 최대 35분까지만 보조 신호로 사용한다.
 STALE_DELAY_CACHE_LINES = {
-    "1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선",
+    "1호선", "2호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선",
     *REALTIME_ADDITIONAL_LINES,
 }
 STALE_DELAY_HOLD_SECONDS = 20 * 60
 STALE_DELAY_MAX_SECONDS = 35 * 60
+
+def stale_delay_abs_limit(line):
+    # 2호선은 당일 운용상 1~2시간 조발도 발생할 수 있어 큰 음수 지연을
+    # API 오류로 단정하지 않는다. 다른 노선은 기존 45분 방어선을 유지한다.
+    return 3 * 3600 if canon_line(line) == "2호선" else 2700
 
 def _client_delay_rows(payload):
     rows = payload.get("train_delay_cache") if isinstance(payload, dict) else None
@@ -231,6 +236,54 @@ def norm_train(v):
 
 def train_digits(v):
     return re.sub(r"\D", "", norm_train(v)).lstrip("0") or "0"
+
+
+def realtime_train_identity(line, raw_train_no):
+    """서울시 API 열번과 서비스 시간표 열번의 관계를 정규화한다.
+
+    2호선 본선은 API가 3xxx~8xxx처럼 천의 자리를 바꿔 보내더라도
+    실제 시간표 열번은 뒤 세 자리를 유지한 2xxx로 대응한다.
+    1xxx는 지선 계통이므로 그대로 두고, 9xxx는 임시/특발(99xx는 시운전
+    가능성이 높은 특수열차)로 분리하여 정규 시간표에 억지로 붙이지 않는다.
+
+    원본 API 열번은 항상 api_train_no에 보존한다.
+    """
+    line = canon_line(line)
+    raw = norm_train(raw_train_no)
+    digits = train_digits(raw_train_no)
+    result = {
+        "api_train_no": raw,
+        "service_train_no": raw,
+        "run_type": "scheduled",
+        "normalized": False,
+    }
+    if line != "2호선" or not digits.isdigit() or len(digits) != 4:
+        return result
+
+    value = int(digits)
+    if 1000 <= value <= 1999:
+        result["run_type"] = "branch"
+        return result
+    if 2000 <= value <= 8999:
+        service = "2" + digits[1:]
+        result.update({
+            "service_train_no": service,
+            "run_type": "scheduled_mainline",
+            "normalized": service != digits,
+        })
+        return result
+    if 9900 <= value <= 9999:
+        result.update({"service_train_no": "", "run_type": "test", "normalized": False})
+        return result
+    if 9000 <= value <= 9899:
+        result.update({"service_train_no": "", "run_type": "special", "normalized": False})
+        return result
+    return result
+
+
+def normalize_realtime_train_no(line, raw_train_no):
+    identity = realtime_train_identity(line, raw_train_no)
+    return identity.get("service_train_no") or norm_train(raw_train_no)
 
 
 def _derive_s1_passenger_stations():
@@ -2794,22 +2847,48 @@ def _is_live_source(kind):
 # ---------- Delay observations ----------
 def observe_delays(line, mode, positions, client_cache=None):
     now = now_kst()
+    line = canon_line(line)
     obs = []
     unmatched_train = []
     unmatched_station = []
+    special_trains = []
+    test_trains = []
     live_by_train = {}
 
     context_matched = 0
+    normalized_matched = 0
     for p in positions:
         raw_tn = p.get("trainNo") or p.get("btrainNo")
-        tr = get_train(line, mode, raw_tn)
+        identity = realtime_train_identity(line, raw_tn)
+        service_tn = identity.get("service_train_no") or ""
+        run_type = identity.get("run_type") or "scheduled"
+
+        # 2호선 9xxx는 임시/특발, 99xx는 시운전 가능 특수열차다.
+        # 시간표 정규열차에 문맥으로 억지 매칭하지 않고 raw 관측만 진단에 남긴다.
+        if line == "2호선" and run_type in {"special", "test"}:
+            target = test_trains if run_type == "test" else special_trains
+            if len(target) < 20:
+                target.append({
+                    "api_train_no": str(raw_tn or ""),
+                    "station": canon_station(p.get("statnNm")),
+                    "status": status_name(p.get("trainSttus")),
+                    "direction": _api_direction_to_schedule(line, p.get("updnLine")),
+                })
+            continue
+
+        lookup_tn = service_tn or raw_tn
+        tr = get_train(line, mode, lookup_tn)
         inferred = None
         source_kind = "live"
         cur = canon_station(p.get("statnNm"))
+        match_kind = "train_number"
+        if identity.get("normalized") and tr:
+            match_kind = "line2_train_number_normalized"
+            normalized_matched += 1
 
-        # 2호선은 순환선이라 API 열번이 잘못/축약 표기되거나 성수 열번 전환 직후
-        # 시간표 열번과 어긋날 수 있다. 명시된 내/외선 방향이 시간표와 반대이거나
-        # 해당 열번 시간표에서 현재역을 찾지 못하면 문맥 매칭을 한 번 시도한다.
+        # 2호선은 명시된 내/외선 방향이 시간표와 반대이거나 해당 열번 시간표에서
+        # 현재역 자체를 찾지 못하는 경우에만 문맥 매칭을 보조적으로 사용한다.
+        # '시간표보다 너무 빠르다/느리다'는 이유만으로 다른 열차에 재배정하지 않는다.
         if tr and line == "2호선":
             api_direction = _api_direction_to_schedule(line, p.get("updnLine"))
             exact_ci = first_current_index(tr["stops"], cur)
@@ -2818,6 +2897,7 @@ def observe_delays(line, mode, positions, client_cache=None):
                 if inferred:
                     tr = inferred["train"]
                     source_kind = "live_context"
+                    match_kind = "schedule_context"
                     context_matched += 1
 
         if not tr:
@@ -2825,6 +2905,7 @@ def observe_delays(line, mode, positions, client_cache=None):
             if inferred:
                 tr = inferred["train"]
                 source_kind = "live_context"
+                match_kind = "schedule_context"
                 context_matched += 1
             else:
                 if raw_tn and len(unmatched_train) < 10:
@@ -2841,22 +2922,11 @@ def observe_delays(line, mode, positions, client_cache=None):
         observed = inferred["observed"] if inferred else parse_dt(p.get("recptnDt") or p.get("lastRecptnDt"))
         delay = inferred["delay"] if inferred else align_clock(observed, ref) - ref
 
-        # 정확 열번으로 들어왔더라도 2호선 순환 시간표에서 30분 이상 어긋나면
-        # 성수 열번 전환/잘못된 열번 표기 가능성이 있으므로 보수적으로 문맥 복구를 재시도한다.
-        if line == "2호선" and source_kind == "live" and abs(delay) > 30 * 60:
-            retry = infer_live_train_by_context(line, mode, p)
-            if retry and norm_train(retry["train"].get("train_no")) != norm_train(tr.get("train_no")):
-                inferred = retry
-                tr = retry["train"]
-                ci = retry["current_index"]
-                ref = retry["ref"]
-                observed = retry["observed"]
-                delay = retry["delay"]
-                source_kind = "live_context"
-                context_matched += 1
         item = {
             "train_no": tr["train_no"],
             "raw_train_no": str(raw_tn or ""),
+            "api_train_no": str(raw_tn or ""),
+            "run_type": run_type,
             "direction": tr["direction"],
             "service": tr["service"],
             "delay": delay,
@@ -2867,7 +2937,7 @@ def observe_delays(line, mode, positions, client_cache=None):
             "train": tr,
             "raw": p,
             "source_kind": source_kind,
-            "match_kind": "train_number" if source_kind == "live" else "schedule_context",
+            "match_kind": match_kind if source_kind == "live" else "schedule_context",
             "match_margin_seconds": inferred.get("match_margin_seconds") if inferred else None,
             "cache_age_seconds": 0,
         }
@@ -2896,7 +2966,7 @@ def observe_delays(line, mode, positions, client_cache=None):
             age = (now - observed).total_seconds()
             if age < -120 or age > STALE_DELAY_MAX_SECONDS:
                 continue
-            if abs(raw_delay) > 2700:
+            if abs(raw_delay) > stale_delay_abs_limit(line):
                 continue
             key = norm_train(tr["train_no"])
             current = live_by_train.get(key)
@@ -2932,7 +3002,10 @@ def observe_delays(line, mode, positions, client_cache=None):
         "positions": len(positions),
         "matched": sum(1 for o in live_by_train.values() if o.get("source_kind") == "live"),
         "matched_context": sum(1 for o in live_by_train.values() if o.get("source_kind") == "live_context"),
+        "matched_line2_normalized": normalized_matched,
         "cached_exact": cache_used,
+        "special_trains": special_trains,
+        "test_trains": test_trains,
         "unmatched_train": unmatched_train,
         "unmatched_station": unmatched_station,
     }
