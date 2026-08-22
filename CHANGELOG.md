@@ -1,13 +1,21 @@
+# V14.11.8 — PWA 설치 경로 독립화/강화
+
+- 설치 버튼을 초기 HTML에서 항상 노출하고, standalone 상태에서만 숨기도록 변경.
+- PWA 설치 로직을 메인 inline JS에서 `/pwa.js`로 분리하여 앱 코드 오류와 독립적으로 실행.
+- iOS/iPadOS는 첫 방문 시 홈 화면 추가 안내 시트를 자동 표시. Chromium은 `beforeinstallprompt`가 있으면 native prompt, 없으면 설치 메뉴 안내를 제공.
+- Service Worker 설치는 `/`만 필수로 하고 manifest/아이콘 등 선택 자산 실패가 SW 전체 설치를 중단하지 않도록 변경.
+- manifest에 별도 maskable 아이콘과 `display_override`/categories를 추가.
+
 # 지금타 변경 기록
 
-## V14.11.7 — PWA 설치 감지/안내 강화
+## V14.11.8 — PWA 설치 감지/안내 강화
 
 - `beforeinstallprompt` 이벤트가 오지 않아도 설치 버튼을 숨기지 않고 플랫폼별 설치 안내를 제공.
 - Chromium에서는 실제 설치 프롬프트가 확보되면 즉시 `앱 설치` 모드로 전환.
 - iOS/iPadOS는 `공유 → 홈 화면에 추가`, Android/기타 브라우저는 메뉴 기반 설치 안내 fallback 제공.
 - standalone/fullscreen/minimal-ui 및 iOS `navigator.standalone`을 감지해 이미 설치된 앱에서는 설치 버튼을 숨김.
 - Service Worker를 `load` 대기 없이 즉시 등록하고 `ready`/updatefound/visibility/online 상태에서 업데이트 확인.
-- Service Worker 정적 캐시 키를 `jigeumta-static-v14-11-7`로 갱신. `/api/*` 비캐시 정책은 유지.
+- Service Worker 정적 캐시 키를 `jigeumta-static-v14-11-8`로 갱신. `/api/*` 비캐시 정책은 유지.
 
 
 ## V14.11.6 — 경의중앙선 서울역·가좌 분기 환승 보정

@@ -11,6 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script defer src="/pwa.js"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-HHYSX8GQ95"></script>
 <script>
@@ -46,6 +47,14 @@ header{display:flex;align-items:center;justify-content:space-between;gap:16px;ma
 .headerActions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
 .pwaAction{border:1px solid #d5dee7;background:#fff;color:#33485d;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}
 .pwaAction:hover{background:#f4f7fa}.pwaAction.update{border-color:#9ebae8;background:#edf4ff;color:#174f9c}
+.pwaAction.ready{border-color:#8fb2e8;background:#edf4ff;color:#174f9c}
+.pwaInstallSheet[hidden]{display:none!important}
+.pwaInstallSheet{position:fixed;inset:0;z-index:10000;display:flex;align-items:flex-end;justify-content:center;padding:18px;background:rgba(15,23,34,.42);backdrop-filter:blur(2px)}
+.pwaInstallPanel{width:min(480px,100%);background:#fff;color:#11161d;border-radius:22px;padding:20px;box-shadow:0 24px 70px rgba(12,25,40,.28);text-align:left}
+.pwaInstallPanel h3{margin:0 0 7px;font-size:18px;letter-spacing:-.4px}.pwaInstallPanel p{margin:0;color:#66727e;font-size:12px;line-height:1.65}
+.pwaInstallSteps{margin:14px 0 0;padding:12px 14px;border-radius:14px;background:#f5f7fa;font-size:12px;line-height:1.75;font-weight:750;color:#33485d}
+.pwaInstallActions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.pwaInstallActions button{border:1px solid #d5dee7;background:#fff;border-radius:12px;padding:10px 13px;font-size:11px;font-weight:900;cursor:pointer}.pwaInstallActions .primary{width:auto;margin:0;background:#0f1722;color:#fff;border-color:#0f1722}
+@media(max-width:520px){.pwaInstallSheet{padding:0;align-items:flex-end}.pwaInstallPanel{border-radius:22px 22px 0 0;padding:20px 18px max(20px,env(safe-area-inset-bottom))}.pwaAction{font-size:10px;padding:7px 10px}}
 .status{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;background:#9ca6b1}.status.ok .dot{background:#18a674}.status.ok{color:var(--green)}
 
@@ -546,7 +555,7 @@ header{margin-bottom:30px}
 <div class="wrap">
 <header>
  <div class="brand"><div class="logo"><img src="/jigeumta_logo_140.png" alt="지금타 로고"></div><div><h1>지금타</h1><p>실시간 운행정보 기반 지하철 길찾기</p></div></div>
- <div class="headerActions"><button id="pwaInstall" class="pwaAction" type="button" hidden>앱 설치</button><button id="pwaUpdate" class="pwaAction update" type="button" hidden>새 버전 적용</button><div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div></div>
+ <div class="headerActions"><button id="pwaInstall" class="pwaAction" type="button">앱 설치</button><button id="pwaUpdate" class="pwaAction update" type="button" hidden>새 버전 적용</button><div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div></div>
 </header>
 
 <section class="searchStage" aria-label="경로 입력">
@@ -2246,163 +2255,7 @@ renderExperimentPanel();
 init().then?.(()=>restoreTrip());
 setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
 
-// PWA 설치/업데이트. beforeinstallprompt는 Chromium 중심의 비표준 이벤트라
-// 이벤트가 오지 않아도 설치 안내 UI를 유지한다. /api/*는 sw.js에서 캐시하지 않는다.
-let pwaInstallPrompt=null;
-let pwaRegistration=null;
-let pwaWorkerReady=false;
-const pwaInstallBtn=$('pwaInstall');
-const pwaUpdateBtn=$('pwaUpdate');
-const pwaDisplayModeQuery=window.matchMedia('(display-mode: standalone)');
-const pwaUa=navigator.userAgent||'';
-const pwaIos=/iPhone|iPad|iPod/i.test(pwaUa)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-const pwaAndroid=/Android/i.test(pwaUa);
-const pwaMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(pwaUa)||navigator.maxTouchPoints>1;
-const pwaFirefox=/Firefox/i.test(pwaUa);
-const pwaSafari=/Safari/i.test(pwaUa)&&!/Chrome|Chromium|CriOS|Edg|OPR|SamsungBrowser/i.test(pwaUa);
-
-function isPwaStandalone(){
- return navigator.standalone===true
-  ||pwaDisplayModeQuery.matches
-  ||window.matchMedia('(display-mode: fullscreen)').matches
-  ||window.matchMedia('(display-mode: minimal-ui)').matches
-  ||document.referrer.startsWith('android-app://');
-}
-function refreshPwaInstallUi(){
- if(!pwaInstallBtn)return;
- if(isPwaStandalone()){
-  pwaInstallBtn.hidden=true;
-  pwaInstallBtn.disabled=false;
-  pwaInstallBtn.textContent='앱 설치';
-  pwaInstallBtn.title='';
-  return;
- }
- // prompt 이벤트를 못 받은 브라우저에서도 설치 방법을 찾을 수 있게 항상 노출한다.
- pwaInstallBtn.hidden=false;
- pwaInstallBtn.disabled=false;
- if(pwaInstallPrompt){
-  pwaInstallBtn.textContent='앱 설치';
-  pwaInstallBtn.title='지금타를 앱으로 설치';
- }else if(pwaIos){
-  pwaInstallBtn.textContent='홈 화면에 추가';
-  pwaInstallBtn.title='공유 메뉴에서 홈 화면에 추가';
- }else{
-  pwaInstallBtn.textContent='앱 설치 안내';
-  pwaInstallBtn.title='브라우저의 앱 설치 메뉴 안내';
- }
-}
-function showPwaInstallFallback(){
- if(pwaIos){
-  toast('공유 버튼 → 홈 화면에 추가를 선택하세요.');
-  return;
- }
- if(pwaAndroid){
-  toast('브라우저 메뉴(⋮) → 앱 설치 또는 홈 화면에 추가를 선택하세요.');
-  return;
- }
- if(pwaMobile){
-  toast('브라우저 공유/메뉴에서 홈 화면에 추가 또는 앱 설치를 선택하세요.');
-  return;
- }
- if(pwaFirefox){
-  toast('데스크톱 Firefox는 PWA 설치를 지원하지 않습니다. Chrome/Edge 또는 macOS Safari에서 열어주세요.');
-  return;
- }
- if(pwaSafari){
-  toast('Safari 메뉴 막대의 파일 → Dock에 추가를 선택하세요.');
-  return;
- }
- toast('주소창의 설치 아이콘 또는 브라우저 메뉴 → 앱 설치를 선택하세요.');
-}
-function showPwaUpdate(reg){
- pwaRegistration=reg||pwaRegistration;
- if(pwaRegistration?.waiting)pwaUpdateBtn.hidden=false;
-}
-
-window.addEventListener('beforeinstallprompt',e=>{
- e.preventDefault();
- pwaInstallPrompt=e;
- refreshPwaInstallUi();
-});
-window.addEventListener('appinstalled',()=>{
- pwaInstallPrompt=null;
- refreshPwaInstallUi();
- toast('지금타가 홈 화면에 설치되었습니다.');
-});
-window.addEventListener('pageshow',refreshPwaInstallUi);
-try{pwaDisplayModeQuery.addEventListener('change',refreshPwaInstallUi)}catch(e){try{pwaDisplayModeQuery.addListener(refreshPwaInstallUi)}catch(_) {}}
-
-pwaInstallBtn.onclick=async()=>{
- if(isPwaStandalone()){
-  refreshPwaInstallUi();
-  return;
- }
- const promptEvent=pwaInstallPrompt;
- if(!promptEvent){
-  showPwaInstallFallback();
-  return;
- }
- pwaInstallPrompt=null; // 같은 BeforeInstallPromptEvent는 한 번만 사용할 수 있다.
- pwaInstallBtn.disabled=true;
- pwaInstallBtn.textContent='설치 확인 중';
- let accepted=false;
- try{
-  await promptEvent.prompt();
-  let choice=null;
-  try{choice=await promptEvent.userChoice}catch(e){}
-  if(choice?.outcome==='accepted'){
-   accepted=true;
-   toast('설치를 진행합니다.');
-  }else if(choice?.outcome==='dismissed'){
-   toast('설치를 취소했습니다. 브라우저 메뉴에서도 다시 설치할 수 있습니다.');
-  }
- }catch(err){
-  reportClientLog('pwa_install_prompt_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'});
-  showPwaInstallFallback();
- }finally{
-  pwaInstallBtn.disabled=false;
-  if(accepted)pwaInstallBtn.hidden=true;
-  else refreshPwaInstallUi();
- }
-};
-pwaUpdateBtn.onclick=()=>{
- if(!pwaRegistration?.waiting)return;
- pwaUpdateBtn.disabled=true;pwaUpdateBtn.textContent='업데이트 중';
- navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload(),{once:true});
- pwaRegistration.waiting.postMessage({type:'SKIP_WAITING'});
-};
-
-async function registerPwaWorker(){
- if(!('serviceWorker' in navigator)){
-  reportClientLog('pwa_service_worker_unsupported','serviceWorker unsupported',{}, {level:'info',error_type:'PWAInfo'});
-  refreshPwaInstallUi();
-  return;
- }
- try{
-  // load 이벤트까지 기다리지 않고 즉시 등록해 첫 방문에서도 installability 판정을 앞당긴다.
-  const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/'});
-  pwaRegistration=reg;
-  if(reg.waiting)showPwaUpdate(reg);
-  reg.addEventListener('updatefound',()=>{
-   const worker=reg.installing;if(!worker)return;
-   worker.addEventListener('statechange',()=>{
-    if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(reg);
-   });
-  });
-  try{await navigator.serviceWorker.ready;pwaWorkerReady=true}catch(e){}
-  refreshPwaInstallUi();
-  // 탭을 다시 열거나 온라인으로 복귀할 때 새 SW를 즉시 확인한다.
-  const checkUpdate=()=>reg.update().catch(()=>{});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
-  window.addEventListener('online',checkUpdate);
-  setInterval(checkUpdate,15*60*1000);
- }catch(err){
-  reportClientLog('pwa_service_worker_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'});
-  refreshPwaInstallUi();
- }
-}
-refreshPwaInstallUi();
-registerPwaWorker();
+// PWA 설치/업데이트는 /pwa.js에서 독립 실행한다.
 
 // GA4 KPI 계측.
 // 기존 코드를 수정하지 않고 스크립트 끝에서 래핑만 한다. 서비스 로직과 동시 작업시 충돌을 피하기 위함.
