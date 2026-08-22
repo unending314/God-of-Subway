@@ -186,6 +186,52 @@ def site_logo():
     return FileResponse(BASE / "jigeumta_logo_140.png", media_type="image/png")
 
 
+def _pwa_file(path: str, media_type: str, *, cache_control: str = "no-cache", extra_headers: dict | None = None):
+    headers = {"Cache-Control": cache_control}
+    if extra_headers:
+        headers.update(extra_headers)
+    return FileResponse(BASE / path, media_type=media_type, headers=headers)
+
+
+@app.get("/manifest.webmanifest")
+def pwa_manifest():
+    return _pwa_file("manifest.webmanifest", "application/manifest+json")
+
+
+@app.get("/sw.js")
+def pwa_service_worker():
+    return _pwa_file(
+        "sw.js",
+        "text/javascript; charset=utf-8",
+        extra_headers={"Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/pwa.js")
+def pwa_bootstrap():
+    return _pwa_file("pwa.js", "text/javascript; charset=utf-8")
+
+
+@app.get("/icons/pwa-192.png")
+def pwa_icon_192():
+    return _pwa_file("icons/pwa-192.png", "image/png", cache_control="public, max-age=86400")
+
+
+@app.get("/icons/pwa-512.png")
+def pwa_icon_512():
+    return _pwa_file("icons/pwa-512.png", "image/png", cache_control="public, max-age=86400")
+
+
+@app.get("/icons/pwa-maskable-512.png")
+def pwa_icon_maskable_512():
+    return _pwa_file("icons/pwa-maskable-512.png", "image/png", cache_control="public, max-age=86400")
+
+
+@app.get("/icons/apple-touch-icon.png")
+def pwa_apple_touch_icon():
+    return _pwa_file("icons/apple-touch-icon.png", "image/png", cache_control="public, max-age=86400")
+
+
 @app.get("/api/health")
 def health():
     today_now = engine.now_kst()

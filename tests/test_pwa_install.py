@@ -37,3 +37,28 @@ def test_manifest_has_separate_maskable_icon():
     assert 'any' in purposes
     assert 'maskable' in purposes
     assert (ROOT / 'icons' / 'pwa-maskable-512.png').exists()
+
+
+def test_server_explicitly_serves_pwa_assets():
+    server = (ROOT / 'server.py').read_text(encoding='utf-8')
+    expected_routes = [
+        '/manifest.webmanifest',
+        '/sw.js',
+        '/pwa.js',
+        '/icons/pwa-192.png',
+        '/icons/pwa-512.png',
+        '/icons/pwa-maskable-512.png',
+        '/icons/apple-touch-icon.png',
+    ]
+    for route in expected_routes:
+        assert f'@app.get("{route}")' in server
+    assert 'Service-Worker-Allowed' in server
+    assert 'application/manifest+json' in server
+
+
+def test_pwa_assets_referenced_by_manifest_exist():
+    manifest = json.loads((ROOT / 'manifest.webmanifest').read_text(encoding='utf-8'))
+    for icon in manifest['icons']:
+        assert (ROOT / icon['src'].lstrip('/')).exists()
+    assert (ROOT / 'sw.js').exists()
+    assert (ROOT / 'pwa.js').exists()

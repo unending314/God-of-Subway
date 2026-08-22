@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jigeumta-static-v14-11-8';
+const CACHE_NAME = 'jigeumta-static-v14-11-9';
 const CACHE_PREFIX = 'jigeumta-static-';
 const REQUIRED_SHELL = ['/'];
 const OPTIONAL_SHELL = [

@@ -1,3 +1,12 @@
+# 지금타 변경 기록
+
+## V14.11.9 — PWA 정적 파일 FastAPI 직접 서빙
+
+- Vercel 배포에서 `/manifest.webmanifest`, `/sw.js`, `/pwa.js`, `/icons/*`가 FastAPI로 전달되면서 `{"detail":"Not Found"}`가 반환되던 문제 수정.
+- `server.py`가 PWA manifest, service worker, bootstrap script, 192/512/maskable/Apple 아이콘을 명시적으로 `FileResponse`로 서빙하도록 변경.
+- `/sw.js`에 `Service-Worker-Allowed: /` 및 PWA 스크립트/manifest에 `Cache-Control: no-cache` 적용.
+- 아이콘은 1일 캐시를 허용하고 `/api/*` 실시간 응답 캐시 제외 정책은 유지.
+
 # V14.11.8 — PWA 설치 경로 독립화/강화
 
 - 설치 버튼을 초기 HTML에서 항상 노출하고, standalone 상태에서만 숨기도록 변경.
