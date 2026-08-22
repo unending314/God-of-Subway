@@ -834,3 +834,182 @@ class KorailOriginHoldRegressionTest(unittest.TestCase):
         self.assertEqual(round(matched[0].get("delay", 9999)), 0)
         self.assertEqual(matched[0].get("current_station"), "파주")
         self.assertEqual(diag.get("origin_hold_ignored"), 0)
+
+
+class PreviousCandidateLiveDetectionRegressionTest(unittest.TestCase):
+    def setUp(self):
+        self.original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 18, 5, 49, 0)
+
+    def tearDown(self):
+        engine.now_kst = self.original_now
+
+    def test_previous_train_keeps_exact_live_observation(self):
+        # K2202는 평일 서울역 05:43 출발, 신촌역(경의선) 05:48:30 도착.
+        # 05:50 기준으로는 '직전' 후보지만 realtimePosition에 실제로 잡혀 있다.
+        row = {
+            "subwayNm": "경의중앙선",
+            "statnNm": "신촌",
+            "trainNo": "K2202",
+            "recptnDt": "2026-08-18 05:48:30",
+            "trainSttus": "1",
+            "updnLine": "0",
+            "statnTnm": "문산",
+        }
+        cache = {"경의중앙선": {"rows": [row], "error": "", "available": True}}
+        result = engine.calculate_segment(
+            "경의중앙선", "DAY", "서울역", "문산",
+            datetime(2026, 8, 18, 5, 50, 0), cache,
+        )
+        self.assertTrue(result.get("ok"), result)
+        previous = result.get("previous_candidate")
+        self.assertIsNotNone(previous, result)
+        self.assertEqual(previous.get("train_no"), "K2202", previous)
+        self.assertTrue(previous.get("live_detected"), previous)
+        self.assertFalse(previous.get("projected"), previous)
+        self.assertEqual(previous.get("location_kind"), "live", previous)
+        self.assertEqual(previous.get("current_station"), "신촌역(경의선)", previous)
+        self.assertIn("실시간", previous.get("method", ""))
+
+
+class GyeonguiSeoulBranchTimetableRegressionTest(unittest.TestCase):
+    def test_seoul_branch_timetable_is_merged_without_station_collision(self):
+        weekday = engine.EXTRA["경의중앙선"]["trains"]["weekday"]
+        holiday = engine.EXTRA["경의중앙선"]["trains"]["holiday"]
+        self.assertEqual(len(weekday), 245)
+        self.assertEqual(len(holiday), 193)
+        self.assertIn("K2202", weekday)
+        self.assertIn("K2201", weekday)
+        self.assertIn("신촌역(경의선)", engine.STATIONS_BY_LINE["경의중앙선"])
+        self.assertNotIn("신촌", engine.STATIONS_BY_LINE["경의중앙선"])
+        self.assertIn("신촌", engine.STATIONS_BY_LINE["2호선"])
+
+    def test_k2202_uses_ground_gyeongui_shinchon_name(self):
+        tr = engine.get_train("경의중앙선", "DAY", "K2202")
+        self.assertIsNotNone(tr)
+        self.assertEqual(tr.get("start"), "서울역")
+        self.assertEqual(tr.get("dest"), "문산")
+        self.assertEqual(tr.get("direction"), "상행")
+        names = [s.get("station") for s in tr.get("stops", [])]
+        self.assertEqual(names[:3], ["서울역", "신촌역(경의선)", "가좌"])
+        self.assertNotIn("신촌", names)
+
+    def test_gyeongui_realtime_shinchon_is_line_aware(self):
+        self.assertEqual(engine.canon_station("신촌"), "신촌")
+        self.assertEqual(engine.canon_station_for_line("2호선", "신촌"), "신촌")
+        self.assertEqual(engine.canon_station_for_line("경의중앙선", "신촌"), "신촌역(경의선)")
+        row = {
+            "subwayNm": "경의중앙선",
+            "statnNm": "신촌",
+            "trainNo": "K2202",
+            "recptnDt": "2026-08-18 05:48:30",
+            "trainSttus": "1",
+            "updnLine": "0",
+            "statnTnm": "문산",
+        }
+        observations, diag = engine.observe_delays("경의중앙선", "DAY", [row], [])
+        matched = [o for o in observations if o.get("train_no") == "K2202"]
+        self.assertEqual(len(matched), 1, (observations, diag))
+        self.assertEqual(matched[0].get("current_station"), "신촌역(경의선)")
+
+    def test_route_graph_contains_seoul_branch_edges(self):
+        for mode in ("DAY", "SAT", "END"):
+            edges = {
+                (a, b): sec
+                for line, a, b, sec in engine.ROUTE_GRAPH["modes"][mode]
+                if line == "경의중앙선"
+            }
+            self.assertIn(("서울역", "신촌역(경의선)"), edges, mode)
+            self.assertIn(("신촌역(경의선)", "가좌"), edges, mode)
+            self.assertIn(("가좌", "신촌역(경의선)"), edges, mode)
+            self.assertIn(("신촌역(경의선)", "서울역"), edges, mode)
+
+
+class GyeonguiSeoulTransferV14116Test(unittest.TestCase):
+    def test_seoul_station_user_transfer_times(self):
+        expected = {
+            ("경의중앙선", "1호선"): 190,
+            ("1호선", "경의중앙선"): 190,
+            ("경의중앙선", "4호선"): 290,
+            ("4호선", "경의중앙선"): 290,
+            ("경의중앙선", "공항철도"): 680,
+            ("공항철도", "경의중앙선"): 680,
+            ("경의중앙선", "GTX-A"): 510,
+            ("GTX-A", "경의중앙선"): 510,
+        }
+        for (from_line, to_line), seconds in expected.items():
+            self.assertEqual(engine.transfer_seconds("서울역", from_line, to_line), seconds)
+
+    def test_seoul_station_gyeongui_outbound_positions(self):
+        incoming = {"line":"경의중앙선","from":"신촌역(경의선)","to":"서울역"}
+        cases = [
+            ({"line":"1호선","from":"서울역","to":"남영"}, 190, "1-1"),
+            ({"line":"1호선","from":"서울역","to":"시청"}, 190, "1-1"),
+            ({"line":"4호선","from":"서울역","to":"숙대입구"}, 290, "1-1"),
+            ({"line":"4호선","from":"서울역","to":"회현"}, 290, "4-4"),
+            ({"line":"공항철도","from":"서울역","to":"공덕"}, 680, "4-4"),
+            ({"line":"GTX-A","from":"서울역","to":"연신내"}, 510, "4-4"),
+        ]
+        for outgoing, seconds, pos in cases:
+            detail = engine.best_transfer_detail("서울역", incoming, outgoing, "DAY")
+            self.assertEqual(detail["seconds"], seconds, detail)
+            self.assertEqual(detail["alight_position"], pos, detail)
+
+    def test_seoul_station_to_gyeongui_positions(self):
+        outgoing = {"line":"경의중앙선","from":"서울역","to":"신촌역(경의선)"}
+        # from segment is written as the actual approach to 서울역; the transfer resolver
+        # maps it to the train's onward direction (e.g. 시청→서울역 continues toward 남영).
+        cases = [
+            ({"line":"1호선","from":"시청","to":"서울역"}, 190, "8-2"),   # 남영 방면
+            ({"line":"1호선","from":"남영","to":"서울역"}, 190, "3-4"),   # 시청 방면
+            ({"line":"4호선","from":"회현","to":"서울역"}, 290, "10-4"), # 숙대입구 방면
+            ({"line":"4호선","from":"숙대입구","to":"서울역"}, 290, "1-1"), # 회현 방면
+            ({"line":"공항철도","from":"공덕","to":"서울역"}, 680, "5-1"),
+            ({"line":"GTX-A","from":"연신내","to":"서울역"}, 510, "3-2"),
+        ]
+        for incoming, seconds, pos in cases:
+            detail = engine.best_transfer_detail("서울역", incoming, outgoing, "DAY")
+            self.assertEqual(detail["seconds"], seconds, detail)
+            self.assertEqual(detail["alight_position"], pos, detail)
+
+    def test_gajwa_branch_changes_are_220_seconds_at_2_1(self):
+        cases = [
+            # 본선에서 문산 방향으로 진행하다 서울역 방향으로 되돌아가는 계통변경
+            (
+                {"line":"경의중앙선","from":"홍대입구","to":"가좌"},
+                {"line":"경의중앙선","from":"가좌","to":"신촌역(경의선)"},
+            ),
+            # 서울역발 열차에서 가좌 도착 후 용문 방향 본선으로 되돌아가는 계통변경
+            (
+                {"line":"경의중앙선","from":"서울역","to":"가좌"},
+                {"line":"경의중앙선","from":"가좌","to":"홍대입구"},
+            ),
+        ]
+        for incoming, outgoing in cases:
+            detail = engine.best_transfer_detail("가좌", incoming, outgoing, "DAY")
+            self.assertEqual(detail["seconds"], 220, detail)
+            self.assertEqual(detail["alight_position"], "2-1", detail)
+            self.assertEqual(detail["matched"], "direction", detail)
+
+    def test_dmc_same_line_reverse_special_case_is_intentionally_not_installed(self):
+        self.assertIsNone(
+            engine.transfer_pair_info("디지털미디어시티", "경의중앙선", "경의중앙선")
+        )
+
+    def test_seoul_to_paju_is_not_forced_to_transfer_at_gajwa(self):
+        routes = engine.auto_candidate_routes("서울역", "파주", "DAY", max_unique=12)
+        self.assertTrue(routes)
+        self.assertTrue(
+            any(
+                len(r["segments"]) == 1
+                and r["segments"][0]["line"] == "경의중앙선"
+                and r["segments"][0]["from"] == "서울역"
+                and r["segments"][0]["to"] == "파주"
+                for r in routes
+            ),
+            routes,
+        )
+        self.assertTrue(
+            all("가좌" not in engine._candidate_interchanges(r["segments"]) for r in routes),
+            routes,
+        )

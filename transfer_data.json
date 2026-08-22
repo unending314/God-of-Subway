@@ -4,7 +4,9 @@
     "sources": [
       "서울교통공사_환승역거리 소요시간 정보_20250331",
       "서울교통공사_수도권 도시철도 환승 데이터_20250317",
-      "국토교통부_철도역 빠른 환승 정보_20250923"
+      "국토교통부_철도역 빠른 환승 정보_20250923",
+      "서울역 경의중앙선↔1호선/4호선/공항철도/GTX-A 방향별 위치·시간 사용자 입력 2026-08-22",
+      "가좌 경의중앙선 서울역계통↔용산선 본선 3:40 / 2-1 사용자 입력 2026-08-22"
     ],
     "supported_lines": [
       "1호선",
@@ -33,7 +35,7 @@
       "인천2호선"
     ],
     "fallback_seconds": 180,
-    "note": "V14.11.4: 디지털미디어시티 6호선·경의중앙선·공항철도 상호 환승시간 사용자 검증값 반영.",
+    "note": "V14.11.6: 경의중앙선 서울역·가좌 환승 사용자값 반영. DMC 동일노선 역방향 특례와 행신~DMC 3초 추정 규칙은 복잡도/오경로 방지를 위해 미적용.",
     "position_patch_policy": "Existing populated/verified positions are preserved. MOLIT rows are imported only when source and target directions resolve against the current timetable and the exact direction combo has a single unambiguous car-door position. Imported records are direction_strict.",
     "zero_second_rule": "Same-platform/service-change transfers may be 0 seconds; engine preserves numeric zero.",
     "position_precedence": [
@@ -47,7 +49,10 @@
       "지금타_빠른환승위치_미입력_입력용.csv",
       "지금타_환승시간_미입력_입력용.csv",
       "총신대입구(이수) 방향별 환승시간 사용자 입력 2026-08-20",
-      "디지털미디어시티 환승시간 사용자 입력 2026-08-22 (6↔경의중앙 2:20, 공항↔6 6:30, 공항↔경의중앙 9:20)"
+      "디지털미디어시티 환승시간 사용자 입력 2026-08-22 (6↔경의중앙 2:20, 공항↔6 6:30, 공항↔경의중앙 9:20)",
+      "서울역 경의중앙선↔1호선/4호선/공항철도/GTX-A 방향별 위치·시간 사용자 입력 2026-08-22",
+      "가좌 경의중앙선 서울역계통↔용문계통 3:40 / 2-1 사용자 입력 2026-08-22",
+      "디지털미디어시티 경의중앙선 서울역계통→용문방면 1:30 / 4-4, 본선 홍대입구측→서울역방면 1:00 / 8-4 사용자 입력 2026-08-22"
     ],
     "time_patch_policy": "Directed pair default_seconds is user-entered. Record seconds inherit the directed-pair value unless an explicit direction-specific user note overrides it."
   },
@@ -102,10 +107,37 @@
       "station": "서울역",
       "from_line": "1호선",
       "to_line": "경의중앙선",
-      "distance_m": 164,
-      "distance_seconds": 137,
-      "default_seconds": 137,
-      "records": []
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 190,
+      "records": [
+        {
+          "from_direction": "남영",
+          "alight_car": "8",
+          "alight_door": "2",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 190,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        },
+        {
+          "from_direction": "시청",
+          "alight_car": "3",
+          "alight_door": "4",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 190,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
     },
     "시청|1호선|2호선": {
       "station": "시청",
@@ -2103,10 +2135,37 @@
       "station": "서울역",
       "from_line": "4호선",
       "to_line": "경의중앙선",
-      "distance_m": 323,
-      "distance_seconds": 269,
-      "default_seconds": 269,
-      "records": []
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 290,
+      "records": [
+        {
+          "from_direction": "숙대입구",
+          "alight_car": "10",
+          "alight_door": "4",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 290,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        },
+        {
+          "from_direction": "회현",
+          "alight_car": "1",
+          "alight_door": "1",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 290,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
     },
     "동대문|4호선|1호선": {
       "station": "동대문",
@@ -8058,27 +8117,36 @@
       "to_line": "경의중앙선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 220,
       "records": [
         {
-          "from_direction": "가좌",
-          "alight_car": "1",
+          "from_direction": "디지털미디어시티",
+          "alight_car": "2",
           "alight_door": "1",
-          "to_direction": "신촌",
-          "board_car": "1",
-          "board_door": "1",
-          "seconds": 600
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 220,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
-          "from_direction": "가좌",
-          "alight_car": "1",
+          "from_direction": "디지털미디어시티",
+          "alight_car": "2",
           "alight_door": "1",
           "to_direction": "홍대입구",
-          "board_car": "1",
-          "board_door": "1",
-          "seconds": 600
+          "board_car": "",
+          "board_door": "",
+          "seconds": 220,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22",
+      "note": "경의중앙선 가좌 분기 계통변경 220초/2-1: 문산방면→서울역방면 및 서울역발→용문방면. 실제 열차가 계속 운행 가능한 경우에는 계통변경으로 강제 분할하지 않음."
     },
     "디지털미디어시티|경의중앙선|공항철도": {
       "station": "디지털미디어시티",
@@ -15523,6 +15591,174 @@
       ],
       "time_source": "user_completed_transfer_csv_2026-08-20",
       "position_source": "user_completed_transfer_csv_2026-08-20"
+    },
+    "서울역|경의중앙선|1호선": {
+      "station": "서울역",
+      "from_line": "경의중앙선",
+      "to_line": "1호선",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 190,
+      "records": [
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "1",
+          "alight_door": "1",
+          "to_direction": "남영",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 190,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        },
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "1",
+          "alight_door": "1",
+          "to_direction": "시청",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 190,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
+    },
+    "서울역|경의중앙선|4호선": {
+      "station": "서울역",
+      "from_line": "경의중앙선",
+      "to_line": "4호선",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 290,
+      "records": [
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "1",
+          "alight_door": "1",
+          "to_direction": "숙대입구",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 290,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        },
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "4",
+          "alight_door": "4",
+          "to_direction": "회현",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 290,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
+    },
+    "서울역|경의중앙선|공항철도": {
+      "station": "서울역",
+      "from_line": "경의중앙선",
+      "to_line": "공항철도",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 680,
+      "records": [
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "4",
+          "alight_door": "4",
+          "to_direction": "공덕",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 680,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
+    },
+    "서울역|경의중앙선|GTX-A": {
+      "station": "서울역",
+      "from_line": "경의중앙선",
+      "to_line": "GTX-A",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 510,
+      "records": [
+        {
+          "from_direction": "신촌역(경의선)",
+          "alight_car": "4",
+          "alight_door": "4",
+          "to_direction": "연신내",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 510,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
+    },
+    "서울역|공항철도|경의중앙선": {
+      "station": "서울역",
+      "from_line": "공항철도",
+      "to_line": "경의중앙선",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 680,
+      "records": [
+        {
+          "from_direction": "공덕",
+          "alight_car": "5",
+          "alight_door": "1",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 680,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
+    },
+    "서울역|GTX-A|경의중앙선": {
+      "station": "서울역",
+      "from_line": "GTX-A",
+      "to_line": "경의중앙선",
+      "distance_m": null,
+      "distance_seconds": null,
+      "default_seconds": 510,
+      "records": [
+        {
+          "from_direction": "연신내",
+          "alight_car": "3",
+          "alight_door": "2",
+          "to_direction": "신촌역(경의선)",
+          "board_car": "",
+          "board_door": "",
+          "seconds": 510,
+          "direction_strict": true,
+          "position_source": "user_direct_verification_2026-08-22",
+          "time_source": "user_direct_verification_2026-08-22"
+        }
+      ],
+      "time_source": "user_direct_verification_2026-08-22",
+      "position_source": "user_direct_verification_2026-08-22"
     }
   }
 }

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.11.4 — 2026-08-22 4호선·수인분당선 개정시각표 반영
+지금타 V14.11.6 — 2026-08-22 4호선·수인분당선 개정시각표 반영
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   4호선: 서울시 realtimePosition + 2026-08-22 개정 안산·과천선 전동열차 시각표
@@ -20,7 +20,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.11.4"
+APP_VERSION = "V14.11.6"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -249,6 +249,17 @@ def canon_station(v):
     if s.endswith("역") and s != "서울역":
         s = s[:-1]
     return STATION_ALIASES.get(s, s)
+
+def canon_station_for_line(line, v):
+    """노선별 동명이역을 구분한 역명 정규화.
+
+    경의선 지상 신촌은 2호선 신촌과 별개 역이므로 경의중앙선 실시간 API에서
+    들어오는 `신촌`/`신촌역`만 `신촌역(경의선)`으로 분리한다.
+    """
+    raw = str(v or "").strip().replace(" ", "")
+    if canon_line(line) == "경의중앙선" and raw in {"신촌", "신촌역"}:
+        return "신촌역(경의선)"
+    return canon_station(v)
 
 def norm_train(v):
     return re.sub(r"\s+", "", str(v or "")).upper()
@@ -3105,7 +3116,7 @@ def observe_delays(line, mode, positions, client_cache=None):
         tr = get_train(line, mode, lookup_tn)
         inferred = None
         source_kind = "live"
-        cur = canon_station(p.get("statnNm"))
+        cur = canon_station_for_line(line, p.get("statnNm"))
         match_kind = "train_number"
         if identity.get("normalized") and tr:
             match_kind = "line2_train_number_normalized"
@@ -3238,7 +3249,7 @@ def observe_delays(line, mode, positions, client_cache=None):
                 "direction": tr["direction"],
                 "service": tr["service"],
                 "delay": delay,
-                "current_station": canon_station(row.get("current_station")),
+                "current_station": canon_station_for_line(line, row.get("current_station")),
                 "status": str(row.get("status") or "최근 관측"),
                 "observed": observed,
                 "ref": None,
@@ -3718,6 +3729,39 @@ def static_projected_candidates(line, mode, start, end, ready_dt, observations):
         })
     return out
 
+def _promote_candidate_from_live_observation(candidate, exact_obs):
+    """시간표 후보에 같은 열차의 현재 realtimePosition 관측을 붙인다.
+
+    직전 열차는 승차시각이 이미 지났기 때문에 direct_live_candidates()에 들어갈 수 없다.
+    예전 코드는 exact 관측으로 지연값을 계산해 놓고도 무조건 projected=True로 다시
+    직전 후보를 만들어 UI에 `미포착`으로 표시했다. 실제 live/live_context 관측이 있으면
+    소재/상태/관측시각을 보존하고 실시간 후보로 승격한다. Redis의 stale delay cache만
+    있는 경우에는 실시간 포착으로 오인하지 않고 기존 예상 후보 상태를 유지한다.
+    """
+    if not isinstance(candidate, dict) or not isinstance(exact_obs, dict):
+        return candidate
+    source_kind = str(exact_obs.get("source_kind") or "")
+    if not _is_live_source(source_kind):
+        return candidate
+    out = dict(candidate)
+    observed = exact_obs.get("observed")
+    now = now_kst()
+    current_station = canon_station_for_line(out.get("line"), exact_obs.get("current_station"))
+    status = str(exact_obs.get("status") or "").strip()
+    out.update({
+        "current_station": current_station,
+        "status": status,
+        "location_kind": "live",
+        "location_label": f"{current_station} {status}".strip(),
+        "observed_at": observed.strftime("%Y-%m-%d %H:%M:%S") if isinstance(observed, datetime) else str(observed or ""),
+        "data_age_seconds": max(0, round((now - observed).total_seconds())) if isinstance(observed, datetime) else 0,
+        "confidence": "중간" if source_kind == "live_context" else "높음",
+        "method": "직전 열차 실시간 위치 + 열차별 공식 시간표",
+        "projected": False,
+    })
+    return out
+
+
 def previous_schedule_candidate(line, mode, start, end, ready_dt, observations, required_direction=None):
     """
     기본 추천보다 바로 앞선 시간표 열차 1대를 반환한다.
@@ -3793,6 +3837,7 @@ def previous_schedule_candidate(line, mode, start, end, ready_dt, observations, 
             "method": ("직전 열차 추정 · 공식 시간표 + 현재 지연" if observations else "직전 열차 추정 · 공식 시간표") + (" + 계획 추월 운행 반영" if operation_notices else ""),
             "projected": True,
         }
+        c = _promote_candidate_from_live_observation(c, exact_obs)
         if best is None or c["board_dt"] > best["board_dt"]:
             best = c
     return best

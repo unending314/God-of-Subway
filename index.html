@@ -6,7 +6,11 @@
 <meta name="theme-color" content="#0f1722">
 <title>지금타 · 라이브 지하철 ETA</title>
 <link rel="icon" type="image/png" href="/jigeumta_logo_140.png">
-<link rel="apple-touch-icon" href="/jigeumta_logo_140.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-HHYSX8GQ95"></script>
 <script>
@@ -39,6 +43,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:16px;ma
 .logo{width:58px;height:58px;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 6px rgba(25,45,70,.10);flex:0 0 auto}.logo img{display:block;width:100%;height:100%;object-fit:cover}
 .brand h1{margin:0;font-size:20px;letter-spacing:-.5px}
 .brand p{margin:3px 0 0;font-size:11px;color:var(--muted)}
+.headerActions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.pwaAction{border:1px solid #d5dee7;background:#fff;color:#33485d;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}
+.pwaAction:hover{background:#f4f7fa}.pwaAction.update{border-color:#9ebae8;background:#edf4ff;color:#174f9c}
 .status{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;background:#9ca6b1}.status.ok .dot{background:#18a674}.status.ok{color:var(--green)}
 
@@ -539,7 +546,7 @@ header{margin-bottom:30px}
 <div class="wrap">
 <header>
  <div class="brand"><div class="logo"><img src="/jigeumta_logo_140.png" alt="지금타 로고"></div><div><h1>지금타</h1><p>실시간 운행정보 기반 지하철 길찾기</p></div></div>
- <div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div>
+ <div class="headerActions"><button id="pwaInstall" class="pwaAction" type="button" hidden>앱 설치</button><button id="pwaUpdate" class="pwaAction update" type="button" hidden>새 버전 적용</button><div id="status" class="status"><span class="dot"></span><span>연결 확인 중</span></div></div>
 </header>
 
 <section class="searchStage" aria-label="경로 입력">
@@ -2238,6 +2245,48 @@ refreshFavorites();
 renderExperimentPanel();
 init().then?.(()=>restoreTrip());
 setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
+
+// PWA 설치/업데이트. /api/*는 sw.js에서 캐시하지 않으므로 실시간 열차 데이터는 항상 네트워크를 사용한다.
+let pwaInstallPrompt=null;
+let pwaRegistration=null;
+const pwaInstallBtn=$('pwaInstall');
+const pwaUpdateBtn=$('pwaUpdate');
+function showPwaUpdate(reg){
+ pwaRegistration=reg||pwaRegistration;
+ if(pwaRegistration?.waiting)pwaUpdateBtn.hidden=false;
+}
+window.addEventListener('beforeinstallprompt',e=>{
+ e.preventDefault();pwaInstallPrompt=e;
+ if(!window.matchMedia('(display-mode: standalone)').matches)pwaInstallBtn.hidden=false;
+});
+window.addEventListener('appinstalled',()=>{pwaInstallPrompt=null;pwaInstallBtn.hidden=true;toast('지금타가 홈 화면에 설치되었습니다.');});
+pwaInstallBtn.onclick=async()=>{
+ if(!pwaInstallPrompt)return;
+ pwaInstallPrompt.prompt();
+ try{await pwaInstallPrompt.userChoice}catch(e){}
+ pwaInstallPrompt=null;pwaInstallBtn.hidden=true;
+};
+pwaUpdateBtn.onclick=()=>{
+ if(!pwaRegistration?.waiting)return;
+ pwaUpdateBtn.disabled=true;pwaUpdateBtn.textContent='업데이트 중';
+ navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload(),{once:true});
+ pwaRegistration.waiting.postMessage({type:'SKIP_WAITING'});
+};
+if('serviceWorker' in navigator){
+ window.addEventListener('load',()=>{
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+   pwaRegistration=reg;
+   if(reg.waiting)showPwaUpdate(reg);
+   reg.addEventListener('updatefound',()=>{
+    const worker=reg.installing;if(!worker)return;
+    worker.addEventListener('statechange',()=>{
+     if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(reg);
+    });
+   });
+   setInterval(()=>reg.update().catch(()=>{}),15*60*1000);
+  }).catch(err=>reportClientLog('pwa_service_worker_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'}));
+ });
+}
 
 // GA4 KPI 계측.
 // 기존 코드를 수정하지 않고 스크립트 끝에서 래핑만 한다. 서비스 로직과 동시 작업시 충돌을 피하기 위함.
