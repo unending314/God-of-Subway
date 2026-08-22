@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.10.1 — 실시간 source 진단정보 노출
+지금타 V14.11.0 — 자동 경로 탐색 성능 개선
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -8,7 +8,7 @@
   신분당선 API trainNo 필드는 공개 열차번호가 아닌 차량 식별자로 취급하며, DXxxxx 형태의 과거 가상 열번은 사용하지 않는다.
   기타 실시간 지원 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
 """
-import json, os, re, urllib.request, urllib.parse, time, statistics, heapq
+import json, os, re, urllib.request, urllib.parse, time, statistics, heapq, copy
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.10.1"
+APP_VERSION = "V14.11.0"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -1101,6 +1101,20 @@ def station_options():
 
 STATIONS_BY_LINE = station_options()
 
+# Hot-path station lookup indexes.  Automatic route search runs Dijkstra many
+# times, so rebuilding canonical station sets on every node expansion is
+# disproportionately expensive.  These structures are immutable for the life
+# of a process because timetable/station data is loaded once at startup.
+_LINE_STATION_SET = {
+    line: frozenset(canon_station(x) for x in names)
+    for line, names in STATIONS_BY_LINE.items()
+}
+_STATION_LINES_INDEX = defaultdict(list)
+for _line, _stations in _LINE_STATION_SET.items():
+    for _station in _stations:
+        _STATION_LINES_INDEX[_station].append(_line)
+_STATION_LINES_INDEX = {k: tuple(sorted(set(v))) for k, v in _STATION_LINES_INDEX.items()}
+
 
 def timetable_integrity_report():
     """로드된 원본 시간표가 구조 기반 승하차 규칙과 일치하는지 요약한다."""
@@ -1513,11 +1527,8 @@ def _route_adjacency(mode):
     return adj
 
 def _station_lines(station):
-    c = canon_station(station)
-    return [
-        line for line, names in STATIONS_BY_LINE.items()
-        if c in {canon_station(x) for x in names}
-    ]
+    # O(1) lookup instead of rebuilding every line's canonical station set.
+    return list(_STATION_LINES_INDEX.get(canon_station(station), ()))
 
 def _segment_has_train(line, mode, start, end):
     key = (line, mode, canon_station(start), canon_station(end))
@@ -1723,11 +1734,9 @@ def _yen_route_paths(start, end, mode, max_raw=AUTO_ROUTE_MAX_RAW_PATHS):
 
     return accepted
 
-def auto_candidate_routes(start, end, mode, max_unique=AUTO_ROUTE_MAX_UNIQUE_CANDIDATES):
-    """
-    정적 최단경로 하나만 쓰지 않고 여러 topology 후보를 만든다.
-    동일한 segment 구성이 반복되는 path는 제거한다.
-    """
+@lru_cache(maxsize=2048)
+def _auto_candidate_routes_cached(start, end, mode, max_unique=AUTO_ROUTE_MAX_UNIQUE_CANDIDATES):
+    """Immutable timetable/graph topology candidates cached per OD/service mode."""
     out = []
     seen = set()
 
@@ -1772,7 +1781,16 @@ def auto_candidate_routes(start, end, mode, max_unique=AUTO_ROUTE_MAX_UNIQUE_CAN
             "segments": segments,
             "signature": tuple((s["line"], s["from"], s["to"]) for s in segments),
         })
-    return out
+    return tuple(out)
+
+def auto_candidate_routes(start, end, mode, max_unique=AUTO_ROUTE_MAX_UNIQUE_CANDIDATES):
+    """
+    정적 최단경로 후보는 시간과 무관하므로 OD/운행일 모드별로 프로세스 캐시한다.
+    호출자가 segment dict를 수정해도 캐시가 오염되지 않도록 복사본을 반환한다.
+    """
+    start = canon_station(start)
+    end = canon_station(end)
+    return copy.deepcopy(list(_auto_candidate_routes_cached(start, end, mode, int(max_unique))))
 
 def _candidate_interchanges(segments):
     return [
@@ -1861,13 +1879,16 @@ def auto_path_to_segments(path, mode):
 
 def calculate_auto_route(payload):
     """
-    V13.2.2:
-    1) 정적 route graph에서 상위 topology 후보 여러 개 생성
-    2) 각 후보를 실제 출발시각의 열차 시간표로 1차 채점
-    3) realtimePosition을 후보 간 공유하면서 모든 후보를 실시간 ETA로 재채점
-    4) 실제 도착예정시각이 가장 빠른 후보를 선택
-       - ETA 동률이면 환승이 적은 경로 우선
+    V14.11.0 fast path:
+    1) 정적 route graph topology 후보를 OD/운행모드별 캐시에서 가져온다.
+    2) 후보 전체가 쓰는 노선의 Redis realtime snapshot을 한 번만 prefetch한다.
+    3) 각 후보를 실시간+시간표 fallback으로 단 한 번 채점한다.
+
+    V14.10.x는 동일 후보를 schedule-only로 한 번, live로 다시 한 번 계산했다.
+    hybrid Redis가 안정화된 현재는 calculate_route 자체가 realtime 실패 시 시간표로
+    fallback하므로 사전 schedule pass는 중복 계산이었다.
     """
+    perf_t0 = time.perf_counter()
     now = now_kst()
     start_text = str(payload.get("start_time") or now.strftime("%H:%M"))
     start_dt = clock_dt_near(start_text, now)
@@ -1879,36 +1900,12 @@ def calculate_auto_route(payload):
 
     start = canon_station(payload.get("from"))
     end = canon_station(payload.get("to"))
+
+    candidate_t0 = time.perf_counter()
     candidates = auto_candidate_routes(start, end, mode)
+    candidate_ms = (time.perf_counter() - candidate_t0) * 1000
 
-    # 1차: 실시간 API 호출 없이 실제 시간표 배차/대기/환승을 반영.
-    schedule_only_cache = {
-        line: {
-            "rows": [],
-            "error": "자동경로 시간표 사전채점",
-            "available": False,
-        }
-        for line in LINE_NAMES
-    }
-    attach_client_delay_cache(schedule_only_cache, payload)
-
-    schedule_scored = []
-    for c in candidates:
-        score = calculate_route({
-            "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
-            "day": mode,
-            "segments": c["segments"],
-            "refresh_only": False,
-        }, position_cache=schedule_only_cache)
-        if not score.get("ok"):
-            continue
-        schedule_scored.append({
-            **c,
-            "schedule_result": score,
-        })
-
-    if not schedule_scored:
-        # 최악의 경우 기존 정적 경로 선택을 유지.
+    if not candidates:
         path = auto_find_path(start, end, mode)
         segments = enrich_transfer_segments(auto_path_to_segments(path, mode), mode)
         interchanges = _candidate_interchanges(segments)
@@ -1926,45 +1923,79 @@ def calculate_auto_route(payload):
             "candidate_count": 1,
             "live_scored_count": 0,
             "alternatives": [],
+            "diagnostics": {
+                "performance_ms": {
+                    "candidate_routes": round(candidate_ms, 1),
+                    "realtime_prefetch": 0.0,
+                    "candidate_scoring": 0.0,
+                    "total": round((time.perf_counter() - perf_t0) * 1000, 1),
+                }
+            },
         }
 
-    schedule_scored.sort(key=lambda x: (
-        x["schedule_result"]["arrival_time"],
-        max(0, len(x["segments"]) - 1),
-        x["path"]["seconds"],
-    ))
-
-    # 2차: 후보 전체의 노선 실시간 API를 병렬로 1회씩만 조회한 뒤 공유한다.
-    # 서울 API 일부 노선이 느려도 노선 수 × timeout으로 직렬 누적되지 않는다.
+    # 모든 topology 후보가 필요로 하는 노선을 한 번에 가져온다. Redis hybrid에서는
+    # 보통 이 단계가 수 ms~수십 ms이며 API 장애 시에도 calculate_route가 시간표로 fallback한다.
     live_lines = {
         s.get("line")
-        for c in schedule_scored
+        for c in candidates
         for s in c.get("segments", [])
     }
+    prefetch_t0 = time.perf_counter()
     live_cache = prefetch_position_cache(live_lines, timeout=5)
+    prefetch_ms = (time.perf_counter() - prefetch_t0) * 1000
     attach_client_delay_cache(live_cache, payload)
+
+    score_t0 = time.perf_counter()
     live_scored = []
-    for c in schedule_scored:
+    for c in candidates:
         live = calculate_route({
             "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
             "day": mode,
             "segments": c["segments"],
             "refresh_only": False,
         }, position_cache=live_cache)
-
-        # 실시간 API 장애여도 calculate_route 내부 schedule fallback으로 보통 ok가 유지된다.
         if not live.get("ok"):
-            live = c["schedule_result"]
-
+            continue
         live_scored.append({
             **c,
             "live_result": live,
         })
+    score_ms = (time.perf_counter() - score_t0) * 1000
 
+    if not live_scored:
+        # 실시간뿐 아니라 시간표 fallback까지 실패한 비정상 케이스만 정적 경로로 유지.
+        path = auto_find_path(start, end, mode)
+        segments = enrich_transfer_segments(auto_path_to_segments(path, mode), mode)
+        interchanges = _candidate_interchanges(segments)
+        return {
+            "ok": True,
+            "service_mode": mode,
+            "service_mode_reason": mode_reason,
+            "from": start,
+            "to": end,
+            "route_seconds": path["seconds"],
+            "transfer_count": max(0, len(segments) - 1),
+            "interchanges": interchanges,
+            "segments": segments,
+            "selection_method": "정적 그래프 fallback",
+            "candidate_count": len(candidates),
+            "live_scored_count": 0,
+            "alternatives": [],
+            "diagnostics": {
+                **realtime_cache_diagnostics(live_cache, live_lines),
+                "performance_ms": {
+                    "candidate_routes": round(candidate_ms, 1),
+                    "realtime_prefetch": round(prefetch_ms, 1),
+                    "candidate_scoring": round(score_ms, 1),
+                    "total": round((time.perf_counter() - perf_t0) * 1000, 1),
+                },
+            },
+        }
+
+    # ETA 동률이면 기존 정책대로 환승 횟수, 정적 주행비용 순으로 안정적으로 결정한다.
     live_scored.sort(key=lambda x: (
         x["live_result"]["arrival_time"],
         max(0, len(x["segments"]) - 1),
-        x["schedule_result"]["arrival_time"],
         x["path"]["seconds"],
     ))
 
@@ -1986,6 +2017,16 @@ def calculate_auto_route(payload):
             "confidence": _route_confidence(result),
         })
 
+    diagnostics = realtime_cache_diagnostics(
+        live_cache, [s.get("line") for s in selected_segments]
+    )
+    diagnostics["performance_ms"] = {
+        "candidate_routes": round(candidate_ms, 1),
+        "realtime_prefetch": round(prefetch_ms, 1),
+        "candidate_scoring": round(score_ms, 1),
+        "total": round((time.perf_counter() - perf_t0) * 1000, 1),
+    }
+
     return {
         "ok": True,
         "service_mode": mode,
@@ -1999,13 +2040,11 @@ def calculate_auto_route(payload):
         "transfer_count": max(0, len(selected_segments) - 1),
         "interchanges": interchanges,
         "segments": selected_segments,
-        "selection_method": "다중 후보 시간표 + 실시간 ETA 비교",
+        "selection_method": "다중 후보 시간표 + 실시간 ETA 비교 (고속 단일 패스)",
         "candidate_count": len(candidates),
         "live_scored_count": len(live_scored),
         "alternatives": alternatives,
-        "diagnostics": realtime_cache_diagnostics(
-            live_cache, [s.get("line") for s in selected_segments]
-        ),
+        "diagnostics": diagnostics,
     }
 
 
@@ -2710,23 +2749,53 @@ def cached_position_rows(line, position_cache):
     )
 
 # ---------- Schedule path helpers ----------
+# Timetable stop lists are immutable after startup but are plain lists and thus
+# cannot be lru_cache keys.  Cache a canonical station index and route-pair
+# answers by list identity while retaining the list object to prevent id reuse.
+_STOP_ROUTE_CACHE = {}
+
+def _stop_route_cache_entry(stops):
+    key = id(stops)
+    entry = _STOP_ROUTE_CACHE.get(key)
+    if entry is not None and entry["stops"] is stops:
+        return entry
+    station_indices = defaultdict(list)
+    for i, stop in enumerate(stops):
+        station_indices[canon_station(stop.get("station"))].append(i)
+    entry = {
+        "stops": stops,
+        "indices": {k: tuple(v) for k, v in station_indices.items()},
+        "pairs": {},
+    }
+    _STOP_ROUTE_CACHE[key] = entry
+    return entry
+
 def indices(stops, station):
     c = canon_station(station)
-    return [i for i, s in enumerate(stops) if canon_station(s["station"]) == c]
+    return list(_stop_route_cache_entry(stops)["indices"].get(c, ()))
 
 def route_pair(stops, start, end, min_start_idx=0):
     # 급행/직통의 통과시각은 위치·지연 계산에는 쓰되,
     # call=false 역에서는 승하차할 수 없다.
+    entry = _stop_route_cache_entry(stops)
+    start_c = canon_station(start)
+    end_c = canon_station(end)
+    cache_key = (start_c, end_c, int(min_start_idx))
+    if cache_key in entry["pairs"]:
+        return entry["pairs"][cache_key]
+
     starts = [
-        i for i in indices(stops, start)
+        i for i in entry["indices"].get(start_c, ())
         if i >= min_start_idx and bool(stops[i].get("call", True))
     ]
     ends = [
-        i for i in indices(stops, end)
+        i for i in entry["indices"].get(end_c, ())
         if bool(stops[i].get("call", True))
     ]
     pairs = [(i, j) for i in starts for j in ends if j > i]
-    return min(pairs, key=lambda p: p[1] - p[0]) if pairs else None
+    result = min(pairs, key=lambda p: p[1] - p[0]) if pairs else None
+    entry["pairs"][cache_key] = result
+    return result
 
 def first_current_index(stops, current, before_or_at=None):
     inds = indices(stops, current)
@@ -3648,9 +3717,9 @@ def calculate_segment(line, mode, start, end, ready_dt, position_cache):
     line = canon_line(line)
     if line not in LINE_NAMES:
         return {"ok": False, "error": f"지원하지 않는 노선: {line}"}
-    if canon_station(start) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
+    if canon_station(start) not in _LINE_STATION_SET[line]:
         return {"ok": False, "error": f"{line} 시간표에서 승차역 '{start}'을 찾지 못했습니다."}
-    if canon_station(end) not in {canon_station(x) for x in STATIONS_BY_LINE[line]}:
+    if canon_station(end) not in _LINE_STATION_SET[line]:
         return {"ok": False, "error": f"{line} 시간표에서 하차역 '{end}'을 찾지 못했습니다."}
 
     if line == "신분당선":
