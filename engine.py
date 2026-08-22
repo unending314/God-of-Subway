@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.10.0 — 중앙 실시간 수집/Redis 캐시 서버 베타
+지금타 V14.10.1 — 실시간 source 진단정보 노출
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.10.0"
+APP_VERSION = "V14.10.1"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -2003,6 +2003,9 @@ def calculate_auto_route(payload):
         "candidate_count": len(candidates),
         "live_scored_count": len(live_scored),
         "alternatives": alternatives,
+        "diagnostics": realtime_cache_diagnostics(
+            live_cache, [s.get("line") for s in selected_segments]
+        ),
     }
 
 
@@ -2508,6 +2511,53 @@ def position_rows(data, line=None):
         if not str(row.get("subwayId") or "").strip()
         or str(row.get("subwayId") or "").strip() == expected
     ]
+
+def realtime_cache_diagnostics(position_cache, lines=None):
+    """경로 계산이 실제로 사용한 실시간 데이터 source/cache 상태를 API 진단정보로 요약한다.
+
+    UI에는 표시하지 않고 응답 JSON의 diagnostics에만 포함한다.
+    hybrid 모드에서 Redis miss/stale 후 direct fallback이 발생하면 최종 사용 source가
+    direct로 나타나므로 end-to-end 검증에 사용할 수 있다.
+    """
+    if not isinstance(position_cache, dict):
+        position_cache = {}
+
+    requested = []
+    if lines is None:
+        requested = [k for k in position_cache if k in LINE_NAMES]
+    else:
+        requested = [canon_line(x) for x in lines if canon_line(x) in LINE_NAMES]
+    requested = list(dict.fromkeys(requested))
+
+    details = {}
+    for line in requested:
+        entry = position_cache.get(line) if isinstance(position_cache.get(line), dict) else {}
+        details[line] = {
+            "realtime_source": str(entry.get("realtime_source") or "unknown"),
+            "cache_state": str(entry.get("cache_state") or "unknown"),
+            "cache_age_seconds": entry.get("cache_age_seconds"),
+            "source_age_seconds": entry.get("source_age_seconds"),
+            "available": bool(entry.get("available")),
+        }
+        if entry.get("direct_error"):
+            details[line]["direct_error"] = str(entry.get("direct_error"))
+        if entry.get("error"):
+            details[line]["error"] = str(entry.get("error"))
+
+    sources = {v["realtime_source"] for v in details.values()}
+    states = {v["cache_state"] for v in details.values()}
+    ages = [v["cache_age_seconds"] for v in details.values() if isinstance(v.get("cache_age_seconds"), (int, float))]
+    source_ages = [v["source_age_seconds"] for v in details.values() if isinstance(v.get("source_age_seconds"), (int, float))]
+
+    return {
+        "store_mode": realtime_store.store_mode(),
+        "realtime_source": next(iter(sources)) if len(sources) == 1 else ("mixed" if sources else "none"),
+        "cache_state": next(iter(states)) if len(states) == 1 else ("mixed" if states else "none"),
+        "cache_age_seconds": max(ages) if ages else None,
+        "source_age_seconds": max(source_ages) if source_ages else None,
+        "lines": details,
+    }
+
 
 def prefetch_position_cache(lines, timeout=5):
     """여러 노선의 실시간 상태를 공유 cache로 구성한다.
@@ -4263,6 +4313,9 @@ def calculate_live_trip(payload):
         "current_status": current.get("status", ""),
         "segments": [serialize_seg(x) for x in results],
         "warnings": warnings,
+        "diagnostics": realtime_cache_diagnostics(
+            position_cache, [s.get("line") for s in segments]
+        ),
     }
 
 def serialize_seg(x):
@@ -4373,5 +4426,8 @@ def calculate_route(payload, position_cache=None):
         "difference_seconds": None if baseline is None else round(total_seconds - baseline * 60),
         "segments": [serialize_seg(x) for x in results],
         "warnings": warnings,
+        "diagnostics": realtime_cache_diagnostics(
+            position_cache, [s.get("line") for s in segments]
+        ),
     }
 
