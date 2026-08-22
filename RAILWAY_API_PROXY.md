@@ -1,12 +1,8 @@
-# Railway API proxy
+# V14.11.1 Railway API proxy
 
-V14.11.1: Vercel의 `/api/:path*` 요청을 Railway persistent FastAPI 서버로 프록시합니다.
+Vercel의 `/api/:path*` 요청을 상시 실행 중인 Railway FastAPI 서비스로 rewrite합니다.
 
-Backend: `https://jigeumta-api-production.up.railway.app`
-
-목적:
-- Vercel serverless Python cold start 제거
-- Railway 프로세스의 in-memory route cache 재사용
-- 브라우저 CORS 변경 없이 기존 상대경로 `/api/*` 유지
-
-롤백: `vercel.json`의 `rewrites` 항목을 제거하면 기존 Vercel `server.py` 함수로 돌아갑니다.
+- Railway origin: `https://jigeumta-api-production.up.railway.app`
+- 기존 프론트엔드 API 경로(`/api/auto_route`, `/api/route`, `/api/trip_update`, `/api/stations`, `/api/health`, `/api/client_log`)는 변경하지 않습니다.
+- `server.py`는 로컬 실행 및 롤백/직접 API 실행을 위해 유지합니다.
+- Railway API가 기존 legacy `/api/*` 및 `/api/v1/*` 경로를 모두 제공하는 것을 V14.11.1 패키징 시 확인했습니다.
