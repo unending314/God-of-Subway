@@ -57,3 +57,62 @@ def test_client_delay_cache_merges_with_server_cache_using_newest():
     rows = cache["__train_delay_cache__"]
     assert len(rows) == 1
     assert rows[0]["delay_seconds"] == 90
+
+
+def test_realtime_cache_diagnostics_summarizes_redis_source(monkeypatch):
+    monkeypatch.setattr(realtime_store, "store_mode", lambda: "hybrid")
+    cache = {
+        "2호선": {
+            "rows": [], "available": True, "error": "",
+            "cache_state": "fresh", "cache_age_seconds": 3,
+            "source_age_seconds": 18, "realtime_source": "redis",
+        }
+    }
+    diag = engine.realtime_cache_diagnostics(cache, ["2호선"])
+    assert diag["store_mode"] == "hybrid"
+    assert diag["realtime_source"] == "redis"
+    assert diag["cache_state"] == "fresh"
+    assert diag["cache_age_seconds"] == 3
+    assert diag["source_age_seconds"] == 18
+    assert diag["lines"]["2호선"]["realtime_source"] == "redis"
+
+
+def test_calculate_route_exposes_realtime_source_diagnostics(monkeypatch):
+    monkeypatch.setattr(realtime_store, "store_mode", lambda: "hybrid")
+    monkeypatch.setattr(engine, "prefetch_position_cache", lambda lines, timeout=5: {
+        "1호선": {
+            "rows": [], "available": True, "error": "",
+            "cache_state": "fresh", "cache_age_seconds": 2,
+            "source_age_seconds": 12, "realtime_source": "redis",
+        }
+    })
+    result = engine.calculate_route({
+        "start_time": "2026-08-18 08:35:00",
+        "day": "DAY",
+        "segments": [{"line": "1호선", "from": "당정", "to": "안양", "transfer_walk": 0}],
+    })
+    assert result["ok"] is True
+    assert result["diagnostics"]["realtime_source"] == "redis"
+    assert result["diagnostics"]["cache_state"] == "fresh"
+    assert result["diagnostics"]["cache_age_seconds"] == 2
+    assert result["diagnostics"]["lines"]["1호선"]["source_age_seconds"] == 12
+
+
+def test_auto_route_exposes_realtime_source_diagnostics(monkeypatch):
+    monkeypatch.setattr(realtime_store, "store_mode", lambda: "hybrid")
+    monkeypatch.setattr(engine, "prefetch_position_cache", lambda lines, timeout=5: {
+        line: {
+            "rows": [], "available": True, "error": "",
+            "cache_state": "fresh", "cache_age_seconds": 4,
+            "source_age_seconds": 20, "realtime_source": "redis",
+        }
+        for line in set(lines) if line
+    })
+    result = engine.calculate_auto_route({
+        "from": "강남", "to": "역삼",
+        "start_time": "2026-08-18 08:00:00", "day": "DAY",
+    })
+    assert result["ok"] is True
+    assert result["diagnostics"]["realtime_source"] == "redis"
+    assert result["diagnostics"]["cache_state"] == "fresh"
+    assert result["diagnostics"]["lines"]["2호선"]["cache_age_seconds"] == 4

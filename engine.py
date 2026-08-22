@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.11.1 — Railway persistent API proxy 전환
+지금타 V14.11.2 — 코레일 시발역 오관측 방어 + 경로 후보 다양화
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
@@ -19,7 +19,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.11.1"
+APP_VERSION = "V14.11.2"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -118,6 +118,23 @@ STALE_DELAY_CACHE_LINES = {
 }
 STALE_DELAY_HOLD_SECONDS = 20 * 60
 STALE_DELAY_MAX_SECONDS = 35 * 60
+
+# 코레일 계열 realtimePosition은 시발역에서 출발 이벤트가 안정적으로 오지 않고,
+# 영업 출발 훨씬 전에 시발역 '진입/도착' 행이 잠깐 노출되는 경우가 있다.
+# 이를 시각표의 시발역 출발시각과 직접 비교하면 10~20분대 조발로 오인한다.
+# 따라서 시발역 관측은 열차가 실제 운행을 시작했다는 증거로 사용하지 않고,
+# 다음 역부터 관측되는 진입/도착/전역출발을 최초의 유효 실시간 신호로 취급한다.
+KORAIL_ORIGIN_HOLD_LINES = {
+    "1호선", "경의중앙선", "수인분당선", "경춘선", "경강선", "서해선",
+}
+
+def _ignore_korail_origin_observation(line, tr, current_station):
+    line = canon_line(line)
+    if line not in KORAIL_ORIGIN_HOLD_LINES or not isinstance(tr, dict):
+        return False
+    origin = canon_station(tr.get("start"))
+    current = canon_station(current_station)
+    return bool(origin and current and origin == current)
 
 def stale_delay_abs_limit(line):
     # 2호선은 당일 운용상 1~2시간 조발도 발생할 수 있어 큰 음수 지연을
@@ -1672,6 +1689,67 @@ def _route_graph_shortest_with_bans(start, end, mode, source_node=None, banned_e
                 seq += 1
     return None
 
+def _route_graph_shortest_with_transfer_bias(start, end, mode, extra_transfer_seconds=0):
+    """
+    정적 주행시간만으로는 실제 대기시간이 짧은 저환승 경로가 K-shortest 후보 밖으로
+    밀릴 수 있다. 환승 1회마다 탐색용 가산점만 추가해 topology 다양성을 확보한다.
+
+    반환 cost는 가산점이 없는 실제 정적 graph 비용이며, 가산점은 탐색 순서에만 사용한다.
+    """
+    start = canon_station(start)
+    end = canon_station(end)
+    extra = max(0, int(extra_transfer_seconds or 0))
+    source = ("__SOURCE__", start)
+    target = ("__TARGET__", end)
+    start_nodes = [(_line, start) for _line in _station_lines(start)]
+    target_nodes = {(_line, end) for _line in _station_lines(end)}
+    adj = _route_adjacency(mode)
+
+    pq = [(0, 0, source)]
+    dist = {source: 0}
+    prev = {}
+    seq = 1
+
+    while pq:
+        d, _, u = heapq.heappop(pq)
+        if d != dist.get(u):
+            continue
+        if u == target:
+            nodes = []
+            edges = []
+            cur = target
+            while cur != source:
+                pu, kind, base_w = prev[cur]
+                nodes.append(cur)
+                edges.append((pu, cur, kind, base_w))
+                cur = pu
+            nodes.append(source)
+            nodes.reverse()
+            edges.reverse()
+            return {
+                "cost": int(sum(int(e[3]) for e in edges)),
+                "search_cost": int(d),
+                "nodes": nodes,
+                "edges": edges,
+            }
+
+        if u == source:
+            options = [(n, 0, "start") for n in start_nodes]
+        elif u in target_nodes:
+            options = list(adj.get(u, [])) + [(target, 0, "end")]
+        else:
+            options = adj.get(u, [])
+
+        for v, base_w, kind in options:
+            search_w = int(base_w) + (extra if kind == "transfer" else 0)
+            nd = d + search_w
+            if nd < dist.get(v, 10**18):
+                dist[v] = nd
+                prev[v] = (u, kind, int(base_w))
+                heapq.heappush(pq, (nd, seq, v))
+                seq += 1
+    return None
+
 def _yen_route_paths(start, end, mode, max_raw=AUTO_ROUTE_MAX_RAW_PATHS):
     """
     정적 route graph에서 비용순 simple path를 생성한다.
@@ -1740,7 +1818,31 @@ def _auto_candidate_routes_cached(start, end, mode, max_unique=AUTO_ROUTE_MAX_UN
     out = []
     seen = set()
 
+    # 기본 K-shortest만 사용하면 같은 선로를 공유하는 노선 사이의 환승 조합이
+    # raw 후보를 대량 소비해, 실제 시간표상 더 빠른 저환승 경로가 평가조차 못 받는다.
+    # 서로 다른 환승 가산점으로 몇 개의 topology seed를 먼저 확보하고 나머지를
+    # 기존 Yen 후보로 채운다. 최종 선택은 여전히 실제 시간표/실시간 ETA로 한다.
+    raw_paths = []
+    raw_seen = set()
+    for penalty in (0, 60, 120, 240, 480):
+        biased = _route_graph_shortest_with_transfer_bias(start, end, mode, penalty)
+        if not biased:
+            continue
+        node_sig = tuple(biased.get("nodes") or ())
+        if node_sig in raw_seen:
+            continue
+        raw_seen.add(node_sig)
+        raw_paths.append(biased)
+
+
     for raw in _yen_route_paths(start, end, mode):
+        node_sig = tuple(raw.get("nodes") or ())
+        if node_sig in raw_seen:
+            continue
+        raw_seen.add(node_sig)
+        raw_paths.append(raw)
+
+    for raw in raw_paths:
         usable_edges = [
             e for e in raw["edges"]
             if e[2] not in ("start", "end")
@@ -2976,6 +3078,8 @@ def observe_delays(line, mode, positions, client_cache=None):
 
     context_matched = 0
     normalized_matched = 0
+    origin_hold_ignored = 0
+    origin_hold_examples = []
     for p in positions:
         raw_tn = p.get("trainNo") or p.get("btrainNo")
         identity = realtime_train_identity(line, raw_tn)
@@ -3035,6 +3139,21 @@ def observe_delays(line, mode, positions, client_cache=None):
             if cur and len(unmatched_station) < 10:
                 unmatched_station.append(cur)
             continue
+
+        # 코레일 계열 시발역 관측은 실제 출발 신호가 아니다.
+        # 예: K5083이 14:35 문산 출발인데 14:15 문산 '도착'으로 잠깐 노출되는 경우.
+        # 이 행을 사용하면 -20분 조발로 오염되므로 다음 역 관측 전까지 무시한다.
+        if _ignore_korail_origin_observation(line, tr, cur):
+            origin_hold_ignored += 1
+            if len(origin_hold_examples) < 10:
+                origin_hold_examples.append({
+                    "train_no": tr.get("train_no", ""),
+                    "station": cur,
+                    "status": status_name(p.get("trainSttus")),
+                    "observed_at": str(p.get("recptnDt") or p.get("lastRecptnDt") or ""),
+                })
+            continue
+
         ref = inferred["ref"] if inferred else scheduled_reference_at(tr["stops"], ci, p.get("trainSttus"))
         if ref is None:
             continue
@@ -3087,6 +3206,19 @@ def observe_delays(line, mode, positions, client_cache=None):
                 continue
             if abs(raw_delay) > stale_delay_abs_limit(line):
                 continue
+            # 수정 배포 전 Redis에 저장됐을 수 있는 시발역 조발 오염값도
+            # TTL이 끝날 때까지 서비스로 재유입되지 않도록 읽기 단계에서 차단한다.
+            if _ignore_korail_origin_observation(line, tr, row.get("current_station")):
+                origin_hold_ignored += 1
+                if len(origin_hold_examples) < 10:
+                    origin_hold_examples.append({
+                        "train_no": tr.get("train_no", ""),
+                        "station": canon_station(row.get("current_station")),
+                        "status": str(row.get("status") or "cached"),
+                        "observed_at": str(row.get("observed_at") or ""),
+                        "source": "delay_cache",
+                    })
+                continue
             key = norm_train(tr["train_no"])
             current = live_by_train.get(key)
             if current is not None and current.get("observed") >= observed:
@@ -3123,6 +3255,8 @@ def observe_delays(line, mode, positions, client_cache=None):
         "matched_context": sum(1 for o in live_by_train.values() if o.get("source_kind") == "live_context"),
         "matched_line2_normalized": normalized_matched,
         "cached_exact": cache_used,
+        "origin_hold_ignored": origin_hold_ignored,
+        "origin_hold_examples": origin_hold_examples,
         "special_trains": special_trains,
         "test_trains": test_trains,
         "unmatched_train": unmatched_train,

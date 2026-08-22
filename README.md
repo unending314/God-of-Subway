@@ -1,6 +1,14 @@
-# 지금타 V14.10.0
+# 지금타 V14.11.2
 
-## V14.10.0 중앙 실시간 수집 / Redis 캐시 서버 베타
+
+## V14.11.2 — 코레일 시발역 오관측 방어 / 자동경로 후보 다양화
+
+- 코레일 계열(1호선·경의중앙선·수인분당선·경춘선·경강선·서해선)은 시발역에서 잡힌 realtimePosition 행을 출발/지연 증거로 사용하지 않습니다. 시발역 다음 역에서 진입·도착 등이 관측된 시점부터 실제 운행으로 반영합니다.
+- 수정 전 Redis exact-delay 캐시에 남아 있을 수 있는 시발역 관측값도 읽기 단계에서 무시해 TTL 만료를 기다리지 않고 조발 오염을 차단합니다.
+- 자동경로 후보 생성 시 정적 최단시간 K-shortest만 쓰지 않고, 여러 환승 가산점으로 저환승 topology를 추가 생성합니다. 최종 선택은 기존과 동일하게 실제 시간표/실시간 ETA를 계산해 가장 빠른 도착 경로를 고릅니다.
+- 회귀 사례: 2026-08-22 14:41 운정→동탄은 기존 5환승 17:20 도착 대신, schedule-only 기준 운정→옥수→수서→동탄 2환승 17:04 도착 후보를 정상 평가·선택합니다.
+
+## V14.11.0 실시간 source 진단
 
 - 서울시 `realtimePosition`을 사용자 요청과 분리한 `realtime_worker.py`가 노선 단위로 기본 5초마다 병렬 수집합니다.
 - API는 5초마다 확인하지만 동일 원천 snapshot은 다시 저장하지 않고 health만 갱신해 Redis write를 줄입니다.
@@ -90,3 +98,5 @@ Redis/DB를 아직 연결하지 않은 경우 기본 realtime store 모드는 �
 - `tests/`: 현재 기능 회귀 테스트만 유지
 - `tools/`: 현재도 사용할 관리 도구만 유지
 - 시간표 원본과 과거 감사자료는 별도 보관하고 실행 프로젝트에는 복사하지 않음
+### Performance / persistent API (V14.11.0)
+Automatic routing now caches static OD topologies and timetable stop indexes, and evaluates each topology only once against the shared realtime snapshot. `diagnostics.performance_ms` exposes server-side phase timings. For production mobile/web sharing, the recommended backend is a persistent Railway API service using the same Redis instance; Vercel can remain the web frontend.

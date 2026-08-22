@@ -1,3 +1,31 @@
+# V14.11.2 — 2026-08-22
+
+## Fixes
+- 코레일 계열 시발역의 조기 `진입/도착` API 행을 출발/지연 관측에서 제외. 다음 역 관측부터 실시간 반영.
+- 기존 Redis exact-delay 캐시에 남은 시발역 지연 관측도 읽기 단계에서 무시해 -20분대 조발 오염을 즉시 차단.
+- 자동 경로 후보 생성에 환승 가산점 기반 topology diversity seed를 추가. 정적 최소 주행시간 후보군에 가려진 저환승·고빈도 경로도 실제 ETA 평가 대상으로 포함.
+- 운정→동탄 회귀 테스트 추가: 2026-08-22 14:41 기준 기존 17:20/5환승 경로 대신 17:04 도착 경로 선택.
+- K5083 회귀 테스트 추가: 문산 시발역 관측 무시, 파주 첫 유효 관측부터 정시 지연 반영.
+
+## Validation
+- `pytest`: 85 passed.
+- 성균관대→마포 schedule-only warm: 약 0.20초.
+- 운정→동탄 schedule-only warm: 약 0.26~0.27초.
+
+# V14.11.1 — 2026-08-22
+
+- Vercel `/api/:path*`를 Railway persistent FastAPI로 rewrite하도록 `vercel.json` 변경.
+- 웹 프론트엔드의 기존 `/api/*` 호출 계약은 유지.
+- 런타임 버전을 `V14.11.1`로 갱신.
+- Railway API origin: `https://jigeumta-api-production.up.railway.app`.
+
+# V14.11.0 — 2026-08-22
+
+- `/api/auto_route`, `/api/route`, `/api/trip_update` 성공 응답에 실시간 source 진단정보를 추가했습니다.
+- `diagnostics.realtime_source`로 `redis` / `direct` / `mixed` / `schedule` 사용 여부를 확인할 수 있습니다.
+- `diagnostics.cache_state`, `cache_age_seconds`, `source_age_seconds` 및 노선별 상세 상태를 함께 제공합니다.
+- 진단정보는 UI에 표시하지 않으며 Redis URL, 비밀번호 등 비밀정보를 노출하지 않습니다.
+
 # V14.10.0 — 2026-08-21
 
 - 중앙 realtime collector 기본 주기를 5초로 전환하고 최대 24개 병렬 수집을 지원.
@@ -127,3 +155,11 @@
   - 실행에 사용하지 않는 transfer master 원본과 변환 도구 제거.
   - 런타임 JSON minify 적용.
 - 기존 realtime foundation, 8개 추가노선, GTX-A 단절 구조 유지.
+
+## V14.11.0 — automatic-route latency reduction
+- Added O(1) canonical station→line and line→station lookup indexes for route-search hot paths.
+- Added immutable stop-list station/route-pair caches to avoid repeated full timetable scans.
+- Added OD/service-mode topology cache (LRU 2048) so repeated route searches reuse Yen K-shortest topology results.
+- Removed the redundant schedule-only scoring pass from automatic routing. Each candidate is now scored once against the shared realtime cache; calculate_route keeps the existing timetable fallback behavior.
+- Added `diagnostics.performance_ms` with candidate generation, realtime prefetch, candidate scoring, and total engine latency.
+- Added Railway persistent API deployment package for future web/mobile shared backend.

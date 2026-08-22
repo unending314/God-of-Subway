@@ -710,3 +710,58 @@ class Line2DirectionAndRealtimeRegressionTest(unittest.TestCase):
         self.assertEqual(recovered.get("location_kind"), "live")
         self.assertEqual(recovered.get("delay_source"), "live_context")
         self.assertEqual(recovered.get("confidence"), "중간")
+
+
+class KorailOriginHoldRegressionTest(unittest.TestCase):
+    def setUp(self):
+        self.original_now = engine.now_kst
+        engine.now_kst = lambda: datetime(2026, 8, 22, 14, 20, 0)
+
+    def tearDown(self):
+        engine.now_kst = self.original_now
+
+    def test_k5083_origin_arrival_before_departure_is_ignored(self):
+        row = {
+            "subwayNm": "경의중앙선",
+            "statnNm": "문산",
+            "trainNo": "K5083",
+            "recptnDt": "2026-08-22 14:15:00",
+            "trainSttus": "1",
+            "updnLine": "1",
+            "statnTnm": "덕소",
+        }
+        observations, diag = engine.observe_delays("경의중앙선", "SAT", [row], client_cache=[])
+        self.assertEqual(observations, [])
+        self.assertEqual(diag.get("origin_hold_ignored"), 1)
+        self.assertEqual(diag.get("origin_hold_examples", [])[0].get("train_no"), "K5083")
+
+    def test_k5083_cached_origin_delay_is_also_ignored(self):
+        cached = [{
+            "line": "경의중앙선",
+            "train_no": "K5083",
+            "observed_at": "2026-08-22 14:15:00",
+            "delay_seconds": -1200,
+            "current_station": "문산",
+            "status": "도착",
+        }]
+        observations, diag = engine.observe_delays("경의중앙선", "SAT", [], client_cache=cached)
+        self.assertFalse(any(o.get("train_no") == "K5083" for o in observations), observations)
+        self.assertEqual(diag.get("cached_exact"), 0)
+        self.assertEqual(diag.get("origin_hold_ignored"), 1)
+
+    def test_k5083_next_station_arrival_becomes_valid_live_signal(self):
+        row = {
+            "subwayNm": "경의중앙선",
+            "statnNm": "파주",
+            "trainNo": "K5083",
+            "recptnDt": "2026-08-22 14:38:30",
+            "trainSttus": "1",
+            "updnLine": "1",
+            "statnTnm": "덕소",
+        }
+        observations, diag = engine.observe_delays("경의중앙선", "SAT", [row], client_cache=[])
+        matched = [o for o in observations if o.get("train_no") == "K5083"]
+        self.assertEqual(len(matched), 1, (observations, diag))
+        self.assertEqual(round(matched[0].get("delay", 9999)), 0)
+        self.assertEqual(matched[0].get("current_station"), "파주")
+        self.assertEqual(diag.get("origin_hold_ignored"), 0)
