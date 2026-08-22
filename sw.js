@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'jigeumta-static-v14-11-5';
+const STATIC_CACHE = 'jigeumta-static-v14-11-7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

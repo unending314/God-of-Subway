@@ -1,5 +1,15 @@
 # 지금타 변경 기록
 
+## V14.11.7 — PWA 설치 감지/안내 강화
+
+- `beforeinstallprompt` 이벤트가 오지 않아도 설치 버튼을 숨기지 않고 플랫폼별 설치 안내를 제공.
+- Chromium에서는 실제 설치 프롬프트가 확보되면 즉시 `앱 설치` 모드로 전환.
+- iOS/iPadOS는 `공유 → 홈 화면에 추가`, Android/기타 브라우저는 메뉴 기반 설치 안내 fallback 제공.
+- standalone/fullscreen/minimal-ui 및 iOS `navigator.standalone`을 감지해 이미 설치된 앱에서는 설치 버튼을 숨김.
+- Service Worker를 `load` 대기 없이 즉시 등록하고 `ready`/updatefound/visibility/online 상태에서 업데이트 확인.
+- Service Worker 정적 캐시 키를 `jigeumta-static-v14-11-7`로 갱신. `/api/*` 비캐시 정책은 유지.
+
+
 ## V14.11.6 — 경의중앙선 서울역·가좌 분기 환승 보정
 
 - 서울역 경의중앙선↔1호선: 190초. 경의중앙선→1호선은 양방향 1-1, 1호선→경의중앙선은 남영 방면 8-2 / 시청 방면 3-4.

@@ -2246,25 +2246,124 @@ renderExperimentPanel();
 init().then?.(()=>restoreTrip());
 setTimeout(()=>{if(!liveTrip)restoreTrip()},700);
 
-// PWA 설치/업데이트. /api/*는 sw.js에서 캐시하지 않으므로 실시간 열차 데이터는 항상 네트워크를 사용한다.
+// PWA 설치/업데이트. beforeinstallprompt는 Chromium 중심의 비표준 이벤트라
+// 이벤트가 오지 않아도 설치 안내 UI를 유지한다. /api/*는 sw.js에서 캐시하지 않는다.
 let pwaInstallPrompt=null;
 let pwaRegistration=null;
+let pwaWorkerReady=false;
 const pwaInstallBtn=$('pwaInstall');
 const pwaUpdateBtn=$('pwaUpdate');
+const pwaDisplayModeQuery=window.matchMedia('(display-mode: standalone)');
+const pwaUa=navigator.userAgent||'';
+const pwaIos=/iPhone|iPad|iPod/i.test(pwaUa)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const pwaAndroid=/Android/i.test(pwaUa);
+const pwaMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(pwaUa)||navigator.maxTouchPoints>1;
+const pwaFirefox=/Firefox/i.test(pwaUa);
+const pwaSafari=/Safari/i.test(pwaUa)&&!/Chrome|Chromium|CriOS|Edg|OPR|SamsungBrowser/i.test(pwaUa);
+
+function isPwaStandalone(){
+ return navigator.standalone===true
+  ||pwaDisplayModeQuery.matches
+  ||window.matchMedia('(display-mode: fullscreen)').matches
+  ||window.matchMedia('(display-mode: minimal-ui)').matches
+  ||document.referrer.startsWith('android-app://');
+}
+function refreshPwaInstallUi(){
+ if(!pwaInstallBtn)return;
+ if(isPwaStandalone()){
+  pwaInstallBtn.hidden=true;
+  pwaInstallBtn.disabled=false;
+  pwaInstallBtn.textContent='앱 설치';
+  pwaInstallBtn.title='';
+  return;
+ }
+ // prompt 이벤트를 못 받은 브라우저에서도 설치 방법을 찾을 수 있게 항상 노출한다.
+ pwaInstallBtn.hidden=false;
+ pwaInstallBtn.disabled=false;
+ if(pwaInstallPrompt){
+  pwaInstallBtn.textContent='앱 설치';
+  pwaInstallBtn.title='지금타를 앱으로 설치';
+ }else if(pwaIos){
+  pwaInstallBtn.textContent='홈 화면에 추가';
+  pwaInstallBtn.title='공유 메뉴에서 홈 화면에 추가';
+ }else{
+  pwaInstallBtn.textContent='앱 설치 안내';
+  pwaInstallBtn.title='브라우저의 앱 설치 메뉴 안내';
+ }
+}
+function showPwaInstallFallback(){
+ if(pwaIos){
+  toast('공유 버튼 → 홈 화면에 추가를 선택하세요.');
+  return;
+ }
+ if(pwaAndroid){
+  toast('브라우저 메뉴(⋮) → 앱 설치 또는 홈 화면에 추가를 선택하세요.');
+  return;
+ }
+ if(pwaMobile){
+  toast('브라우저 공유/메뉴에서 홈 화면에 추가 또는 앱 설치를 선택하세요.');
+  return;
+ }
+ if(pwaFirefox){
+  toast('데스크톱 Firefox는 PWA 설치를 지원하지 않습니다. Chrome/Edge 또는 macOS Safari에서 열어주세요.');
+  return;
+ }
+ if(pwaSafari){
+  toast('Safari 메뉴 막대의 파일 → Dock에 추가를 선택하세요.');
+  return;
+ }
+ toast('주소창의 설치 아이콘 또는 브라우저 메뉴 → 앱 설치를 선택하세요.');
+}
 function showPwaUpdate(reg){
  pwaRegistration=reg||pwaRegistration;
  if(pwaRegistration?.waiting)pwaUpdateBtn.hidden=false;
 }
+
 window.addEventListener('beforeinstallprompt',e=>{
- e.preventDefault();pwaInstallPrompt=e;
- if(!window.matchMedia('(display-mode: standalone)').matches)pwaInstallBtn.hidden=false;
+ e.preventDefault();
+ pwaInstallPrompt=e;
+ refreshPwaInstallUi();
 });
-window.addEventListener('appinstalled',()=>{pwaInstallPrompt=null;pwaInstallBtn.hidden=true;toast('지금타가 홈 화면에 설치되었습니다.');});
+window.addEventListener('appinstalled',()=>{
+ pwaInstallPrompt=null;
+ refreshPwaInstallUi();
+ toast('지금타가 홈 화면에 설치되었습니다.');
+});
+window.addEventListener('pageshow',refreshPwaInstallUi);
+try{pwaDisplayModeQuery.addEventListener('change',refreshPwaInstallUi)}catch(e){try{pwaDisplayModeQuery.addListener(refreshPwaInstallUi)}catch(_) {}}
+
 pwaInstallBtn.onclick=async()=>{
- if(!pwaInstallPrompt)return;
- pwaInstallPrompt.prompt();
- try{await pwaInstallPrompt.userChoice}catch(e){}
- pwaInstallPrompt=null;pwaInstallBtn.hidden=true;
+ if(isPwaStandalone()){
+  refreshPwaInstallUi();
+  return;
+ }
+ const promptEvent=pwaInstallPrompt;
+ if(!promptEvent){
+  showPwaInstallFallback();
+  return;
+ }
+ pwaInstallPrompt=null; // 같은 BeforeInstallPromptEvent는 한 번만 사용할 수 있다.
+ pwaInstallBtn.disabled=true;
+ pwaInstallBtn.textContent='설치 확인 중';
+ let accepted=false;
+ try{
+  await promptEvent.prompt();
+  let choice=null;
+  try{choice=await promptEvent.userChoice}catch(e){}
+  if(choice?.outcome==='accepted'){
+   accepted=true;
+   toast('설치를 진행합니다.');
+  }else if(choice?.outcome==='dismissed'){
+   toast('설치를 취소했습니다. 브라우저 메뉴에서도 다시 설치할 수 있습니다.');
+  }
+ }catch(err){
+  reportClientLog('pwa_install_prompt_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'});
+  showPwaInstallFallback();
+ }finally{
+  pwaInstallBtn.disabled=false;
+  if(accepted)pwaInstallBtn.hidden=true;
+  else refreshPwaInstallUi();
+ }
 };
 pwaUpdateBtn.onclick=()=>{
  if(!pwaRegistration?.waiting)return;
@@ -2272,21 +2371,38 @@ pwaUpdateBtn.onclick=()=>{
  navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload(),{once:true});
  pwaRegistration.waiting.postMessage({type:'SKIP_WAITING'});
 };
-if('serviceWorker' in navigator){
- window.addEventListener('load',()=>{
-  navigator.serviceWorker.register('/sw.js').then(reg=>{
-   pwaRegistration=reg;
-   if(reg.waiting)showPwaUpdate(reg);
-   reg.addEventListener('updatefound',()=>{
-    const worker=reg.installing;if(!worker)return;
-    worker.addEventListener('statechange',()=>{
-     if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(reg);
-    });
+
+async function registerPwaWorker(){
+ if(!('serviceWorker' in navigator)){
+  reportClientLog('pwa_service_worker_unsupported','serviceWorker unsupported',{}, {level:'info',error_type:'PWAInfo'});
+  refreshPwaInstallUi();
+  return;
+ }
+ try{
+  // load 이벤트까지 기다리지 않고 즉시 등록해 첫 방문에서도 installability 판정을 앞당긴다.
+  const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/'});
+  pwaRegistration=reg;
+  if(reg.waiting)showPwaUpdate(reg);
+  reg.addEventListener('updatefound',()=>{
+   const worker=reg.installing;if(!worker)return;
+   worker.addEventListener('statechange',()=>{
+    if(worker.state==='installed'&&navigator.serviceWorker.controller)showPwaUpdate(reg);
    });
-   setInterval(()=>reg.update().catch(()=>{}),15*60*1000);
-  }).catch(err=>reportClientLog('pwa_service_worker_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'}));
- });
+  });
+  try{await navigator.serviceWorker.ready;pwaWorkerReady=true}catch(e){}
+  refreshPwaInstallUi();
+  // 탭을 다시 열거나 온라인으로 복귀할 때 새 SW를 즉시 확인한다.
+  const checkUpdate=()=>reg.update().catch(()=>{});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
+  window.addEventListener('online',checkUpdate);
+  setInterval(checkUpdate,15*60*1000);
+ }catch(err){
+  reportClientLog('pwa_service_worker_failed',err?.message||String(err),{}, {level:'warn',error_type:'PWAError'});
+  refreshPwaInstallUi();
+ }
 }
+refreshPwaInstallUi();
+registerPwaWorker();
 
 // GA4 KPI 계측.
 // 기존 코드를 수정하지 않고 스크립트 끝에서 래핑만 한다. 서비스 로직과 동시 작업시 충돌을 피하기 위함.
