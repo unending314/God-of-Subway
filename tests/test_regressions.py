@@ -87,7 +87,7 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
         known = (
             ("1호선", "K1602", {"월계", "녹천", "방학"}),
             ("경의중앙선", "K5702", {"효창공원앞", "서강대", "수색"}),
-            ("수인분당선", "K6402", {"매교", "매탄권선", "영통"}),
+            ("수인분당선", "K6300", {"매교", "매탄권선", "영통"}),
         )
         for line, train_no, expected_pass in known:
             tr = engine.get_train(line, "DAY", train_no)
@@ -100,7 +100,7 @@ class ExpressPassStationRegressionTest(unittest.TestCase):
         cases = (
             ("1호선", "K1602", "월계", "의정부"),
             ("경의중앙선", "K5702", "효창공원앞", "공덕"),
-            ("수인분당선", "K6402", "매교", "수원"),
+            ("수인분당선", "K6300", "매교", "수원"),
         )
         for line, train_no, start, end in cases:
             trains = list(engine.route_trains(line, "DAY", start, end))
@@ -489,6 +489,45 @@ class SharedTrackTransferRegressionTest(unittest.TestCase):
             detail = engine.best_transfer_detail(station, from_seg, to_seg, "DAY")
             self.assertEqual(detail["seconds"], 0, detail)
             self.assertTrue(detail.get("shared_track"), detail)
+
+
+
+
+class RevisedTimetable20260822Tests(unittest.TestCase):
+    def test_line4_revised_counts_and_weekend_copy(self):
+        self.assertEqual(len(engine.OFF["days"]["DAY"]["4"]), 475)
+        self.assertEqual(len(engine.OFF["days"]["SAT"]["4"]), 398)
+        self.assertEqual(len(engine.OFF["days"]["END"]["4"]), 398)
+        self.assertEqual(engine.OFF["days"]["SAT"]["4"], engine.OFF["days"]["END"]["4"])
+
+    def test_line4_k4402_is_express_and_skips_neunggil(self):
+        tr = engine.get_train("4호선", "DAY", "K4402")
+        self.assertIsNotNone(tr)
+        self.assertEqual(tr.get("service"), "express")
+        names = {s["station"] for s in tr["stops"]}
+        self.assertNotIn("능길", names)
+
+    def test_suin_revised_counts_and_new_express_number(self):
+        source = engine.EXTRA["수인분당선"]
+        self.assertEqual(len(source["trains"]["weekday"]), 437)
+        self.assertEqual(len(source["trains"]["holiday"]), 342)
+        self.assertIn("K6300", source["trains"]["weekday"])
+        self.assertNotIn("K6700", source["trains"]["weekday"])
+        tr = engine.get_train("수인분당선", "DAY", "K6300")
+        self.assertEqual(tr.get("service"), "express")
+        self.assertFalse(next(s for s in tr["stops"] if s["station"] == "매교")["call"])
+
+    def test_revised_timetables_have_monotonic_train_times(self):
+        for mode in ("DAY", "SAT", "END"):
+            for line in ("4호선", "수인분당선"):
+                for tr in engine.all_trains(line, mode):
+                    vals=[]
+                    for stop in tr["stops"]:
+                        if stop.get("arr") is not None:
+                            vals.append(stop["arr"])
+                        if stop.get("dep") is not None:
+                            vals.append(stop["dep"])
+                    self.assertEqual(vals, sorted(vals), (line, mode, tr.get("train_no")))
 
 
 if __name__ == "__main__":

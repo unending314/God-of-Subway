@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""지금타 V14.11.2 realtime collector.
+"""지금타 V14.11.3 realtime collector.
 
 사용자 요청과 분리해 서울시 realtimePosition을 노선 단위로 수집하고 Redis를 갱신한다.
 2026-08-21 2호선 실측에서 원천 recptnDt가 대체로 약 20초 간격으로 갱신되었지만,

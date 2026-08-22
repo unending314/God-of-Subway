@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""지금타 V14.11.2 realtime state store.
+"""지금타 V14.11.3 realtime state store.
 
 Redis 역할:
 - 노선별 최신 realtimePosition snapshot

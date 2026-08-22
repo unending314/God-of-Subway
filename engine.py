@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.11.2 — 코레일 시발역 오관측 방어 + 경로 후보 다양화
+지금타 V14.11.3 — 2026-08-22 4호선·수인분당선 개정시각표 반영
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
-  2~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
+  4호선: 서울시 realtimePosition + 2026-08-22 개정 안산·과천선 전동열차 시각표
+  2·3·5~9호선: 서울시 realtimePosition + 서울교통공사 공식 열차운행시각표(250930)
   신분당선: 서울시 realtimePosition(subwayId 1077)의 차량 식별값 + 운영사 공식 역간 소요시간 + 공개 역별 시각표
   신분당선 API trainNo 필드는 공개 열차번호가 아닌 차량 식별자로 취급하며, DXxxxx 형태의 과거 가상 열번은 사용하지 않는다.
   기타 실시간 지원 노선: 현재열차 trainNo -> 시간표 trainNo 매칭 -> 현재 지연 -> 향후 역 ETA
@@ -19,7 +20,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.11.2"
+APP_VERSION = "V14.11.3"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():
@@ -179,6 +180,7 @@ def cached_delay_rows(position_cache):
 STATION_ALIASES = {
     "서울": "서울역", "지하서울": "서울역",
     "성균관": "성균관대",
+    "당고개": "불암산",
     "가산디": "가산디지털단지",
     "금천구": "금천구청",
     "동두중": "동두천중앙",
