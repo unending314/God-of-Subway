@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-지금타 V14.11.3 — 2026-08-22 4호선·수인분당선 개정시각표 반영
+지금타 V14.11.4 — 2026-08-22 4호선·수인분당선 개정시각표 반영
 핵심:
   1호선: 서울시 realtimePosition + 사용자가 제공한 코레일 공식 평/휴일 시간표
   4호선: 서울시 realtimePosition + 2026-08-22 개정 안산·과천선 전동열차 시각표
@@ -20,7 +20,7 @@ from collections import defaultdict
 import realtime_store
 
 BASE = Path(__file__).resolve().parent
-APP_VERSION = "V14.11.3"
+APP_VERSION = "V14.11.4"
 KST = ZoneInfo("Asia/Seoul")
 
 def now_kst():

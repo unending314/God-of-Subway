@@ -33,7 +33,7 @@
       "인천2호선"
     ],
     "fallback_seconds": 180,
-    "note": "V14.5 completed transfer data + exact direction-specific transfer times for 총신대입구(이수) 4호선↔7호선.",
+    "note": "V14.11.4: 디지털미디어시티 6호선·경의중앙선·공항철도 상호 환승시간 사용자 검증값 반영.",
     "position_patch_policy": "Existing populated/verified positions are preserved. MOLIT rows are imported only when source and target directions resolve against the current timetable and the exact direction combo has a single unambiguous car-door position. Imported records are direction_strict.",
     "zero_second_rule": "Same-platform/service-change transfers may be 0 seconds; engine preserves numeric zero.",
     "position_precedence": [
@@ -42,11 +42,12 @@
       "official_public_data",
       "legacy_verified_data"
     ],
-    "user_transfer_patch_date": "2026-08-20",
+    "user_transfer_patch_date": "2026-08-22",
     "user_transfer_patch_sources": [
       "지금타_빠른환승위치_미입력_입력용.csv",
       "지금타_환승시간_미입력_입력용.csv",
-      "총신대입구(이수) 방향별 환승시간 사용자 입력 2026-08-20"
+      "총신대입구(이수) 방향별 환승시간 사용자 입력 2026-08-20",
+      "디지털미디어시티 환승시간 사용자 입력 2026-08-22 (6↔경의중앙 2:20, 공항↔6 6:30, 공항↔경의중앙 9:20)"
     ],
     "time_patch_policy": "Directed pair default_seconds is user-entered. Record seconds inherit the directed-pair value unless an explicit direction-specific user note overrides it."
   },
@@ -3957,7 +3958,7 @@
       "to_line": "경의중앙선",
       "distance_m": 55,
       "distance_seconds": 46,
-      "default_seconds": 600,
+      "default_seconds": 140,
       "records": [
         {
           "from_direction": "월드컵경기장",
@@ -3966,7 +3967,8 @@
           "to_direction": "가좌",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "월드컵경기장",
@@ -3975,7 +3977,8 @@
           "to_direction": "수색",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "증산",
@@ -3984,7 +3987,8 @@
           "to_direction": "가좌",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "증산",
@@ -3993,9 +3997,11 @@
           "to_direction": "수색",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "불광|6호선|3호선": {
       "station": "불광",
@@ -6068,7 +6074,7 @@
       "to_line": "6호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 140,
       "records": [
         {
           "from_direction": "가좌",
@@ -6077,7 +6083,8 @@
           "to_direction": "월드컵경기장",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "가좌",
@@ -6086,7 +6093,8 @@
           "to_direction": "증산",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "수색",
@@ -6095,7 +6103,8 @@
           "to_direction": "월드컵경기장",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "수색",
@@ -6104,9 +6113,11 @@
           "to_direction": "증산",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 140,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "금정|4호선|1호선": {
       "station": "금정",
@@ -8075,7 +8086,7 @@
       "to_line": "공항철도",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 560,
       "records": [
         {
           "from_direction": "가좌",
@@ -8084,7 +8095,8 @@
           "to_direction": "마곡나루",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "가좌",
@@ -8093,7 +8105,8 @@
           "to_direction": "홍대입구",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "수색",
@@ -8102,7 +8115,8 @@
           "to_direction": "마곡나루",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "수색",
@@ -8111,9 +8125,11 @@
           "to_direction": "홍대입구",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "문산|경의중앙선|경의중앙선": {
       "station": "문산",
@@ -8534,7 +8550,7 @@
       "to_line": "공항철도",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 390,
       "records": [
         {
           "from_direction": "월드컵경기장",
@@ -8543,7 +8559,8 @@
           "to_direction": "마곡나루",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "월드컵경기장",
@@ -8552,7 +8569,8 @@
           "to_direction": "홍대입구",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "증산",
@@ -8561,7 +8579,8 @@
           "to_direction": "마곡나루",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "증산",
@@ -8570,9 +8589,11 @@
           "to_direction": "홍대입구",
           "board_car": "6",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "공덕|6호선|공항철도": {
       "station": "공덕",
@@ -9015,7 +9036,7 @@
       "to_line": "경의중앙선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 560,
       "records": [
         {
           "from_direction": "마곡나루",
@@ -9024,7 +9045,8 @@
           "to_direction": "가좌",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "마곡나루",
@@ -9033,7 +9055,8 @@
           "to_direction": "수색",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "홍대입구",
@@ -9042,7 +9065,8 @@
           "to_direction": "가좌",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "홍대입구",
@@ -9051,9 +9075,11 @@
           "to_direction": "수색",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 560,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "디지털미디어시티|공항철도|6호선": {
       "station": "디지털미디어시티",
@@ -9061,7 +9087,7 @@
       "to_line": "6호선",
       "distance_m": null,
       "distance_seconds": null,
-      "default_seconds": 600,
+      "default_seconds": 390,
       "records": [
         {
           "from_direction": "마곡나루",
@@ -9070,7 +9096,8 @@
           "to_direction": "월드컵경기장",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "마곡나루",
@@ -9079,7 +9106,8 @@
           "to_direction": "증산",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "홍대입구",
@@ -9088,7 +9116,8 @@
           "to_direction": "월드컵경기장",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         },
         {
           "from_direction": "홍대입구",
@@ -9097,9 +9126,11 @@
           "to_direction": "증산",
           "board_car": "8",
           "board_door": "4",
-          "seconds": 600
+          "seconds": 390,
+          "time_source": "user_direct_verification_2026-08-22"
         }
-      ]
+      ],
+      "time_source": "user_direct_verification_2026-08-22"
     },
     "김포공항|공항철도|5호선": {
       "station": "김포공항",

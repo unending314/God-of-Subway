@@ -530,6 +530,36 @@ class RevisedTimetable20260822Tests(unittest.TestCase):
                     self.assertEqual(vals, sorted(vals), (line, mode, tr.get("train_no")))
 
 
+class DigitalMediaCityTransferTimeV14114Test(unittest.TestCase):
+    def test_dmc_pair_default_seconds_are_user_verified(self):
+        expected = {
+            frozenset(("6호선", "경의중앙선")): 140,
+            frozenset(("6호선", "공항철도")): 390,
+            frozenset(("경의중앙선", "공항철도")): 560,
+        }
+        for key, pair in engine.TRANSFER_DATA["pairs"].items():
+            if pair.get("station") != "디지털미디어시티":
+                continue
+            lines = frozenset((pair.get("from_line"), pair.get("to_line")))
+            if lines not in expected:
+                continue
+            self.assertEqual(pair.get("default_seconds"), expected[lines], key)
+            for record in pair.get("records", []):
+                self.assertEqual(record.get("seconds"), expected[lines], (key, record))
+
+    def test_dmc_transfer_seconds_are_symmetric(self):
+        cases = [
+            ("6호선", "경의중앙선", 140),
+            ("경의중앙선", "6호선", 140),
+            ("공항철도", "6호선", 390),
+            ("6호선", "공항철도", 390),
+            ("공항철도", "경의중앙선", 560),
+            ("경의중앙선", "공항철도", 560),
+        ]
+        for from_line, to_line, expected in cases:
+            self.assertEqual(engine.transfer_seconds("디지털미디어시티", from_line, to_line), expected)
+
+
 if __name__ == "__main__":
     unittest.main()
 

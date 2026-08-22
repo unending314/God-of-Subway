@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "지금타",
+    "slug": "jigeumta",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jigeumta.app"
+    },
+    "android": {
+      "package": "com.jigeumta.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/jigeumta_logo_140.png",
+        "backgroundColor": "#0B1219"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
